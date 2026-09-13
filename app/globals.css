@@ -261,7 +261,7 @@ legend { font-size: var(--step--1); font-weight: 600; color: var(--ink-soft); pa
 .subject.money { color: var(--subj-money); background: var(--subj-money-bg); }
 .subject.prohibition { color: var(--subj-prohibition); background: var(--subj-prohibition-bg); }
 .subject.platform, .subject.applicant { color: var(--subj-platform); background: var(--subj-platform-bg); }
-.status-pill { font-size: 0.74rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; border: 1px solid transparent; }
+.status-pill { display: inline-block; white-space: nowrap; font-size: 0.74rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; border: 1px solid transparent; }
 .status-pill.active { color: var(--forest); background: var(--forest-soft); border-color: #c9dccf; }
 .status-pill.halted { color: #fff; background: var(--ev-unknown); }
 .status-pill.informational { color: var(--mute); background: var(--sand-deep); }
@@ -282,7 +282,7 @@ table.data.compact td, table.data.compact th { padding: 5px 8px; }
 
 /* Machine and timeline */
 .machine { display: flex; flex-wrap: wrap; gap: 8px; }
-.state { border: 1px solid var(--rule); border-radius: var(--radius); padding: 6px 10px; font-size: var(--step--1); background: var(--paper); color: var(--ink-soft); }
+.state { display: inline-block; border: 1px solid var(--rule); border-radius: var(--radius); padding: 6px 10px; font-size: var(--step--1); background: var(--paper); color: var(--ink-soft); }
 .state.current { border-color: var(--forest); background: var(--forest-soft); color: var(--forest-deep); font-weight: 700; }
 .state.terminal { border-style: double; }
 .state.halted { border-color: var(--ev-unknown); color: var(--ev-unknown); }
