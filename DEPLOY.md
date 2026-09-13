@@ -1,62 +1,66 @@
 # Deploying the prototype
 
-Two things to do before the proposal is sent: put the repository on GitHub as a public repository, and deploy it to a free instance in an EU region. Both are described step by step. Nothing here needs a paid account.
+The prototype is deployed as a Docker web service on **Render**, in the **Frankfurt** region, on the free plan.
+
+- Live URL: https://genelink-prototype.onrender.com
+- Source: https://github.com/vkakorsu/genelink-prototype (public, `main` branch)
 
 The demo holds no personal data and uses fictional parties, so a free tier is appropriate. It is still deployed in the EU on purpose: the platform will hold personal data of EU users in production, and the proposal says EU-resident hosting from day one. The demo should not contradict that.
 
-## Part A. Push the repository to GitHub (public)
+## How it was deployed
 
-1. Sign in to GitHub. Create a new repository named `genelink-prototype`. Set it to **Public**. Do not initialise it with a README, licence or `.gitignore` (the project already has them).
-2. In a terminal, from the `genelink-prototype` directory:
+The repository is public on GitHub under `vkakorsu/genelink-prototype`, with GitHub Actions (`.github/workflows/ci.yml`) running the configuration linter, the type check, the 52 tests and the production build on every push.
 
-   ```bash
-   git status                          # the repository was initialised by create-next-app
-   git add -A
-   git commit -m "GENE-LINK MVP prototype: configuration-driven ABS pathways for Colombia, Kenya and the Brazil dry run"
-   git branch -M main
-   git remote add origin https://github.com/<your-github-username>/genelink-prototype.git
-   git push -u origin main
-   ```
+The Render service was created with the official Render CLI (`render` v2.28.0), authenticated via device authorization:
 
-3. Confirm the repository is public by opening it in a private browser window. The README should render with the table of what the prototype proves.
-4. Copy the URL. It replaces `[REPO_URL]` in every submission document and in the README itself.
+```powershell
+render login
+render workspace set <workspace-id>
+render services create `
+  --name genelink-prototype `
+  --type web_service `
+  --repo https://github.com/vkakorsu/genelink-prototype `
+  --branch main `
+  --runtime docker `
+  --region frankfurt `
+  --plan free `
+  --health-check-path / `
+  --env-var NODE_ENV=production `
+  --env-var NEXT_TELEMETRY_DISABLED=1 `
+  --confirm
+```
 
-The repository already includes `.github/workflows/ci.yml`, so GitHub Actions runs the configuration linter, the type check, the 52 tests and the production build on every push. Evaluators will see the green check.
+Render builds the `Dockerfile` at the repository root. The Dockerfile runs `npm run test:ci` inside the image build, so a failing test fails the deploy. The container listens on port 3000; Render routes public traffic to it automatically.
 
-## Part B. Deploy to Northflank, Frankfurt, free tier
+## Keeping the free instance awake
 
-Northflank's free sandbox gives you an always-on service in an EU region (Frankfurt or Amsterdam), no credit card required, and it builds straight from the Dockerfile in the repository. Unlike Render's free tier it does not sleep, which is why this is the recommended host.
+Render's free plan spins a service down after 15 minutes without traffic and it takes up to a minute to wake. For the evaluation period this is masked with a free [UptimeRobot](https://uptimerobot.com) monitor:
 
-1. Sign up at northflank.com with your GitHub account. Stay on the free Sandbox plan (it includes two always-on services; you only need one).
-2. Create a **Project**. When asked for a region, choose **Europe - West - Frankfurt** (`europe-west-frankfurt`). Amsterdam (`europe-west-netherlands`) is an equally good alternative.
-3. In the project, create a new **Service** of type **Deployment**.
-4. Under source, connect your GitHub account if prompted and select the `genelink-prototype` repository.
-5. For build type choose **Dockerfile** (it is at the repository root). Northflank builds the image and deploys the container. The Dockerfile runs the test suite inside the build, so a failing test fails the deploy.
-6. In the service's port settings, expose port **3000** as HTTP and public. The container listens on 3000 by default (`PORT` env var is respected if you prefer another).
-7. Set environment variables `NODE_ENV=production` and `NEXT_TELEMETRY_DISABLED=1` if you want to be explicit; the image works without them.
-8. Choose the smallest compute plan the sandbox offers (the app needs well under 512 MB). Deploy.
-9. When the service shows running, open the URL Northflank assigns (a `code.run` address). Check:
-   - The home page loads and the banner reads "Prototype with fictional parties".
-   - `/persona` lists the seats. Act as Dr Ines Halvorsen. `/cases` shows three cases.
-   - `/cases/case_1_ke` shows two halted stages.
-   - `/verify` reports the audit chain verified.
-10. Copy the URL. It replaces `[PROTOTYPE_URL]` in every submission document.
+1. Create an UptimeRobot account (free, no card).
+2. Add an **HTTP(s)** monitor for `https://genelink-prototype.onrender.com` with a 5-minute interval.
+3. The ping prevents the idle spin-down and stays well within the 750 free instance hours Render allows per month.
 
-### Redeploying after a change
+This is an external keep-alive for a demo, not a production pattern. In production the platform runs on paid, always-on infrastructure.
 
-Push to `main`. Northflank rebuilds and redeploys the service automatically when connected to Git. The previous version stays live if the build fails, because the tests run inside the Docker build.
+## Redeploying after a change
 
-### If Northflank gives trouble
+```powershell
+render deploys create <service-id> --confirm
+```
 
-Two free alternatives, in order of preference:
+Find the service id with `render services list`. To get automatic deploys on every push to `main`, connect the GitHub account in the Render dashboard under the service's **Settings > Build & Deploy** (the service was created over the public HTTPS URL, so Render can clone it but does not receive push webhooks until GitHub is connected).
 
-- **Oracle Cloud Always Free.** A small VM (AMD `VM.Standard.E2.1.Micro`, or Ampere ARM where capacity allows) in Frankfurt or Amsterdam that is free forever and never sleeps. Sign-up asks for a card for identity verification but does not charge. Setup: create the VM with Ubuntu 24.04, open ports 80 and 443 in the security list, install Docker (`curl -fsSL https://get.docker.com | sh`), clone the repo, `docker build -t genelink-prototype .`, then `docker run -d -p 80:3000 --restart unless-stopped genelink-prototype`. More steps than Northflank, but the most robust free option and it will keep running long after the evaluation. If Ampere shows "out of host capacity", use the AMD micro shape or another availability domain.
-- **Render.** Free web service in Frankfurt, no card, deploys from the same Dockerfile. Its free instances sleep after 15 minutes without traffic and take up to a minute to wake, which is the main reason it is not the first choice. If you use it, a free UptimeRobot monitor pinging the URL every five minutes keeps it awake within the 750 free instance hours per month.
+## Alternatives considered
 
-A paid fallback that always works: a Hetzner CX22 in Falkenstein or Nuremberg is a few euros a month and runs the same `docker run` command as the Oracle option.
+- **Northflank free sandbox.** Advertised as always-on in EU regions, but the EU regions are pay-as-you-go at sign-up and a card is required. Rejected.
+- **Koyeb free, Frankfurt.** Requires a card, defaults new sign-ups to a paid plan, and the free instance still scales to zero after an hour idle. Rejected.
+- **Oracle Cloud Always Free VM, Frankfurt.** The most robust free option (a real VM that never sleeps) but requires a card for identity verification and manual VM setup: Ubuntu 24.04, open ports 80/443, install Docker, `docker build -t genelink-prototype .`, `docker run -d -p 80:3000 --restart unless-stopped genelink-prototype`.
+- **Hetzner CX22** (Falkenstein or Nuremberg), a few euros a month, same `docker run` command. Paid fallback if the free tier changes terms.
 
-## Part C. After deploying
+## Verification checklist
 
-1. Replace `[PROTOTYPE_URL]` and `[REPO_URL]` in every file in `submission-genelink/` and in this repository's README.
-2. Open the live URL in a private window and click every screen in the guided tour on the home page.
-3. Re-export the submission PDFs.
+1. Open https://genelink-prototype.onrender.com in a private window.
+2. The home page loads and the banner reads "Prototype with fictional parties".
+3. `/persona` lists the seats. `/cases` shows the seeded cases.
+4. `/cases/case_1_ke` shows halted stages routing to a named owner.
+5. `/verify` reports the audit chain verified.
