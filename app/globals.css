@@ -78,6 +78,7 @@ body {
   color: var(--ink);
   background: var(--sand);
   -webkit-font-smoothing: antialiased;
+  overflow-wrap: break-word;
 }
 
 a {
@@ -169,10 +170,10 @@ footer.site .topbar-inner { padding: 16px 20px; }
 .grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .grid.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 @media (max-width: 900px) { .grid.cols-3, .grid.cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 640px) { .grid.cols-2, .grid.cols-3, .grid.cols-4 { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .grid.cols-2, .grid.cols-3, .grid.cols-4 { grid-template-columns: minmax(0, 1fr); } }
 .two-col { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: stretch; }
 .two-col > aside { min-width: 0; }
-@media (max-width: 960px) { .two-col { grid-template-columns: 1fr; } }
+@media (max-width: 960px) { .two-col { grid-template-columns: minmax(0, 1fr); } }
 .sticky { position: sticky; top: 16px; }
 .stack > * + * { margin-top: 12px; }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -279,6 +280,7 @@ table.data th { text-align: left; background: var(--forest); color: #fff; paddin
 table.data td { padding: 7px 10px; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
 table.data tbody tr:nth-child(even) td { background: var(--sand); }
 table.data.compact td, table.data.compact th { padding: 5px 8px; }
+@media (max-width: 760px) { table.data { display: block; overflow-x: auto; } }
 
 /* Machine and timeline */
 .machine { display: flex; flex-wrap: wrap; gap: 8px; }
