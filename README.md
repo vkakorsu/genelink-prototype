@@ -2,7 +2,7 @@
 
 A working implementation of the GENE-LINK partnership journey, built for the Landscape Alliance (CIFOR and ICRAF) Request for Proposals of 3 September 2026 by Vincent Kofi Akorsu, independent technical consultant, Ho, Ghana.
 
-Live demo: [PROTOTYPE_URL] (free EU-region instance, Frankfurt, fictional parties, state resets when the instance sleeps)
+Live demo: [PROTOTYPE_URL] (free EU-region instance, Frankfurt, fictional parties, state resets on redeploy)
 
 This is not a mock-up. It is the seed of the MVP codebase: the stack the proposal recommends for production, structured as the production system will be structured. On contract award it becomes the MVP.
 
