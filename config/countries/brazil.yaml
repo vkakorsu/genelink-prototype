@@ -1,0 +1,494 @@
+# GENE-LINK country configuration · Brazil · DRY RUN
+# Written after the engine was finished, with no engine change. This is the R2 test.
+# Transcribed from RFP Appendix B (A2, A5, A6, A7 and the Brazil flow diagram).
+#   § established · ▸ GENE-LINK's reading · ? unresolved · ⊘ not executable · [GL] GENE-LINK's own construct
+
+schemaVersion: 1
+code: BR
+name: Brazil
+legalInstruments:
+  - Lei 13.123/2015
+  - Decreto 8.772/2016
+  - Decreto 13.014/2026 (in force 11 June 2026, inserting Arts. 22-B to 22-E)
+
+operativeInstrumentStatus:
+  state: established
+  marker: "§"
+  value: Lei 13.123/2015 and Decreto 8.772/2016 are operative. Decreto 13.014/2026 rewrote the foreign company route from 11 June 2026.
+  citation: Decreto 13.014/2026, DOU 11 Jun 2026
+
+nagoyaParty:
+  state: established
+  marker: "§"
+  value: Deposited 4 Mar 2021, in force for Brazil 2 Jun 2021, promulgated by Decreto 11.865/2023, which expressly identifies Lei 13.123/2015 as Brazil's implementing law.
+  citation: Decreto 11.865/2023
+euSide:
+  state: established
+  marker: "§"
+  value: Brazil is a Party. The SisGen receipt is declaratory registration, not a permit. Whether and when the registration reaches the ABS Clearing-House as an IRCC follows the national workflow.
+  citation: Nagoya Protocol Art. 17
+
+escalation:
+  defaultOwnerRole: GENE-LINK Brazil escalation owner (legal focal point)
+  defaultOwnerName: null # pending Landscape Alliance
+
+scope:
+  premise: >-
+    This configuration maps the commercial route only. Brazil does not split the application by declared
+    purpose. Lei Art. 12 §2 gates on downstream acts and Decreto Art. 22 is one form, so the commercial
+    premise decides which triggers occur rather than which form is filed. Benefit sharing attaches only at
+    economic exploitation of a finished product. A purely academic user reaches the publication trigger and
+    stops there.
+  questions:
+    - id: activity
+      fact: activity
+      prompt: What will be done with the material or the data?
+      options:
+        - id: research_development
+          label: Research or technological development on Brazilian genetic heritage
+        - id: economic_exploitation
+          label: Economic exploitation of a finished product that used Brazilian genetic heritage
+        - id: database_reading
+          label: Only reading or consulting sequence databases
+          hint: Not access, unconditionally (Decreto Art. 107, parágrafo único).
+        - id: database_extraction
+          label: Comparing or extracting information from databases
+          hint: Not access only while outside research and development (Art. 107 VI).
+  rules:
+    - id: non_commercial_out_of_scope
+      when: { purpose: non_commercial }
+      result: out_of_scope
+      basis:
+        state: established
+        marker: "§"
+        value: A purely academic user reaches the publication trigger and stops there. Two of the five triggers presuppose commerce. GENE-LINK access is commercial by design, so the non-commercial journey is routed to a stated out-of-scope position.
+        citation: Lei Art. 12 §2; Arts. 16, 17
+      redirect: Academic registration route in SisGen, outside GENE-LINK
+    - id: database_reading_not_access
+      when: { activity: database_reading }
+      result: out_of_scope
+      basis:
+        state: established
+        marker: "§"
+        value: Não configura acesso a leitura ou a consulta de informações de origem genética disponíveis em bancos de dados nacionais e internacionais, ainda que sejam parte integrante de pesquisa e desenvolvimento tecnológico. No cadastro, no obligation, no state.
+        citation: Decreto Art. 107, parágrafo único
+      redirect: Not access. Nothing is filed.
+    - id: database_extraction_in_rd
+      when: { activity: database_extraction }
+      result: escalate
+      basis:
+        state: unknown
+        marker: "?"
+        note: >-
+          Comparison and extraction are excluded only while outside R&D (Art. 107 VI). Extraction inside R&D
+          falls back under Lei Art. 2 I. The consolidated Art. 107 text could not be retrieved from Planalto
+          or the DOU on 13 Aug 2026. Wording is verbatim from three federal university compliance offices
+          (USP, UFSM, FURG), which agree. Whether Art. 107 also carries §1 and §2 is unresolved. Confirm
+          against the consolidated text before release.
+        citation: Decreto Art. 107 VI
+        owner: Consolidated text confirmation, routed to the Brazil escalation owner
+        drives: true
+    - id: foreign_natural_person_barred
+      when: { applicantType: foreign_natural }
+      result: out_of_scope
+      basis:
+        state: established
+        marker: "§"
+        value: É vedado o acesso por pessoa natural estrangeira. No route exists. The journey ends here.
+        citation: Lei Art. 11 §1
+      redirect: Prohibited. No route exists for a foreign natural person.
+    - id: in_scope
+      result: in_scope
+      basis:
+        state: established
+        marker: "§"
+        value: >-
+          Patrimônio genético is informação de origem genética (Lei Art. 2 I) and access is research or
+          technological development on that information (Art. 2 VIII), including provenance ex situ or in
+          silico. Brazil sets scope by activity, never by whether a function was previously demonstrated or by
+          whether the material was purchased. Art. 17 §1 names the manufacturer of the finished product as
+          obligor irrespective of who did the research.
+        citation: Lei Art. 2 I, VIII; Art. 16; Art. 17 §1
+
+eligibility:
+  - id: foreign_company_association
+    text: A foreign company registers only associated with a Brazilian research institution. It can never register in its own name.
+    when: { applicantType: foreign_legal }
+    reg: { state: "established", marker: "§", value: "A Brazilian co-registrant record is required.", citation: "Lei Art. 12 II" }
+  - id: art27_areas
+    text: Where the material is in the border strip, oceanic islands, jurisdictional waters, the continental shelf or the EEZ and a foreign nexus exists, prior assent from the Conselho de Defesa Nacional or the Comando da Marinha is required and the cadastro moves to awaiting assent.
+    when: { applicantType: [foreign_legal, foreign_natural] }
+    reg: { state: "established", marker: "§", value: "Filling in the SisGen form is the request. SisGen notifies within 5 days, the authority has 60 days, suspended while information is outstanding. Assent is revocable and a change of ownership must be reported within 30 days.", citation: "Decreto Arts. 27, 28, 29" }
+
+consentOrder:
+  state: established
+  marker: "§"
+  value: Consent must precede access to identifiable traditional knowledge. Registration otherwise attaches to downstream acts, not to the start of research. Research may begin with no registration, with two exceptions, Art. 9 consent and Art. 27 areas.
+  citation: Lei Art. 9; Lei Art. 12 §2; Decreto Art. 27
+
+stages:
+  - id: intake
+    title: GENE-LINK intake
+    subject: platform
+    trig: A party opens a case with Brazil as provider country
+    who: The parties
+    needs: [Function needed, evidence of function, candidate species, intended commercial endpoint, which downstream acts are contemplated]
+    gives: A scope answer on the activity test and a generated pathway
+    requirements:
+      - id: function_taxonomy
+        text: Which function does the company need? Drawn from the 48-code function list.
+        reg: { state: "inferred", marker: "[GL]", value: "GENE-LINK's own taxonomy. It has no status in Brazilian law and maps to nothing in SisGen." }
+  - id: registrant
+    title: Who holds the registration
+    subject: government
+    trig: The legal personality and nationality of the entity that will be named in SisGen, not the location of the lab and not the funder
+    who: The applicant and, where foreign, the Brazilian research institution
+    needs: [Registrant identity, association instrument where the registrant is a foreign company]
+    gives: A registrant capable of holding the cadastro
+    requirements:
+      - id: association_instrument
+        text: Ordinary Art. 12 II association where genuine scientific collaboration exists. Where none exists, Decreto Art. 22-B supplies a termo de associação para fins de cadastro of exclusively instrumental and regulatory nature. Art. 22-C makes it unavailable where collaboration does exist or where the Brazilian body is an importer, subsidiary, controlled, affiliated, linked or commercial representative of the foreign company.
+        when: { applicantType: foreign_legal }
+        reg: { state: "established", marker: "§", value: "Two instruments, selected on whether genuine scientific collaboration exists.", citation: "Lei Art. 12 II; Decreto Arts. 22-B, 22-C" }
+      - id: genuine_collaboration_undefined
+        text: Neither decree defines genuine scientific collaboration.
+        when: { applicantType: foreign_legal }
+        reg:
+          state: unknown
+          marker: "?"
+          note: No test is supplied. This cannot be a self-declared checkbox. It decides which instrument applies and Art. 22-C makes a wrong answer an eligibility defect. Escalate to legal review, do not model as a field (R5).
+          citation: Decreto Arts. 22-B, 22-C
+          owner: Legal review, routed to the Brazil escalation owner
+          drives: true
+  - id: traditional_knowledge
+    title: Associated traditional knowledge
+    subject: community
+    when: { tkInvolved: [yes, unclear] }
+    trig: The research uses knowledge held by an indigenous people, traditional community or traditional farmer, independently of whether that knowledge is written down anywhere
+    who: The community, through its own traditional organisation or community protocol
+    needs: [Explanation of the activity and its impacts in accessible language, express statement of the right to refuse, joint discussion of benefit-sharing modalities]
+    gives: Consent in one of four proof forms chosen by the community
+    consentParties:
+      - id: tk_community
+        label: Indigenous people, traditional community or traditional farmer holding the knowledge
+        reg: { state: "established", marker: "§", value: "Run the consent process, not merely collect proof. Consent must precede access to identifiable traditional knowledge.", citation: "Lei Art. 9; Decreto Arts. 15, 16, 17" }
+    requirements:
+      - id: identifiable_default
+        text: Decreto Art. 12 §3 makes identifiable the default presumption. Unidentifiable must be established, not assumed.
+        reg: { state: "established", marker: "§", value: "Identifiable is the default presumption.", citation: "Decreto Art. 12 §3" }
+      - id: proof_forms
+        text: The community chooses the form of proof, signed term, audiovisual record, opinion of an official body, or adhesion under a community protocol.
+        reg: { state: "established", marker: "§", value: "Decreto Art. 15.", citation: "Decreto Art. 15" }
+      - id: non_identifiable_monetary
+        text: Where the origin cannot be identified, no consent is required but benefit sharing is monetary only, into the national fund, 1% by default, reducible to 0.1% by sectoral agreement.
+        reg: { state: "established", marker: "§", value: "Lei Art. 9 §2, Art. 23.", citation: "Lei Art. 9 §2; Art. 23" }
+      - id: standing_attribution
+        text: Every publication, use, exploitation and disclosure must cite the origin of the traditional knowledge. This never expires and is not discharged by the cadastro.
+        reg: { state: "established", marker: "§", value: "Failure is an offence under Decreto Art. 84.", citation: "Lei Art. 10 II; Decreto Art. 84" }
+  - id: downstream_triggers
+    title: The five triggers (the cadastro must precede each)
+    subject: government
+    trig: One of the five downstream acts is about to occur, shipping material or data abroad, filing any IP application, selling an intermediate product, publishing results final or partial, exploiting a finished product
+    who: The registrant
+    needs: [Which downstream act is about to occur]
+    gives: The point at which the cadastro must exist
+    requirements:
+      - id: five_triggers
+        text: Research may begin with no registration. Brazil gates the outputs, not the access. The cadastro must precede each of the five acts.
+        reg: { state: "established", marker: "§", value: "Lei Art. 12 §2.", citation: "Lei Art. 12 §2" }
+      - id: publication_catches_academic
+        text: Publication of results, final or partial, requires the cadastro first. This catches the academic partner, who is often not the registrant.
+        reg: { state: "established", marker: "§", value: "Cadastro first.", citation: "Lei Art. 12 §2" }
+  - id: registration
+    title: SisGen registration
+    subject: government
+    usesStateMachine: true
+    trig: The Decreto Art. 22 form is completed, including provenance for ex situ and in silico sources
+    who: SisGen, automatically, no human decision. Then CGen for verification
+    needs: [The Art. 22 form content]
+    gives: A receipt issued automatically. Declaratory registration, not a permit. Verification stays open.
+    produces: [sisgen_receipt]
+    requirements:
+      - id: receipt_automatic
+        text: The receipt issues automatically on completing the form. No waiting.
+        reg: { state: "established", marker: "§", value: "Decreto Art. 23 §2.", citation: "Decreto Art. 23 §2" }
+      - id: verification_open
+        text: Receipt issued is not registration complete. A pending state resolves to verified, correction required or cancelled.
+        reg: { state: "established", marker: "§", value: "Decreto Arts. 36 to 40.", citation: "Decreto Arts. 36 to 40" }
+      - id: one_registration_many_acts
+        text: One registration supports multiple downstream acts. A change of material or objective requires a new cadastro.
+        reg: { state: "established", marker: "§", value: "Decreto Art. 23 §1, Art. 22 §5.", citation: "Decreto Art. 23 §1; Art. 22 §5" }
+  - id: sending_abroad
+    title: Sending material abroad (two regimes)
+    subject: government
+    when: { exchange: [title_transfer, service_shipment] }
+    trig: A sample leaves Brazil
+    who: Brazilian sender and foreign recipient
+    needs: [Termo de Transferência de Material where title passes, or the envio route where the sample goes for a service and is returned or destroyed]
+    gives: A lawful transfer
+    requirements:
+      - id: remessa
+        text: Remessa, where title passes, requires a Termo de Transferência de Material with mandatory clauses, Brazilian law and forum, the recipient is not deemed a provider, any onward transfer needs its own TTM carrying the same clauses.
+        when: { exchange: title_transfer }
+        reg: { state: "established", marker: "§", value: "Decreto Art. 25 §§2 to 3.", citation: "Decreto Art. 25" }
+      - id: envio
+        text: Envio, for a service abroad with return or destruction, is exempt from the written instrument where the sample goes purely for sequencing. §8 preserves only the return-or-destroy and prohibition clauses. The instrument is the Decreto, not Lei Art. 24.
+        when: { exchange: service_shipment }
+        reg: { state: "established", marker: "§", value: "Decreto Art. 24 §§7 to 8.", citation: "Decreto Art. 24 §7, §8" }
+      - id: applies_to_data
+        text: Whether the transfer regimes reach research results or data.
+        reg: { state: "unknown", marker: "?", note: "Not established for Brazil. Malaysia s.19(1) expressly reaches research results. The Brazilian position has not been checked.", owner: "Brazil escalation owner" }
+  - id: benefit_sharing
+    title: Benefit sharing (run the incidence tests before calculating)
+    subject: money
+    when: { activity: economic_exploitation }
+    trig: Economic exploitation of a finished product
+    who: The manufacturer of the finished product, or the producer of reproductive material. Where the product is made abroad, the importer is jointly liable.
+    needs: [Incidence test 1, main element of added value. Incidence test 2, exemptions and non-incidence. Notification before the first sales invoice.]
+    gives: A benefit-sharing obligation, or a recorded non-incidence
+    requirements:
+      - id: incidence_test_1
+        text: Was the genetic heritage the main element of added value? Is the component determinant of the product's function or of its marketing appeal?
+        reg: { state: "established", marker: "§", value: "Lei Art. 2 XVI and XVIII, Art. 17.", citation: "Lei Art. 2 XVI, XVIII; Art. 17" }
+      - id: incidence_test_2
+        text: Does an exemption or a non-incidence rule apply? Without this test the platform will systematically over-trigger payment.
+        reg: { state: "established", marker: "§", value: "Lei Art. 17 §§4 to 5 and Art. 18.", citation: "Lei Art. 17 §4, §5; Art. 18" }
+      - id: rate
+        text: 1% of annual net revenue as the default for monetary sharing of genetic heritage, reducible to 0.1% by sectoral agreement running 60 months. Identifiable traditional knowledge is a negotiated benefit plus a separate FNRB share at half the applicable rate.
+        reg: { state: "established", marker: "§", value: "Lei Arts. 20, 21. Decreto Art. 65. Lei Art. 24 §3, Decreto Art. 47 §3.", citation: "Lei Arts. 20, 21, 24 §3; Decreto Arts. 47 §3, 65" }
+      - id: pre_sale_gate
+        text: Notification before the first sales invoice. Where identifiable TK is involved the benefit-sharing agreement is filed at notification, not 365 days later.
+        reg: { state: "established", marker: "§", value: "Decreto Art. 33 §2; Lei Art. 16 §2; Decreto Art. 34.", citation: "Decreto Art. 33 §2; Lei Art. 16 §2" }
+  - id: continuity
+    title: What attaches to the registration (phase two)
+    subject: platform
+    trig: Receipt issued
+    who: The registrant
+    needs: []
+    gives: Duties recorded on the registration, not run by the MVP
+    requirements:
+      - id: journey_does_not_end
+        text: Registration is acquisition. The continuing duties, annual FNRB payment, the annual update duty, the standing attribution duty, onward-transfer control and the Art. 27 ownership-change report, live in the obligation classes.
+        reg: { state: "inferred", marker: "▸", value: "Not in the pathway." }
+
+stateMachine:
+  initial: preparing
+  states:
+    preparing: { label: Completing the SisGen form (Decreto Art. 22), kind: active }
+    awaiting_assent:
+      label: Awaiting Art. 27 assent (Conselho de Defesa Nacional or Comando da Marinha)
+      kind: waiting
+      reg: { state: "established", marker: "§", value: "The cadastro cannot conclude until assent is given. SisGen notifies within 5 days, the authority has 60 days, suspended while further information is outstanding.", citation: "Decreto Arts. 27, 28" }
+    information_requested: { label: Further information requested (Art. 28 clock suspended), kind: active }
+    resubmitted: { label: Resubmitted, kind: waiting }
+    receipt_issued:
+      label: Receipt issued automatically. Verification still open.
+      kind: terminal
+      outcome: granted
+      reg: { state: "established", marker: "§", value: "Declaratory registration, not a permit. Decreto Art. 23 §2. Verification resolves later to verified, correction required or cancelled.", citation: "Decreto Arts. 23 §2, 36 to 40" }
+    correction_required: { label: Correction required by CGen, kind: active }
+    verified: { label: Verified by CGen, kind: terminal, outcome: granted }
+    cancelled: { label: Cancelled by CGen, kind: terminal, outcome: refused }
+    refused:
+      label: Assent refused
+      kind: terminal
+      outcome: refused
+    appealed:
+      label: Appeal
+      kind: waiting
+      reg: { state: "unknown", marker: "?", note: "Whether an appeal is available against cancellation is not established.", owner: "Brazil escalation owner" }
+    withdrawn: { label: Withdrawn by registrant, kind: terminal, outcome: withdrawn }
+    deadline_lapsed:
+      label: Art. 28 clock lapsed. Remedy against the administrator, no assent.
+      kind: halted
+      outcome: lapsed
+  transitions:
+    - from: preparing
+      to: receipt_issued
+      event: complete_form
+      actor: system
+      reg: { state: "established", marker: "§", value: "Automatic on form completion.", citation: "Decreto Art. 23 §2" }
+    - { from: preparing, to: awaiting_assent, event: complete_form_art27, actor: system }
+    - { from: awaiting_assent, to: information_requested, event: request_information, actor: authority }
+    - { from: information_requested, to: resubmitted, event: resubmit, actor: applicant }
+    - { from: resubmitted, to: awaiting_assent, event: acknowledge, actor: authority }
+    - { from: awaiting_assent, to: receipt_issued, event: assent, actor: authority }
+    - { from: awaiting_assent, to: refused, event: refuse_assent, actor: authority }
+    - { from: receipt_issued, to: correction_required, event: require_correction, actor: authority }
+    - { from: correction_required, to: receipt_issued, event: correct, actor: applicant }
+    - { from: receipt_issued, to: verified, event: verify, actor: authority }
+    - { from: receipt_issued, to: cancelled, event: cancel, actor: authority }
+    - { from: cancelled, to: appealed, event: appeal, actor: applicant }
+    - { from: appealed, to: receipt_issued, event: uphold_appeal, actor: authority }
+    - { from: appealed, to: cancelled, event: dismiss_appeal, actor: authority }
+    - { from: preparing, to: withdrawn, event: withdraw, actor: applicant }
+    - { from: awaiting_assent, to: withdrawn, event: withdraw, actor: applicant }
+    - { from: awaiting_assent, to: deadline_lapsed, event: lapse, actor: system }
+    - { from: deadline_lapsed, to: awaiting_assent, event: administrator_resumes, actor: authority }
+  clocks:
+    - id: art28_assent
+      label: Art. 28 assent clock (60 days, suspended while information is outstanding)
+      startsIn: awaiting_assent
+      days: 60
+      dayKind: calendar
+      suspendsIn: [information_requested]
+      onLapse:
+        to: deadline_lapsed
+        effect: remedy_against_administrator
+        reg: { state: "established", marker: "§", value: "A lapsed clock never grants assent.", citation: "Appendix B, R8" }
+
+outputs:
+  - id: sisgen_receipt
+    label: SisGen receipt (declaratory registration)
+    kind: declaratory_receipt
+    issuer: SisGen (automatic), verified by CGen
+    issuedInState: receipt_issued
+    automatic: true
+    amendmentPolicy: new_registration
+    verificationOpenAfterIssue: true
+    term:
+      state: established
+      marker: "§"
+      value: No term. Neither instrument contains one. Cancellation exists, lapse by time does not.
+      citation: Lei 13.123/2015; Decreto 8.772/2016
+    renewalsCapped:
+      state: established
+      marker: "§"
+      value: Not applicable. No term exists. Do not encode as "never expires, never renews", an annual update duty and change-triggered re-registration both operate.
+      citation: Decreto Art. 20 §§2 to 3; Art. 22 §5
+    fee:
+      state: established
+      marker: "§"
+      value: None for registration.
+    ircc:
+      state: unknown
+      marker: "?"
+      note: Whether and when the SisGen registration reaches the ABS Clearing-House as an internationally recognised certificate follows the national workflow. Not researched here.
+      owner: Brazil escalation owner
+    notes:
+      - Receipt issued is not registration complete. Verification stays open (Decreto Arts. 36 to 40).
+      - A change of material or objective requires a new cadastro (Decreto Art. 22 §5). One registration otherwise supports multiple downstream acts (Art. 23 §1).
+
+changeOfIntent:
+  whatCounts: { state: "established", marker: "§", value: "The material or the objective", citation: "Decreto Art. 22 §5" }
+  consequence: { state: "established", marker: "§", value: "A new cadastro. One registration otherwise supports multiple downstream acts.", citation: "Decreto Art. 22 §5; Art. 23 §1" }
+  policy: new_registration
+
+variables:
+  whoMayApply: { state: "established", marker: "§", value: "Foreign natural persons are barred outright. A foreign company registers only in association with a Brazilian research institution. Where no scientific collaboration exists, Decreto Art. 22-B supplies an instrumental association agreement.", citation: "Lei Art. 11 §1; Art. 12 II; Decreto Art. 22-B" }
+  trigger: { state: "established", marker: "§", value: "Research or technological development on information of genetic origin, with registration attaching to five downstream acts.", citation: "Lei Art. 2; Art. 12 §2" }
+  orderOfConsent: { state: "established", marker: "§", value: "Consent must precede access to identifiable traditional knowledge. Registration otherwise attaches to downstream acts, not to the start of research.", citation: "Lei Art. 9; Art. 12 §2" }
+  applicantHolds: { state: "established", marker: "§", value: "A SisGen receipt, issued automatically on completing the form. Declaratory registration rather than a permit, and verification remains open after the receipt issues.", citation: "Decreto Arts. 23, 36 to 40" }
+  clocks: { state: "established", marker: "§", value: "The registration receipt is instantaneous. Where Art. 27 defence assent applies, SisGen notifies within 5 days and the authority has 60 days, suspended while information is outstanding. Two clocks of very different character in one journey.", citation: "Decreto Arts. 23, 28" }
+  durationRenewal: { state: "established", marker: "§", value: "No term at all. Cancellation exists, lapse by time does not. A renewal probe should never be scheduled.", citation: "A5.6" }
+  transferExport: { state: "established", marker: "§", value: "Two regimes. Remessa, where title passes, requires a TTM with mandatory clauses. Envio, for services abroad, is exempt from the written instrument where the sample goes purely for sequencing.", citation: "Decreto Arts. 24, 25" }
+  postPermitLifecycle: { state: "established", marker: "§", value: "Duties carried in the statute and the registration, annual FNRB payment, annual update, standing attribution, onward-transfer control, Art. 27 ownership-change report.", citation: "Decreto Arts. 20, 29, 49" }
+
+obligationClasses:
+  - number: 1
+    name: Records and retention
+    note: Brazilian recordkeeping has not been researched. Malaysia's s.26 shows how large this class can be, so assume Brazil carries an equivalent until someone checks.
+    fields:
+      duty_exists: { state: "unknown", marker: "?", note: "Not researched.", owner: "Brazil escalation owner" }
+      what_must_be_recorded: { state: "unknown", marker: "?", note: "Not researched.", owner: "Brazil escalation owner" }
+      filing_deadline: { state: "unknown", marker: "?", note: "Not researched.", owner: "Brazil escalation owner" }
+      retention_period: { state: "unknown", marker: "?", note: "Not researched.", owner: "Brazil escalation owner" }
+      filed_with: { state: "unknown", marker: "?", note: "Not researched.", owner: "Brazil escalation owner" }
+  - number: 2
+    name: Periodic reporting
+    fields:
+      duty_exists: { state: "established", marker: "§", value: "Yes" }
+      frequency: { state: "established", marker: "§", value: "Annual", citation: "Decreto Art. 20 §§2 to 3" }
+      report_contents: { state: "unknown", marker: "?", note: "The duty is sourced, its content is not.", owner: "Brazil escalation owner" }
+      submitted_to: { state: "inferred", marker: "▸", value: "CGen via SisGen, inferred from the registration channel" }
+      default_alterable: { state: "unknown", marker: "?", note: "Not established.", owner: "Brazil escalation owner" }
+  - number: 3
+    name: Payment cycle
+    fields:
+      duty_exists: { state: "established", marker: "§", value: "Yes, conditional on two incidence tests passing first" }
+      incidence_test_1: { state: "established", marker: "§", value: "Main element of added value. The component must determine the product's function or its marketing appeal.", citation: "Lei Art. 2 XVI, XVIII; Art. 17" }
+      incidence_test_2: { state: "established", marker: "§", value: "Exemptions and non-incidence", citation: "Lei Art. 17 §§4 to 5; Art. 18" }
+      obligor: { state: "established", marker: "§", value: "Manufacturer of the finished product, or producer of reproductive material. Intermediate producers and process developers are exempt under §2. Where the product is made abroad the importer is jointly liable, §7.", citation: "Lei Art. 17 §1, §2, §7" }
+      basis: { state: "established", marker: "§", value: "Annual net revenue", citation: "Lei Art. 20" }
+      rate_genetic_heritage: { state: "established", marker: "§", value: "1% default, reducible to 0.1% by sectoral agreement running 60 months", citation: "Lei Arts. 20, 21; Decreto Art. 65" }
+      rate_identifiable_tk: { state: "established", marker: "§", value: "Negotiated, plus a separate FNRB share at half the applicable rate. Half of 1% is 0.5%, half of 0.1% is 0.05%. Not a fixed 0.5%.", citation: "Lei Art. 24 §3; Decreto Art. 47 §3" }
+      rate_non_identifiable_tk: { state: "established", marker: "§", value: "Monetary only, 1% default reducible to 0.1%", citation: "Lei Art. 9 §2; Art. 23" }
+      election_monetary_or_not: { state: "established", marker: "§", value: "User elects, genetic heritage only. Never available for non-identifiable TK.", citation: "Lei Art. 19" }
+      calculation_point: { state: "established", marker: "§", value: "After each fiscal year", citation: "Decreto Art. 49" }
+      payment_deadline: { state: "established", marker: "§", value: "30 days from the annual filing", citation: "Decreto Art. 49" }
+      duration: { state: "established", marker: "§", value: "For as long as exploitation continues", citation: "Decreto Art. 49" }
+      pre_sale_gate: { state: "established", marker: "§", value: "Notification before the first sales invoice. Where identifiable TK is involved the benefit-sharing agreement is filed at notification.", citation: "Decreto Art. 33 §2; Lei Art. 16 §2" }
+  - number: 4
+    name: Change-triggered re-registration
+    fields:
+      what_counts_as_change: { state: "established", marker: "§", value: "The material or the objective", citation: "Decreto Art. 22 §5" }
+      consequence: { state: "established", marker: "§", value: "A new cadastro. One registration otherwise supports multiple downstream acts.", citation: "Decreto Art. 23 §1" }
+      authority: { state: "established", marker: "§", value: "CGen via SisGen" }
+      deadline: { state: "established", marker: "§", value: "Before the next Art. 12 §2 trigger act" }
+      ownership_change_report: { state: "established", marker: "§", value: "30 days, Art. 27 cases only. Assent is revocable.", citation: "Decreto Art. 29" }
+  - number: 5
+    name: Renewal
+    note: Brazil is the outlier that proves the field set. Five of seven fields are n/a and that is itself the configuration a renewal-probe service needs. It should never schedule a probe for Brazil.
+    fields:
+      term_exists: { state: "established", marker: "§", value: "No. Neither instrument sets a term." }
+      on_lapse: { state: "established", marker: "§", value: "No lapse by time. Cancellation exists, expiry does not." }
+      caveat: { state: "unknown", marker: "?", note: "Do not encode as \"never expires, never renews\". No fixed term appears in either instrument, but an annual update duty and change-triggered re-registration both operate.", owner: "Brazil escalation owner" }
+  - number: 6
+    name: Transfer control
+    fields:
+      regimes: { state: "established", marker: "§", value: "Two, not one. Remessa (title passes) and envio (service abroad, returned or destroyed).", citation: "Lei Art. 2 XIII, XXX; Decreto Arts. 24, 25" }
+      instrument_remessa: { state: "established", marker: "§", value: "Termo de Transferência de Material", citation: "Decreto Art. 25" }
+      mandatory_clauses: { state: "established", marker: "§", value: "Brazilian law and Brazilian forum. The recipient is not deemed a provider. Onward transfer needs its own TTM carrying the same clauses.", citation: "Decreto Art. 25 §§2 to 3" }
+      instrument_envio: { state: "established", marker: "§", value: "Exempt from the written instrument where the sample goes abroad purely for sequencing. §8 preserves only the return-or-destroy and prohibition clauses.", citation: "Decreto Art. 24 §7, §8" }
+      applies_to_results_or_data: { state: "unknown", marker: "?", note: "Not established for Brazil. The Brazilian position has not been checked.", owner: "Brazil escalation owner" }
+  - number: 7
+    name: Intellectual-property checkpoints
+    fields:
+      pre_filing_duty: { state: "established", marker: "§", value: "The cadastro must exist at the moment of the request", citation: "Lei Art. 12 §2" }
+      grant_condition: { state: "established", marker: "§", value: "Lei Art. 47 conditions the grant of the right, not the filing.", citation: "Lei Art. 47" }
+      checkpoint_bodies: { state: "established", marker: "§", value: "INPI at grant. Foreign filings are caught by the Art. 12 §2 trigger, not by a Brazilian checkpoint." }
+      notification_deadline: { state: "unknown", marker: "?", note: "Not researched. Malaysia carries a 30-day post-filing notification. No Brazilian equivalent has been sought.", owner: "Brazil escalation owner" }
+      consequence_of_omission: { state: "established", marker: "§", value: "Offence and fine under Decreto Art. 80, not Art. 47. The R$10m figure belongs to Decreto Art. 80.", citation: "Decreto Art. 80" }
+  - number: 8
+    name: Terminal states
+    fields:
+      states: { state: "established", marker: "§", value: "Verified, correction required, cancelled. The automatic receipt is not one of these. Verification stays open after it issues.", citation: "Decreto Arts. 36 to 40" }
+      who_triggers: { state: "established", marker: "§", value: "CGen" }
+      what_must_be_surrendered: { state: "unknown", marker: "?", note: "Not researched.", owner: "Brazil escalation owner" }
+      appeal_available: { state: "unknown", marker: "?", note: "Not established.", owner: "Brazil escalation owner" }
+      lapse_by_time: { state: "established", marker: "§", value: "None" }
+      penalties: { state: "established", marker: "§", value: "Banded by actor. Natural persons R$30,000, qualifying small entities R$200,000, other legal entities R$10,000,000. Shipment fines per species, tripled for CITES Appendix I, doubled for Appendix II.", citation: "Decreto Arts. 78 to 85" }
+  - number: 9
+    name: Standing attribution
+    fields:
+      duty_exists: { state: "established", marker: "§", value: "Yes, for identifiable traditional knowledge", citation: "Lei Art. 10 II" }
+      applies_to: { state: "established", marker: "§", value: "Every publication, use, exploitation and disclosure" }
+      duration: { state: "established", marker: "§", value: "Standing. The cadastro does not discharge it." }
+      consequence_of_omission: { state: "established", marker: "§", value: "Offence, capped at R$500,000", citation: "Decreto Art. 84" }
+
+manualReview:
+  - id: genuine_scientific_collaboration
+    question: Does genuine scientific collaboration exist between the foreign company and the Brazilian institution?
+    decides: Which association instrument applies, ordinary Art. 12 II association or the Art. 22-B instrumental termo. Art. 22-C makes a wrong answer an eligibility defect.
+    when: { applicantType: foreign_legal }
+    reg:
+      state: unknown
+      marker: "?"
+      note: Neither decree defines genuine scientific collaboration. No statutory test. May not be implemented as a self-declaration checkbox (R5).
+      citation: Decreto Arts. 22-B, 22-C
+      owner: Legal review, routed to the Brazil escalation owner
+      drives: true
+
+liveLayers: []
+
+openQuestions:
+  - id: art107_structure
+    question: The structure of the database-reading exclusion
+    affects: The sequence-data route, which is materially wider than earlier drafts showed
+    reg: { state: "unknown", marker: "?", note: "The operative wording is sourced from three concurring institutional sources. The consolidated primary text could not be retrieved.", citation: "Decreto Art. 107", owner: "Brazil escalation owner", drives: true }
+  - id: genuine_collaboration
+    question: Whether genuine scientific collaboration exists (no statutory test)
+    affects: Which instrument applies. A mandatory eligibility question with no test.
+    reg: { state: "unknown", marker: "?", citation: "Decreto Arts. 22-B, 22-C", owner: "Legal review", drives: true }
+
+renewalProbe: never

@@ -1,0 +1,661 @@
+# GENE-LINK country configuration · Kenya
+# Transcribed from RFP Appendix B (A5, A6, A7, A9 and the Kenya flow diagram).
+# Every regulatory value carries its Appendix B evidence marker:
+#   § established · ▸ GENE-LINK's reading · ? unresolved · ⊘ not executable · [GL] GENE-LINK's own construct
+# Values marked ? or ▸ are not settled law. A ? that drives a stage halts that stage (R3).
+
+schemaVersion: 1
+code: KE
+name: Kenya
+legalInstruments:
+  - Legal Notice 68 of 2025 (Access to Genetic Resources and Benefit Sharing Regulations)
+  - Protection of Traditional Knowledge and Cultural Expressions Act 2016
+  - Wildlife Conservation and Management Act (definition of wildlife)
+
+operativeInstrumentStatus:
+  state: unknown
+  marker: "?"
+  note: >-
+    Whether Legal Notice 68 of 2025 is in force is not established. The National Assembly recorded it
+    approved on 29 July 2025 subject to a corrigendum that has not been found. A Senate tracker gives
+    15 July 2025 and different wording. LN 19 of 2025 is textually identical on every provision used
+    here, so the substance holds even if the instrument number moves. Put it to NEMA before any of
+    this drives a build.
+  owner: NEMA question, routed to the Kenya escalation owner
+  drives: false
+
+nagoyaParty:
+  state: established
+  marker: "§"
+  value: Party to the Nagoya Protocol
+  citation: Appendix B, A2
+euSide:
+  state: established
+  marker: "§"
+  value: >-
+    NEMA uploads the permit to the ABS Clearing-House, where it becomes the internationally recognised
+    certificate of compliance an EU user can rely on. EU due diligence uses the IRCC through its
+    reference and the information it carries, not a literal copy.
+  citation: reg. 20(2); Regulation (EU) No 511/2014
+
+escalation:
+  defaultOwnerRole: GENE-LINK Kenya escalation owner (legal focal point)
+  defaultOwnerName: null # pending Landscape Alliance
+
+# ---------------------------------------------------------------------------
+# Scope (A5.2): activity test, commercial route only
+# ---------------------------------------------------------------------------
+scope:
+  premise: >-
+    This configuration maps the commercial route only. GENE-LINK access is commercial by design. Five
+    rules depend on that premise and change if the purpose is not commercial: reg. 11(4)(c), 11(4)(d),
+    11(4)(e), the Second Schedule foreign commercial fee, and reg. 12(2) prior informed consent as drawn.
+  questions:
+    - id: activity
+      fact: activity
+      prompt: What will be done with the material or the data?
+      options:
+        - id: collection_research
+          label: Collection or research on Kenyan genetic resources
+        - id: ex_situ_held
+          label: Work on material already held in an ex-situ collection
+          hint: Record the geographical place of origin, not the holding institution (reg. 2).
+        - id: dsi_only
+          label: Sequence data only, nothing physical
+  rules:
+    - id: non_commercial_out_of_scope
+      when: { purpose: non_commercial }
+      result: out_of_scope
+      basis:
+        state: established
+        marker: "§"
+        value: >-
+          Non-commercial applicants are out of scope and not mapped. reg. 11(2) differs materially from
+          reg. 11(4), and the endemic, rare and threatened stop may not apply to them at all. Turning
+          away an applicant the law admits is worse than missing a step.
+        citation: reg. 11(2); reg. 11(4)
+      redirect: Non-commercial route under reg. 11(2), outside GENE-LINK
+    - id: dsi_only_escalate
+      when: { activity: dsi_only }
+      result: escalate
+      basis:
+        state: unknown
+        marker: "?"
+        note: >-
+          reg. 4(1)(e) puts digital sequence information expressly in scope, but reg. 11(1) frames every
+          application around accessing resources in Kenya and reg. 15(1) issues permits per locality. A
+          dataset has no locality. Nothing in the instrument authorises the conclusion that no lawful
+          route exists. Treat as unresolved, requiring a regulator ruling, and record the request. The
+          Cali Fund is a separate multilateral mechanism and not a substitute for Kenyan law.
+        citation: reg. 4(1)(e); reg. 11(1); reg. 15(1)
+        owner: NEMA ruling, routed to the Kenya escalation owner
+        drives: true
+    - id: in_scope
+      result: in_scope
+      basis:
+        state: established
+        marker: "§"
+        value: >-
+          LN 68 sets its scope by access to and utilisation of genetic resources and reaches material
+          held ex situ. Prior proof of a function is not an exemption and appears nowhere in the
+          instrument. Whether the material was bought is irrelevant.
+        citation: LN 68 of 2025, scope provisions
+
+# ---------------------------------------------------------------------------
+# Eligibility (A5.1): affiliation conditional on citizenship
+# ---------------------------------------------------------------------------
+eligibility:
+  - id: local_affiliation
+    text: A local institutional affiliation is required for non-Kenyans. Kenyan applicants need none.
+    when: { applicantType: [foreign_legal, foreign_natural] }
+    reg:
+      state: established
+      marker: "§"
+      value: Pair the company with a Kenyan institution. NACOSTI requires a local institutional affiliation for non-Kenyans.
+      citation: NACOSTI research licence requirements
+  - id: endemic_rare_threatened_stop
+    text: A commercial application must exclude endemic, rare or threatened species. No exemption route appears in the text.
+    when: { speciesListed: listed }
+    reg:
+      state: established
+      marker: "§"
+      value: STOP. reg. 11(4)(e) requires a commercial application to exclude endemic, rare or threatened species.
+      citation: reg. 11(4)(e)
+  - id: species_status_source
+    text: Species status must be resolved against an authoritative list, not the applicant's own answer, before the application is accepted.
+    when: { speciesListed: unchecked }
+    reg:
+      state: established
+      marker: "§"
+      value: The platform must resolve species status against a recognised source. The applicant's own answer is not the deciding fact.
+      citation: reg. 11(4)(e)
+  - id: custody_not_entitlement
+    text: An institution holding a sample is not by that fact able to consent to its use.
+    when: { activity: ex_situ_held }
+    reg:
+      state: inferred
+      marker: "▸"
+      value: Custody is not legal entitlement to provide. Establish who may lawfully provide the resource before treating custody as authority. This reading has not been tested against a Kenyan decision.
+
+consentOrder:
+  state: established
+  marker: "§"
+  value: Consent, mutually agreed terms and a benefit-sharing agreement accompany the application itself. reg. 11(4) requires them as application documents.
+  citation: reg. 11(4)
+
+# ---------------------------------------------------------------------------
+# Stages, in the Kenyan order (A5.3)
+# ---------------------------------------------------------------------------
+stages:
+  - id: intake
+    title: GENE-LINK intake
+    subject: platform
+    trig: A party opens a case with Kenya as provider country
+    who: The parties
+    needs: [Function needed, evidence of function, candidate species, intended commercial endpoint, what will be done with the material or data]
+    gives: A scope answer and a generated pathway
+    requirements:
+      - id: function_taxonomy
+        text: Which function does the company need? Drawn from the 48-code function list.
+        reg:
+          state: inferred
+          marker: "[GL]"
+          value: GENE-LINK's own taxonomy. It has no status in Kenyan law and maps to nothing NEMA collects.
+  - id: localities
+    title: Collection localities
+    subject: government
+    when: { activity: [collection_research, ex_situ_held] }
+    trig: The resource has one or more geographical localities
+    who: The applicant
+    needs: [Geographical locality of each resource, in situ or ex situ]
+    gives: Locality values the application can carry
+    requirements:
+      - id: locality_definition
+        text: A locality is the geographical area where the resource is found, whether in situ or ex situ, not the institution that holds it.
+        reg:
+          state: established
+          marker: "§"
+          value: reg. 2 defines locality by geography. The platform needs a location-of-ex-situ-holding field distinct from the institution's name.
+          citation: reg. 2
+      - id: per_locality_multiplier
+        text: Whether several localities require several applications, consent processes, agreements and clocks.
+        reg:
+          state: unknown
+          marker: "?"
+          note: >-
+            reg. 15(1) issues a permit specific to each locality and the Second Schedule fee table is
+            headed fees per locality. Nothing found says five localities require five applications, and
+            the application form asks for sites in the plural on one application. Do not encode the
+            multiplier as law. Cost modelling built on it is unsafe. Practitioner input (A9) labels the
+            NEMA output "Access Permit for 1 year and 1 location", which bears on this question.
+          citation: reg. 15(1); Second Schedule
+          owner: NEMA question, routed to the Kenya escalation owner
+          drives: false
+  - id: eligibility
+    title: Eligibility checks
+    subject: government
+    trig: Before anything is spent in the field
+    who: The applicant, NACOSTI, WRTI where the resource is wildlife
+    needs: [Citizenship of the applicant, species status on an authoritative list, whether the resource is wildlife, whether analysis can run inside Kenya]
+    gives: Eligibility to apply
+    requirements:
+      - id: wildlife_research_permit
+        text: Where the resource falls within the wildlife definition and field research is intended, a WRTI research permit is a legal prerequisite that precedes field work.
+        reg:
+          state: established
+          marker: "§"
+          value: The Wildlife Conservation and Management Act definition reaches plants and microorganisms. KWS appears later, on export and CITES, and does not grant research permits.
+          citation: Wildlife Conservation and Management Act
+      - id: wrti_processing_time
+        text: Processing time for the WRTI permit.
+        reg:
+          state: unknown
+          marker: "?"
+          note: Figures of 21 working days and a three-month lead circulate but have no current primary source, and they attached to KWS rather than WRTI. Do not quote either.
+          owner: WRTI confirmation, routed to the Kenya escalation owner
+      - id: cannot_be_done_in_kenya_certifier
+        text: Who certifies that the analysis cannot be run inside Kenya.
+        reg:
+          state: unknown
+          marker: "?"
+          note: Current NACOSTI requirements do not say NACOSTI issues such a certificate. Older descriptions place the statement on the affiliating institution. Confirm before building a document requirement around it.
+          owner: NACOSTI confirmation, routed to the Kenya escalation owner
+          drives: false
+  - id: tk_statute
+    title: Traditional knowledge (separate statute)
+    subject: community
+    when: { tkInvolved: [yes, unclear] }
+    trig: Traditional knowledge is associated with this resource or this use under TK Act s.6
+    who: The community, through its own procedures
+    needs: [The community's own protocol as an uploaded artefact, consultation on proposed terms, the twelve s.34 terms]
+    gives: An authorised-user agreement, filed within 30 days of signature
+    requirements:
+      - id: tk_criteria
+        text: Whether the criteria in TK Act s.6 are met. Not whether documentation of traditional use can be found. s.7 makes protection independent of any formality.
+        reg: { state: "established", marker: "§", value: "Undocumented knowledge is protected.", citation: "TK Act ss.6, 7" }
+      - id: two_authorisations
+        text: An authorisation to use traditional knowledge is not an authorisation to access the genetic resource, and the reverse holds too.
+        reg: { state: "established", marker: "§", value: "The section separates the two authorisations.", citation: "TK Act s.26" }
+      - id: own_procedures
+        text: Each community adopts its own procedures. One national community-meeting workflow cannot be hard-coded. Where the protocol cannot be established, escalate.
+        reg: { state: "established", marker: "§", value: "The community's protocol is data the platform collects, not a template it supplies.", citation: "TK Act s.10(3)" }
+      - id: filing_sequence
+        text: Before signing, inform the Cabinet Secretary and supply the proposed agreement for comment. After signing, file the executed agreement within 30 days.
+        reg: { state: "established", marker: "§", value: "s.36 filing sequence runs around the signature.", citation: "TK Act s.36" }
+      - id: registration_procedure
+        text: Agreements not registered by the Cabinet Secretary are null and void, but no implementing regulations were located.
+        reg:
+          state: unknown
+          marker: "?"
+          note: No implementing regulations were located on Kenya Law as of 13 Aug 2026 under s.43, s.12(4) or s.33(2). The registration on which s.35(2) validity depends has no published procedure.
+          citation: TK Act s.35(2)
+          owner: Cabinet Secretary procedure, routed to the Kenya escalation owner
+          drives: true
+    consentParties:
+      - id: tk_holder
+        label: Traditional knowledge holder community
+        reg: { state: "established", marker: "§", value: "Adds a consent party. Does not decide whether consent is needed.", citation: "TK Act s.6" }
+  - id: consent_and_terms
+    title: Consent and terms
+    subject: community
+    trig: A commercial application over a community's resource
+    who: The resource-providing community, then applicant and provider
+    needs: [Prior informed consent in accordance with customary laws, practices, protocols and procedures, mutually agreed terms on the Fifth Schedule model form]
+    gives: Consent, MAT and a benefit-sharing agreement capable of supporting the application
+    consentParties:
+      - id: community
+        label: Resource-providing community
+        when: { communityHeld: [yes, unclear] }
+        reg: { state: "established", marker: "§", value: "Prior informed consent obtained in accordance with the customary laws of the community. No meeting format, quorum or threshold is prescribed.", citation: "reg. 12(2)" }
+    requirements:
+      - id: mat_model_form
+        text: Terms agreed between applicant and provider become the Mutually Agreed Terms, on the Fifth Schedule model form.
+        reg: { state: "established", marker: "§", value: "reg. 12(3) and 12(4).", citation: "reg. 12(3), 12(4)" }
+      - id: fifth_schedule_rates
+        text: Fifth Schedule opening terms, 50:50 venture ownership conditional on commercialisation, 15% royalty on copyrights, minimum 10% on others.
+        reg: { state: "established", marker: "§", value: "The numbers are real.", citation: "Fifth Schedule Arts. 8.4, 8.5" }
+      - id: rates_negotiable
+        text: Whether the Fifth Schedule terms are negotiable.
+        reg:
+          state: unknown
+          marker: "?"
+          note: The numbers are real. Their status is not. Software must not treat them as editable defaults, and must not treat them as immutable rates.
+          citation: Fifth Schedule Art. 8.4
+          owner: NEMA question, routed to the Kenya escalation owner
+          drives: true
+    documents:
+      - id: pic
+        label: Prior informed consent (Fourth Schedule form, obtained under the community's own procedure)
+        when: { communityHeld: [yes, unclear] }
+        reg: { state: "established", marker: "§", value: "reg. 12(2).", citation: "reg. 12(2)" }
+      - id: mat
+        label: Mutually agreed terms (Fifth Schedule model form)
+        reg: { state: "established", marker: "§", value: "reg. 12(4).", citation: "reg. 12(4)" }
+      - id: bsa
+        label: Benefit-sharing agreement, included with the application
+        reg: { state: "established", marker: "§", value: "The text says include. It does not say signed.", citation: "reg. 11(4)(c)" }
+      - id: mta_application
+        label: Material transfer agreement (application document, unqualified on the commercial route)
+        reg: { state: "established", marker: "§", value: "Required with no qualification even where nothing leaves Kenya. It is not itself a transfer and does not authorise one.", citation: "reg. 11(4)(d)" }
+  - id: submission
+    title: Submission and determination
+    subject: government
+    usesStateMachine: true
+    trig: Consent, terms and NACOSTI prerequisites in place
+    who: NEMA for the access permit, NACOSTI for the research licence
+    needs: [The reg. 11(4) documents, ethical approval, the fee]
+    gives: A pending application, then two instruments from two issuers
+    produces: [nema_access_permit, nacosti_research_licence]
+    requirements:
+      - id: nacosti_prerequisites
+        text: Ethical approval and, for genetic resources, PIC, MAT and MTA must exist before the NACOSTI submission, not alongside it.
+        reg: { state: "established", marker: "§", value: "NACOSTI prerequisites.", citation: "NACOSTI requirements" }
+      - id: nema_fee
+        text: NEMA access permit fee for a foreign commercial applicant.
+        when: { applicantType: [foreign_legal, foreign_natural] }
+        reg: { state: "established", marker: "§", value: "KSh 1,000,000 per locality. The commercial fee table draws no corporate or individual distinction.", citation: "Second Schedule" }
+      - id: nacosti_fee
+        text: NACOSTI research licence fee.
+        reg:
+          state: unknown
+          marker: "?"
+          note: NACOSTI's published schedule caps the Non-Africa column at US$500 for individual and post-doctoral applicants and shows KES 20,000 for private institutions with a dash in every foreign column. A 2024 NACOSTI news post quotes US$10,000. Confirm the current schedule before quoting a figure. The one-year licence duration is established.
+          owner: NACOSTI schedule confirmation, routed to the Kenya escalation owner
+          drives: false
+      - id: sectoral_clearance
+        text: Practitioner input reports a sectoral clearance layer before or alongside NEMA and NACOSTI, routed by category of material (KWS/KFS/KeFS, KEPHIS, DVS, MoH, NMK), and a separate ITPGRFA track through a KALRO SMTA.
+        reg:
+          state: inferred
+          marker: "▸"
+          value: Practitioner-sourced working knowledge (A9), carrying the same status as GENE-LINK's own reading until sourced against the Gazette. Not folded into the established entries.
+          citation: Appendix B, A9
+  - id: export
+    title: Export chain
+    subject: government
+    when: { exchange: [title_transfer, service_shipment] }
+    trig: Something physically leaves Kenya
+    who: NEMA, KWS where wildlife, KEPHIS where the importing country requires it
+    needs: [Sixth Schedule material transfer agreement filed with NEMA, declaration at the port of departure]
+    gives: Lawful export, on top of the permit
+    requirements:
+      - id: sixth_schedule
+        text: Material transfer agreement on the Sixth Schedule form, filed with NEMA.
+        reg: { state: "established", marker: "§", value: "reg. 21(1) and 21(3).", citation: "reg. 21(1), 21(3)" }
+      - id: holotype
+        text: A holotype must remain in Kenya. How this applies to extracts, microbial isolates and other non-taxonomic material is an open design question.
+        reg: { state: "established", marker: "§", value: "reg. 21(5).", citation: "reg. 21(5)" }
+      - id: phytosanitary
+        text: KEPHIS phytosanitary certificate is conditional on the importing country's requirements for that material. Not a generic Kenyan export clearance.
+        reg: { state: "established", marker: "§", value: "Two machine-testable conditions, destination requirement and CITES listing.", citation: "KEPHIS procedure" }
+      - id: tk_articles_export
+        text: Unauthorised export of an article related to traditional knowledge for non-traditional use is an offence whether or not the use is commercial.
+        when: { tkInvolved: [yes, unclear] }
+        reg: { state: "established", marker: "§", value: "s.37(9) closes the s.37(1) carve-out for TK-related articles.", citation: "TK Act s.37(9)" }
+  - id: continuity
+    title: What attaches to the permit (phase two)
+    subject: platform
+    trig: Instruments issued
+    who: The permit holder, NEMA, the Cabinet Secretary
+    needs: []
+    gives: Duties recorded on the instrument, not run by the MVP
+    requirements:
+      - id: journey_does_not_end
+        text: The continuing duties live in the country configuration table (obligation classes), not in the pathway.
+        reg: { state: "inferred", marker: "▸", value: "reg. 18(2) standing conditions, biannual and annual reporting, disclosure of discoveries, the s.11 attribution duty and the TK Act notification duties." }
+
+# ---------------------------------------------------------------------------
+# Regulator processing (A5.5, R8, R9)
+# ---------------------------------------------------------------------------
+stateMachine:
+  initial: preparing
+  states:
+    preparing: { label: Preparing application bundle, kind: active }
+    submitted: { label: Submitted to NEMA and NACOSTI, kind: waiting }
+    under_review:
+      label: Under review (30 working days from receipt)
+      kind: waiting
+      reg: { state: "established", marker: "§", value: "The Authority has 30 working days from receipt of the application.", citation: "reg. 15" }
+    public_notice:
+      label: Public notice and comment
+      kind: waiting
+      reg: { state: "established", marker: "§", value: "The regulations contemplate publication and comments before determination." }
+    information_requested: { label: Further information required, kind: active }
+    resubmitted: { label: Resubmitted, kind: waiting }
+    granted:
+      label: Granted. Permit uploaded to the ABS Clearing-House
+      kind: terminal
+      outcome: granted
+      reg: { state: "established", marker: "§", value: "NEMA uploads the permit to the ABS Clearing-House where it becomes the IRCC.", citation: "reg. 20(2)" }
+    refused:
+      label: Refused. Statutory appeal path applies
+      kind: terminal
+      outcome: refused
+      reg: { state: "established", marker: "§", value: "Model refusal and appeal as states. A system that only represents granted cannot carry a real caseload." }
+    appealed: { label: Appealed, kind: waiting }
+    withdrawn: { label: Withdrawn by applicant, kind: terminal, outcome: withdrawn }
+    varied:
+      label: Varied by the Authority
+      kind: active
+      reg: { state: "established", marker: "§", value: "reg. 18(3) gives the Authority a general power to vary a permit. It is not a route around reg. 11(6).", citation: "reg. 18(3)" }
+    deadline_lapsed:
+      label: Statutory deadline lapsed. Remedy against the administrator, no permit
+      kind: halted
+      outcome: lapsed
+  transitions:
+    - { from: preparing, to: submitted, event: submit, actor: applicant }
+    - { from: submitted, to: under_review, event: acknowledge, actor: authority }
+    - { from: under_review, to: public_notice, event: publish, actor: authority }
+    - { from: under_review, to: information_requested, event: request_information, actor: authority }
+    - { from: public_notice, to: information_requested, event: request_information, actor: authority }
+    - { from: information_requested, to: resubmitted, event: resubmit, actor: applicant }
+    - { from: resubmitted, to: under_review, event: acknowledge, actor: authority }
+    - { from: public_notice, to: granted, event: grant, actor: authority }
+    - { from: under_review, to: granted, event: grant, actor: authority }
+    - { from: public_notice, to: refused, event: refuse, actor: authority }
+    - { from: under_review, to: refused, event: refuse, actor: authority }
+    - { from: refused, to: appealed, event: appeal, actor: applicant }
+    - { from: appealed, to: granted, event: uphold_appeal, actor: authority }
+    - { from: appealed, to: refused, event: dismiss_appeal, actor: authority }
+    - { from: granted, to: varied, event: vary, actor: authority }
+    - { from: varied, to: granted, event: variation_recorded, actor: system }
+    - { from: preparing, to: withdrawn, event: withdraw, actor: applicant }
+    - { from: submitted, to: withdrawn, event: withdraw, actor: applicant }
+    - { from: under_review, to: withdrawn, event: withdraw, actor: applicant }
+    - { from: information_requested, to: withdrawn, event: withdraw, actor: applicant }
+    - { from: under_review, to: deadline_lapsed, event: lapse, actor: system }
+    - { from: public_notice, to: deadline_lapsed, event: lapse, actor: system }
+    - { from: deadline_lapsed, to: under_review, event: administrator_resumes, actor: authority }
+  clocks:
+    - id: determination
+      label: Determination clock
+      startsIn: under_review
+      days: 30
+      dayKind: working
+      suspendsIn: [information_requested]
+      onLapse:
+        to: deadline_lapsed
+        effect: remedy_against_administrator
+        reg:
+          state: established
+          marker: "§"
+          value: In every regime a missed statutory deadline gives the applicant a remedy against the administrator. It does not grant the permit.
+          citation: Appendix B, A5.5 and R8
+
+# ---------------------------------------------------------------------------
+# What the applicant holds (A5.4): two instruments, two issuers
+# ---------------------------------------------------------------------------
+outputs:
+  - id: nema_access_permit
+    label: NEMA access permit
+    kind: permit
+    issuer: National Environment Management Authority (NEMA)
+    issuedInState: granted
+    amendmentPolicy: new_application
+    term:
+      state: established
+      marker: "§"
+      value: One year
+      citation: reg. 17(2)
+    renewalsCapped:
+      state: unknown
+      marker: "?"
+      note: >-
+        "For a further period of one year only" does not say one renewal, and does not say indefinite
+        renewal either. Two opposite inferences have been drawn from this sentence and neither is
+        established. Carry the text and an open question. Model as unknown, never as a default. The two
+        defaults produce opposite advice to the same applicant.
+      citation: reg. 17(2)
+      owner: NEMA question, routed to the Kenya escalation owner
+      drives: true
+    fee:
+      state: established
+      marker: "§"
+      value: KSh 1,000,000 for a foreign commercial applicant, per locality
+      citation: Second Schedule
+    ircc:
+      state: established
+      marker: "§"
+      value: Becomes the internationally recognised certificate of compliance on upload to the ABS Clearing-House
+      citation: reg. 20(2)
+    notes:
+      - reg. 11(6) requires notification to NEMA and a new permit where purpose, locality or quantity changes. Both limbs.
+  - id: nacosti_research_licence
+    label: NACOSTI research licence
+    kind: licence
+    issuer: National Commission for Science, Technology and Innovation (NACOSTI)
+    issuedInState: granted
+    amendmentPolicy: new_application
+    term:
+      state: established
+      marker: "§"
+      value: One year
+      citation: NACOSTI schedule
+    renewalsCapped:
+      state: unknown
+      marker: "?"
+      note: Not researched for the research licence.
+      owner: NACOSTI question, routed to the Kenya escalation owner
+    fee:
+      state: unknown
+      marker: "?"
+      note: Contradictory sources. Schedule shows US$500 for individuals and KES 20,000 for private institutions with a dash in foreign columns. A 2024 news post quotes US$10,000.
+      owner: NACOSTI schedule confirmation, routed to the Kenya escalation owner
+
+changeOfIntent:
+  whatCounts:
+    state: established
+    marker: "§"
+    value: A change in purpose, locality or quantity
+    citation: reg. 11(6)
+  consequence:
+    state: established
+    marker: "§"
+    value: Notify NEMA and apply for a new permit. Both limbs, not one. reg. 18(3) variation is not an alternative route.
+    citation: reg. 11(6); reg. 18(3)
+  policy: new_application
+
+# ---------------------------------------------------------------------------
+# A5 · the eight variables
+# ---------------------------------------------------------------------------
+variables:
+  whoMayApply: { state: "established", marker: "§", value: "Local institutional affiliation required for non-Kenyans only. The requirement is conditional on citizenship.", citation: "A5.1" }
+  trigger: { state: "established", marker: "§", value: "Access and utilisation, including material held ex situ.", citation: "A5.2" }
+  orderOfConsent: { state: "established", marker: "§", value: "Consent, mutually agreed terms and a benefit-sharing agreement accompany the application itself.", citation: "reg. 11(4)" }
+  applicantHolds: { state: "established", marker: "§", value: "Two instruments from two issuers, a NEMA access permit and a NACOSTI research licence, with different fees and durations.", citation: "A5.4" }
+  clocks: { state: "established", marker: "§", value: "30 working days from receipt, with publication and comment contemplated before determination.", citation: "A5.5" }
+  durationRenewal: { state: "established", marker: "§", value: "One year, renewable. Whether renewals are capped is unresolved (see outputs).", citation: "reg. 17(2)" }
+  transferExport: { state: "established", marker: "§", value: "A Sixth Schedule agreement filed with NEMA. A holotype remains in Kenya. Declaration at the port of departure.", citation: "reg. 21" }
+  postPermitLifecycle: { state: "established", marker: "§", value: "Duties carried in permit conditions.", citation: "reg. 18(2)" }
+
+# ---------------------------------------------------------------------------
+# A6 · the nine obligation classes (recorded now, run in phase two, R10)
+# ---------------------------------------------------------------------------
+obligationClasses:
+  - number: 1
+    name: Records and retention
+    fields:
+      duty_exists: { state: "unknown", marker: "?", note: "Partially. reg. 18 supports reporting and disclosure duties. The separate specimen-deposit wording has not been confirmed against the Gazette text.", owner: "Kenya escalation owner" }
+      what_must_be_recorded: { state: "unknown", marker: "?", note: "A holotype must remain in Kenya on export under reg. 21(5). Whether a broader duplicate-deposit duty exists is unverified.", owner: "Kenya escalation owner" }
+      filing_deadline: { state: "unknown", marker: "?", note: "Not researched.", owner: "Kenya escalation owner" }
+      retention_period: { state: "unknown", marker: "?", note: "Not researched.", owner: "Kenya escalation owner" }
+      filed_with: { state: "established", marker: "§", value: "NEMA" }
+  - number: 2
+    name: Periodic reporting
+    fields:
+      duty_exists: { state: "established", marker: "§", value: "Yes, reg. 18(2) standing conditions", citation: "reg. 18(2)" }
+      frequency: { state: "established", marker: "§", value: "Biannual and annual. Both, not either." }
+      report_contents: { state: "established", marker: "§", value: "Includes disclosure of all discoveries to NEMA" }
+      submitted_to: { state: "established", marker: "§", value: "NEMA" }
+      default_alterable: { state: "unknown", marker: "?", note: "Not established.", owner: "Kenya escalation owner" }
+      tk_act_notifications: { state: "established", marker: "§", value: "s.25(2) owners notify the Cabinet Secretary of every authorisation agreement. s.22(3) written arrangements go to the Cabinet Secretary and the county executive committee member.", citation: "TK Act ss.22(3), 25(2)" }
+  - number: 3
+    name: Payment cycle
+    fields:
+      duty_exists: { state: "established", marker: "§", value: "Yes, set by the mutually agreed terms on the Fifth Schedule model form", citation: "reg. 12(4)" }
+      basis: { state: "established", marker: "§", value: "As negotiated in the MAT" }
+      rate_copyright: { state: "established", marker: "§", value: "15% royalty", citation: "Fifth Schedule Art. 8.4" }
+      rate_other: { state: "established", marker: "§", value: "Minimum 10%", citation: "Fifth Schedule Art. 8.4" }
+      equity: { state: "established", marker: "§", value: "50:50 venture ownership, conditional on commercialisation. Not a general rule.", citation: "Fifth Schedule Art. 8.5" }
+      rates_negotiable: { state: "unknown", marker: "?", note: "The numbers are real. Their status is not. Do not model them as editable defaults, and do not model them as immutable rates.", owner: "NEMA question", drives: true }
+      calculation_point: { state: "unknown", marker: "?", note: "Not researched.", owner: "Kenya escalation owner" }
+      payment_deadline: { state: "unknown", marker: "?", note: "Not researched.", owner: "Kenya escalation owner" }
+      application_fee: { state: "established", marker: "§", value: "KSh 1,000,000 for a foreign commercial applicant, per locality", citation: "Second Schedule" }
+      research_licence_fee: { state: "unknown", marker: "?", note: "Contradictory sources (US$500, KES 20,000, US$10,000). The one-year duration is established.", owner: "NACOSTI confirmation" }
+  - number: 4
+    name: Change-triggered re-registration
+    fields:
+      what_counts_as_change: { state: "established", marker: "§", value: "Purpose, locality or quantity", citation: "reg. 11(6)" }
+      consequence: { state: "established", marker: "§", value: "Notify NEMA and apply for a new permit. Both limbs." }
+      authority: { state: "established", marker: "§", value: "NEMA" }
+      deadline: { state: "unknown", marker: "?", note: "Not researched.", owner: "Kenya escalation owner" }
+      variation_power: { state: "established", marker: "§", value: "reg. 18(3) is a general power to vary. It is not an alternative route around reg. 11(6) and must not be offered as one.", citation: "reg. 18(3)" }
+  - number: 5
+    name: Renewal
+    note: Kenya is the case the three-state enum exists for. A renewal-probe service must carry renewals_capped = unknown and surface it.
+    fields:
+      term_exists: { state: "established", marker: "§", value: "Yes" }
+      term_length: { state: "established", marker: "§", value: "One year", citation: "reg. 17(2)" }
+      renewal_length: { state: "established", marker: "§", value: "A further period of one year", citation: "reg. 17(2)" }
+      renewals_capped: { state: "unknown", marker: "?", note: "Two opposite inferences drawn from the same sentence. Neither is established.", citation: "reg. 17(2)", owner: "NEMA question", drives: true }
+      notice_window: { state: "unknown", marker: "?", note: "Not researched.", owner: "Kenya escalation owner" }
+      decided_by: { state: "established", marker: "§", value: "NEMA" }
+      evidence_required: { state: "unknown", marker: "?", note: "Not researched.", owner: "Kenya escalation owner" }
+      on_lapse: { state: "unknown", marker: "?", note: "Not researched.", owner: "Kenya escalation owner" }
+  - number: 6
+    name: Transfer control
+    fields:
+      instrument_at_application: { state: "established", marker: "§", value: "A material transfer agreement, unqualified on the commercial route, even where nothing leaves Kenya. An application document, not an authorisation to transfer.", citation: "reg. 11(4)(d)" }
+      instrument_at_export: { state: "established", marker: "§", value: "Sixth Schedule form, filed with NEMA", citation: "reg. 21(1), 21(3)" }
+      retained_in_country: { state: "established", marker: "§", value: "A holotype remains in Kenya. Application to extracts and isolates is an open design question.", citation: "reg. 21(5)" }
+      border_declaration: { state: "established", marker: "§", value: "Declare at the port of departure and produce the agreement", citation: "reg. 21(4)" }
+      wildlife_export: { state: "established", marker: "§", value: "KWS export permit. KWS handles export and CITES. Research permits are WRTI's." }
+      phytosanitary: { state: "established", marker: "§", value: "KEPHIS, conditional on the importing country's requirements for that material" }
+      tk_related_articles: { state: "established", marker: "§", value: "s.37(9) makes unauthorised export for non-traditional use an offence whether or not the use is commercial", citation: "TK Act s.37(9)" }
+  - number: 7
+    name: Intellectual-property checkpoints
+    fields:
+      pre_transfer_duty: { state: "established", marker: "§", value: "Cabinet Secretary approval for specified transfers of shared IP and for applications to transfer IP rights based on Kenyan traditional knowledge", citation: "TK Act s.35(3) to (6)" }
+      sequence: { state: "established", marker: "§", value: "Before assignment, licensing or export of the IP, not after" }
+      checkpoint_bodies: { state: "established", marker: "§", value: "The Cabinet Secretary. No patent-office checkpoint was located on the genetic-resource side." }
+      notification_deadline: { state: "unknown", marker: "?", note: "Not researched.", owner: "Kenya escalation owner" }
+      consequence_of_omission: { state: "unknown", marker: "?", note: "Not researched.", owner: "Kenya escalation owner" }
+  - number: 8
+    name: Terminal states
+    fields:
+      states: { state: "established", marker: "§", value: "Granted, refused, varied. Refusal carries a statutory appeal path.", citation: "reg. 18(3)" }
+      who_triggers: { state: "established", marker: "§", value: "NEMA" }
+      processing_clock: { state: "established", marker: "§", value: "30 working days from receipt, with publication and comment contemplated before determination" }
+      revocation: { state: "unknown", marker: "?", note: "Not researched.", owner: "Kenya escalation owner" }
+      what_must_be_surrendered: { state: "unknown", marker: "?", note: "Not researched.", owner: "Kenya escalation owner" }
+      agreement_nullity: { state: "unknown", marker: "?", note: "TK Act s.35(2) makes unregistered agreements null and void, but no implementing regulations were located on Kenya Law as of 13 Aug 2026, so the registration validity depends on has no published procedure.", citation: "TK Act s.35(2)", owner: "Kenya escalation owner", drives: true }
+  - number: 9
+    name: Standing attribution
+    fields:
+      duty_exists: { state: "established", marker: "§", value: "Yes", citation: "TK Act s.11" }
+      applies_to: { state: "established", marker: "§", value: "Acknowledge the owner, indicate the source and where possible the origin, and respect cultural values" }
+      duration: { state: "established", marker: "§", value: "Standing. The authorised-user agreement does not discharge it." }
+      consequence_of_omission: { state: "unknown", marker: "?", note: "Not researched.", owner: "Kenya escalation owner" }
+
+manualReview: []
+
+liveLayers:
+  - id: species_status
+    name: Endemic, rare and threatened species status
+    description: reg. 11(4)(e) requires the species status to be resolved against an authoritative list before the application is accepted. The list is data the platform reads, not the applicant's answer.
+    maintainedBy: Landscape Alliance administrator, pending source selection
+    reg: { state: "established", marker: "§", value: "Resolve against a recognised source.", citation: "reg. 11(4)(e)" }
+    entries: []
+
+openQuestions:
+  - id: ln68_in_force
+    question: Whether Legal Notice 68 of 2025 is in force
+    affects: The premise of the entire Kenya flow
+    reg: { state: "unknown", marker: "?", note: "Parliament recorded approval subject to a corrigendum that has not been found. A second tracker gives a different date and wording. LN 19 of 2025 is textually identical.", owner: "NEMA" }
+  - id: renewals_capped
+    question: Whether renewals are capped
+    affects: Renewal service behaviour. The two available defaults give the same applicant opposite advice.
+    reg: { state: "unknown", marker: "?", citation: "reg. 17(2)", owner: "NEMA", drives: true }
+  - id: per_locality_permits
+    question: Whether a per-locality fee implies per-locality permits
+    affects: Cost modelling and the number of applications a multi-site project generates
+    reg: { state: "unknown", marker: "?", citation: "reg. 15(1); Second Schedule", owner: "NEMA" }
+  - id: rates_negotiable
+    question: Whether the model agreement's rates are negotiable
+    affects: Whether the platform presents them as editable defaults or fixed rates. Presently neither can be justified.
+    reg: { state: "unknown", marker: "?", citation: "Fifth Schedule Art. 8.4", owner: "NEMA", drives: true }
+  - id: nacosti_fee
+    question: The NACOSTI research licence fee
+    affects: Fee display
+    reg: { state: "unknown", marker: "?", owner: "NACOSTI" }
+  - id: tk_registration_procedure
+    question: The registration procedure on which TK Act s.35(2) validity depends
+    affects: Whether an authorised-user agreement can be made valid at all
+    reg: { state: "unknown", marker: "?", citation: "TK Act s.35(2)", owner: "Cabinet Secretary", drives: true }
+  - id: sectoral_clearance_layer
+    question: Whether a sectoral clearance layer and a separate ITPGRFA/KALRO SMTA track apply before NEMA and NACOSTI
+    affects: An early branch on material type in the Kenya configuration
+    reg: { state: "inferred", marker: "▸", value: "Practitioner input (A9) pending NEMA follow-up and verification against the Gazette text.", citation: "Appendix B, A9" }
+
+# A term exists (one year), so a probe for the first expiry may be scheduled. The probe must carry
+# renewals_capped = unknown and surface it, never default it (Appendix B, Class 5 note).
+renewalProbe: schedule
