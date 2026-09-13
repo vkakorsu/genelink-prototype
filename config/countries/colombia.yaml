@@ -1,0 +1,506 @@
+# GENE-LINK country configuration · Colombia
+# Transcribed from RFP Appendix B (A2, A5, A6, A7 and the Colombia flow diagram).
+#   § established · ▸ GENE-LINK's reading · ? unresolved · ⊘ not executable · [GL] GENE-LINK's own construct
+
+schemaVersion: 1
+code: CO
+name: Colombia
+legalInstruments:
+  - Decisión Andina 391
+  - Decreto 1076/2015
+  - Resoluciones 1348/2014 and 1352/2017
+  - Decisión 486/2000 (Andean IP regime)
+
+operativeInstrumentStatus:
+  state: established
+  marker: "§"
+  value: Decisión Andina 391 and Decreto 1076/2015 are operative. Res. 1352/2017 deleted the patent trigger from Res. 1348 Art. 2.
+  citation: Res. 1352/2017
+
+nagoyaParty:
+  state: established
+  marker: "§"
+  value: >-
+    Colombia is not a Party to the Nagoya Protocol. Signed 2 Feb 2011, ratification blank in the UN Treaty
+    Collection, ABS Clearing-House returns party null. Colombia is a Party to the Nagoya-Kuala Lumpur
+    Supplementary Protocol, a biosafety instrument. Do not treat the second as satisfying the first.
+  citation: UN Treaty Collection; ABS Clearing-House
+euSide:
+  state: unknown
+  marker: "?"
+  note: >-
+    No internationally recognised certificate of compliance can issue for Colombian material. Regulation
+    (EU) No 511/2014 and Implementing Regulation 2015/1866 allow other relevant information and documents
+    where a certificate is unavailable, so Colombian material carries a heavier and less standardised
+    documentation burden, not an impossible one. Whether material from a non-Party State falls inside
+    Regulation 511/2014 at all is an open legal question. A legal opinion is being sought.
+  citation: Regulation (EU) No 511/2014; Appendix B, A7 cross-cutting
+  owner: Landscape Alliance legal opinion, routed to the Colombia escalation owner
+  drives: false
+
+escalation:
+  defaultOwnerRole: GENE-LINK Colombia escalation owner (legal focal point)
+  defaultOwnerName: null # pending Landscape Alliance
+
+scope:
+  premise: >-
+    This configuration maps the commercial route only. In Colombia that removes an entire procedure: the
+    collection permit under Decreto 1376/2013 (compiled into Decreto 1076) governs collection for scientific
+    research with non-commercial purposes and is not available here. A purpose gate must precede any
+    collection track.
+  questions:
+    - id: activity
+      fact: activity
+      prompt: Does the planned activity configure access under Res. 1348/2014 Art. 2?
+      options:
+        - id: listed_activity
+          label: A listed activity on the stated methodology (separating DNA or RNA units, isolating metabolic molecules, and the other listed activities)
+        - id: no_listed_activity
+          label: No listed activity on the stated methodology
+          hint: Record the methodology the conclusion rests on. A change of method can bring the activity back in.
+        - id: dsi_only
+          label: Sequence data only, nothing physical
+  rules:
+    - id: non_commercial_out_of_scope
+      when: { purpose: non_commercial }
+      result: out_of_scope
+      basis:
+        state: established
+        marker: "§"
+        value: The non-commercial collection track is out of scope and not mapped. ANLA imposes additional supporting documents on foreign applicants, collection inside the National Natural Parks System routes to Parques Nacionales Naturales, and the track carries its own post-grant obligations.
+        citation: Decreto 1076/2015 (compiling Decreto 1376/2013)
+      redirect: Non-commercial collection permit track (ANLA), outside GENE-LINK
+    - id: dsi_only_escalate
+      when: { activity: dsi_only }
+      result: escalate
+      basis:
+        state: unknown
+        marker: "?"
+        note: >-
+          Sequence data alone is an open question, not an exit. No domestic instrument was found that
+          follows digital sequence information as such, but that is an exhaustive negative, and absence of
+          a found rule is not a rule of absence. Route to legal review as an unresolved state. Do not label
+          it outside the access regime.
+        owner: Legal review, routed to the Colombia escalation owner
+        drives: true
+    - id: no_listed_activity_out
+      when: { activity: no_listed_activity }
+      result: out_of_scope
+      basis:
+        state: established
+        marker: "§"
+        value: Outside the access regime on the Art. 2 test. Record the methodology the conclusion rests on. Crude extracts are inside the definition of producto derivado (D391 Art. 1) but the definition is not the trigger. The Art. 2 activity test and the planned methodology decide.
+        citation: Res. 1348/2014 Art. 2; D391 Art. 1
+      redirect: Outside the access regime. Recorded basis kept on the case.
+    - id: in_scope
+      result: in_scope
+      basis:
+        state: established
+        marker: "§"
+        value: >-
+          Res. 1348/2014 Art. 2 defines access through activities. Whether the material was bought, and
+          whether its function was demonstrated before, tells you nothing about whether the downstream
+          activity configures access. D391 Art. 6 applies where Colombia is the country of origin, a
+          condition routinely dropped when the article is quoted.
+        citation: Res. 1348/2014 Art. 2; D391 Art. 6
+
+eligibility:
+  - id: country_of_origin
+    text: Is Colombia the country of origin? Art. 6 makes genetic resources patrimony of the Nation of which the Member Country is the country of origin, de conformidad con legislaciones internas.
+    reg: { state: "established", marker: "§", value: "The condition can change the result. Establish which country of origin applies.", citation: "D391 Art. 6" }
+  - id: national_support_institution
+    text: The application names a national support institution, la persona o institución nacional de apoyo, a person or an institution.
+    reg:
+      state: established
+      marker: "§"
+      value: MADS defines the INA as a Colombian legal person conducting research and assisting both applicant and Ministry. Do not hard-code "pair with a Colombian lab". The role is broader.
+      citation: D391 Art. 26(c); MADS operating procedure
+  - id: individual_or_framework
+    text: Individual or framework contract? Decided by the applicant and project structure, not by a commercial versus non-commercial divide.
+    reg:
+      state: established
+      marker: "§"
+      value: Nothing in Art. 36 restricts the contrato marco to non-commercial use. MADS Contrato Marco No. 405 with SINCHI (2025) covers a bioprospecting programme and runs 20 years.
+      citation: D391 Art. 36
+
+consentOrder:
+  state: established
+  marker: "§"
+  value: Prior consultation, where direct affectation arises, precedes the application. The contract itself is negotiated after acceptance, not before.
+  citation: A5.3; DP 08/2020; D391 Arts. 29 to 32
+
+stages:
+  - id: intake
+    title: GENE-LINK intake
+    subject: platform
+    trig: A party opens a case with Colombia as provider country
+    who: The parties
+    needs: [Function needed, evidence of function, candidate species, intended commercial endpoint, planned methodology]
+    gives: A scope answer on the Art. 2 activity test and a generated pathway
+    requirements:
+      - id: function_taxonomy
+        text: Which function does the company need? Drawn from the 48-code function list.
+        reg: { state: "inferred", marker: "[GL]", value: "GENE-LINK's own taxonomy. It has no status in Colombian law and maps to nothing MADS collects." }
+  - id: prior_consultation
+    title: Prior consultation (consulta previa)
+    subject: community
+    when: { directAffectation: [yes, unclear] }
+    trig: Direct affectation (afectación directa) arises, per SU-123/2018, which rejects formal territorial boundaries as the whole inquiry
+    who: The applicant, the community, the DANCP
+    needs: [Preconsulta, consultation, protocolización record]
+    gives: The consultation record the application must carry
+    requirements:
+      - id: direct_affectation_test
+        text: A titled resguardo is strong evidence. It is not the trigger, and geography alone does not suffice.
+        reg: { state: "established", marker: "§", value: "Consulta previa runs under DP 08/2020 through the DANCP process.", citation: "SU-123/2018; DP 08/2020" }
+      - id: consultation_document
+        text: Which consultation document is currently required.
+        reg:
+          state: unknown
+          marker: "?"
+          note: >-
+            The required document is in version conflict. D.1076 §2.2.2.8.3.2 still specifies the Ministry
+            document and the protocolización record, and the current ANLA VITAL checklist still asks for the
+            certificate plus the protocolización act. Other guidance uses pronunciamiento language. Model as
+            "currently required document, validate against the live checklist", not as old replaced by new.
+          citation: D.1076 §2.2.2.8.3.2; ANLA VITAL checklist
+          owner: Live checklist validation, routed to the Colombia escalation owner
+          drives: true
+    consentParties:
+      - id: affected_community
+        label: Directly affected community
+        reg: { state: "established", marker: "§", value: "Consultation is required where direct affectation arises.", citation: "SU-123/2018" }
+    documents:
+      - id: protocolizacion
+        label: Consultation record (currently required document, validated against the live checklist)
+        reg: { state: "unknown", marker: "?", note: "See consultation_document.", owner: "Colombia escalation owner" }
+  - id: intangible_component
+    title: Intangible component (associated traditional knowledge)
+    subject: community
+    when: { tkInvolved: [yes, unclear] }
+    trig: The project uses associated traditional knowledge itself
+    who: The applicant and the knowledge holders
+    needs: [The intangible-component annex to the access contract]
+    gives: The Art. 35 annex providing for fair and equitable distribution of benefits from that knowledge
+    requirements:
+      - id: different_question
+        text: A different question from direct affectation. Consultation does not imply the annex, and the annex does not imply consultation.
+        reg: { state: "established", marker: "§", value: "Art. 35 intangible-component annex.", citation: "D391 Art. 35" }
+      - id: annex_breach
+        text: Breach of the annex is a causal de resolución y nulidad, a ground requiring a determination, not an automatic transition to a void state.
+        reg: { state: "established", marker: "§", value: "A ground requiring a determination." }
+    consentParties:
+      - id: tk_holders
+        label: Holders of the associated traditional knowledge
+        reg: { state: "established", marker: "§", value: "Adds a party to the annex. Does not decide whether consultation is needed.", citation: "D391 Art. 35" }
+  - id: application_data
+    title: Application data (Art. 26)
+    subject: applicant
+    trig: Intention to apply
+    who: The applicant
+    needs: [Applicant identity, the provider, the national support institution, the project team, the access activity, the location, the project]
+    gives: A filable application
+    requirements:
+      - id: which_authority
+        text: Which environmental authority? The location of the activity and how many jurisdictions it spans. ANLA, a regional CAR, a sustainable-development corporation, a large urban authority, or Parques Nacionales Naturales inside the National Natural Parks System.
+        reg: { state: "established", marker: "§", value: "The model is not simply ANLA or a CAR.", citation: "D391 Art. 26; Art. 31" }
+    documents:
+      - id: ina_designation
+        label: National support institution designation
+        reg: { state: "established", marker: "§", value: "Art. 26(c).", citation: "D391 Art. 26(c)" }
+      - id: project_document
+        label: Project description, team, activity, location
+        reg: { state: "established", marker: "§", value: "Art. 26.", citation: "D391 Art. 26" }
+  - id: access_proceeding
+    title: The access proceeding
+    subject: government
+    usesStateMachine: true
+    trig: A filable application
+    who: MADS, with parallel environmental procedures running independently and feeding the evaluation
+    needs: [Admission on completeness, publication in two media within five business days, evaluation]
+    gives: Acceptance or denial by reasoned resolution
+    requirements:
+      - id: publication_two_media
+        text: Publication in two media within five business days, one of national circulation and one local. Store the date and the evidence per publication. A single published flag loses half the duty.
+        reg: { state: "established", marker: "§", value: "Art. 28.", citation: "D391 Art. 28" }
+      - id: evaluation_clock
+        text: 30 working days for evaluation, extendable by up to 60 more, roughly 90 in total. Five days to notify an acceptance. The five-day deadline attaches to notifying, not deciding.
+        reg: { state: "established", marker: "§", value: "Arts. 29 and 30.", citation: "D391 Arts. 29, 30" }
+      - id: actual_duration
+        text: How long it actually takes. MADS estimates roughly 120 business days and states the procedure is free of charge.
+        reg:
+          state: inferred
+          marker: "[GL]"
+          value: GENE-LINK's own analysis of the Minambiente open dataset, 347 files, gives a median of 237 calendar days from auto de inicio to signature, P75 410, maximum 3,125. Ours, not a government metric. Dataset stale since May 2023.
+  - id: contract_negotiation
+    title: Contract negotiation
+    subject: money
+    trig: An accepted application
+    who: MADS and the applicant
+    needs: [The draft contract, a meeting, negotiation of terms]
+    gives: A contract ready for signature. Acceptance is not a contract.
+    produces: [access_contract]
+    requirements:
+      - id: acceptance_not_contract
+        text: Any model that jumps from accepted to signed loses the step where the obligations are actually set.
+        reg: { state: "established", marker: "§", value: "Contract negotiation is the state where benefit sharing becomes system data." }
+      - id: accessory_contracts
+        text: Is an accessory contract needed? Whether a third party supplies land, the biological resource, ex-situ material or national support. The counterparty may be the owner, the possessor or the administrator, three roles, not one landholder.
+        reg: { state: "established", marker: "§", value: "Accessory contracts carry a suspensive condition and take effect only on the access contract taking effect. Nullity cascades one way only.", citation: "D391 Arts. 41, 42, 44" }
+      - id: perfected_on_publication
+        text: The contract is perfected on publication. The public register is declaratory.
+        reg: { state: "established", marker: "§", value: "Arts. 38 and 21.", citation: "D391 Arts. 38, 21" }
+  - id: export
+    title: Export and transfer
+    subject: government
+    when: { exchange: [title_transfer, service_shipment] }
+    trig: Material leaves Colombia
+    who: CITES authority where listed, ANLA for non-CITES specimens, ICA and sanitary authorities, and the contract's own conditions
+    needs: [CITES route, or the ANLA No-CITES procedure with tariff under Res. 0921/2025, or a documented exemption, then ICA and sanitary layers]
+    gives: Lawful export, checked against the contract's transfer conditions
+    requirements:
+      - id: contract_transfer_terms
+        text: D391 Art. 17 contemplates contract terms governing transfer of accessed material to third parties. Store them on the contract object and check before any export or sublicense.
+        reg: { state: "established", marker: "§", value: "Art. 17.", citation: "D391 Art. 17" }
+  - id: continuity
+    title: What attaches to the contract (phase two)
+    subject: platform
+    trig: Contract perfected
+    who: The applicant, the national support institution, MADS
+    needs: []
+    gives: Duties recorded on the contract, not run by the MVP
+    requirements:
+      - id: journey_does_not_end
+        text: Execution, progress and final reports, follow-up, and the Art. 43 monitoring duties on the national support institution all continue.
+        reg: { state: "inferred", marker: "▸", value: "Those parameters live in the obligation classes, not in the pathway." }
+
+stateMachine:
+  initial: preparing
+  states:
+    preparing: { label: Preparing application (Art. 26), kind: active }
+    filed: { label: Filed with the environmental authority, kind: waiting }
+    returned_incomplete:
+      label: Returned incomplete
+      kind: active
+      reg: { state: "established", marker: "§", value: "Model incomplete, information requested and resubmitted as real states.", citation: "D391 Art. 27" }
+    information_requested: { label: Information requested, kind: active }
+    resubmitted: { label: Resubmitted, kind: waiting }
+    admitted: { label: Admitted (complete), kind: waiting }
+    published: { label: Published in two media, kind: waiting }
+    evaluated: { label: Under evaluation (30 working days, extendable by up to 60), kind: waiting }
+    accepted:
+      label: Accepted. Five days to notify. Acceptance is not a contract.
+      kind: active
+      reg: { state: "established", marker: "§", value: "Art. 30.", citation: "D391 Art. 30" }
+    negotiating: { label: Contract negotiation with MADS, kind: active }
+    perfected:
+      label: Contract perfected on publication
+      kind: terminal
+      outcome: granted
+      reg: { state: "established", marker: "§", value: "Art. 38.", citation: "D391 Art. 38" }
+    denied:
+      label: Denied by reasoned resolution. Recurso de reposición contemplated.
+      kind: terminal
+      outcome: refused
+    refused: { label: Denied (alias for reporting), kind: terminal, outcome: refused }
+    appealed: { label: Recurso de reposición filed, kind: waiting }
+    terminated:
+      label: Terminated
+      kind: terminal
+      outcome: none
+      reg: { state: "established", marker: "§", value: "Where an indispensable accessory contract fails, the authority may terminate. Discretionary.", citation: "D391 Art. 44" }
+    withdrawn: { label: Withdrawn by applicant, kind: terminal, outcome: withdrawn }
+    deadline_lapsed:
+      label: Evaluation clock lapsed. Remedy against the administrator, no contract.
+      kind: halted
+      outcome: lapsed
+  transitions:
+    - { from: preparing, to: filed, event: submit, actor: applicant }
+    - { from: filed, to: returned_incomplete, event: return_incomplete, actor: authority }
+    - { from: returned_incomplete, to: resubmitted, event: resubmit, actor: applicant }
+    - { from: resubmitted, to: filed, event: refile, actor: system }
+    - { from: filed, to: admitted, event: admit, actor: authority }
+    - { from: admitted, to: published, event: publish, actor: authority }
+    - { from: published, to: evaluated, event: begin_evaluation, actor: authority }
+    - { from: evaluated, to: information_requested, event: request_information, actor: authority }
+    - { from: information_requested, to: evaluated, event: resubmit, actor: applicant }
+    - { from: evaluated, to: accepted, event: accept, actor: authority }
+    - { from: evaluated, to: denied, event: deny, actor: authority }
+    - { from: denied, to: appealed, event: appeal, actor: applicant }
+    - { from: appealed, to: accepted, event: uphold_appeal, actor: authority }
+    - { from: appealed, to: denied, event: dismiss_appeal, actor: authority }
+    - { from: accepted, to: negotiating, event: begin_negotiation, actor: authority }
+    - { from: negotiating, to: perfected, event: publish_contract, actor: authority }
+    - { from: perfected, to: terminated, event: terminate, actor: authority }
+    - { from: preparing, to: withdrawn, event: withdraw, actor: applicant }
+    - { from: filed, to: withdrawn, event: withdraw, actor: applicant }
+    - { from: evaluated, to: withdrawn, event: withdraw, actor: applicant }
+    - { from: negotiating, to: withdrawn, event: withdraw, actor: applicant }
+    - { from: evaluated, to: deadline_lapsed, event: lapse, actor: system }
+    - { from: deadline_lapsed, to: evaluated, event: administrator_resumes, actor: authority }
+  clocks:
+    - id: evaluation
+      label: Evaluation clock (Art. 29)
+      startsIn: evaluated
+      days: 30
+      dayKind: working
+      extendableDays: 60
+      suspendsIn: [information_requested]
+      onLapse:
+        to: deadline_lapsed
+        effect: remedy_against_administrator
+        reg: { state: "established", marker: "§", value: "A missed statutory deadline gives a remedy against the administrator. It does not grant the contract.", citation: "Appendix B, R8" }
+    - id: acceptance_notice
+      label: Five days to notify an acceptance
+      startsIn: accepted
+      days: 5
+      dayKind: calendar
+      onLapse:
+        to: deadline_lapsed
+        effect: remedy_against_administrator
+        reg: { state: "established", marker: "§", value: "The deadline attaches to notifying acceptance, not to making the decision.", citation: "D391 Art. 30" }
+
+outputs:
+  - id: access_contract
+    label: Access contract with the State
+    kind: access_contract
+    issuer: Ministerio de Ambiente y Desarrollo Sostenible (MADS)
+    issuedInState: perfected
+    amendmentPolicy: addendum
+    term:
+      state: unknown
+      marker: "?"
+      note: >-
+        No universal statutory term for access contracts. The 2025 framework contract located runs 20
+        years. The 10-year and 5-year figures in D.1076 §2.2.2.8.5.3 are hasta por ceilings on the
+        collection permit and must never be reused for access contracts.
+      citation: D391; D.1076 §2.2.2.8.5.3
+      owner: MADS confirmation per contract, routed to the Colombia escalation owner
+    renewalsCapped:
+      state: unknown
+      marker: "?"
+      note: Varies by contract. Not researched as a general rule.
+      owner: Colombia escalation owner
+    fee:
+      state: established
+      marker: "§"
+      value: None. MADS states the access procedure is free of charge. The ANLA No-CITES export procedure carries a tariff under Res. 0921/2025.
+      citation: MADS; Res. 0921/2025
+    ircc:
+      state: established
+      marker: "§"
+      value: None can issue. Colombia is not a Party to the Nagoya Protocol.
+    notes:
+      - Modification is an otrosí de adición o modificación against the existing contract. The database versions the contract. It never creates an unrelated second object (R7).
+      - Accessory contracts hang off the access contract under a suspensive condition.
+
+changeOfIntent:
+  whatCounts: { state: "established", marker: "§", value: "Change in scope, resources or activities" }
+  consequence:
+    state: established
+    marker: "§"
+    value: An otrosí de adición o modificación against the existing contract. Current MADS practice does not create a separate second contract.
+  policy: addendum
+
+variables:
+  whoMayApply: { state: "established", marker: "§", value: "The application names a national support institution, a MADS-defined assisting role, a person or an institution. Not hard-coded as \"partner laboratory\".", citation: "D391 Art. 26(c)" }
+  trigger: { state: "established", marker: "§", value: "Listed activities configure access, separating DNA or RNA units, isolating metabolic molecules.", citation: "Res. 1348/2014 Art. 2" }
+  orderOfConsent: { state: "established", marker: "§", value: "Prior consultation, where direct affectation arises, precedes the application. The contract is negotiated after acceptance.", citation: "A5.3" }
+  applicantHolds: { state: "established", marker: "§", value: "A negotiated access contract with the State, perfected on publication and modified later by addendum, potentially with accessory contracts under a suspensive condition.", citation: "A5.4" }
+  clocks: { state: "established", marker: "§", value: "30 working days statutory, extendable by up to 60. Roughly 120 business days in practice. Free of charge.", citation: "D391 Arts. 29, 30" }
+  durationRenewal: { state: "unknown", marker: "?", note: "No universal statutory term. The 2025 framework contract located runs 20 years.", owner: "Colombia escalation owner" }
+  transferExport: { state: "established", marker: "§", value: "Contract terms govern third-party transfer. Export runs a CITES route, an ANLA procedure, or a documented exemption, then sanitary layers.", citation: "D391 Art. 17" }
+  postPermitLifecycle: { state: "established", marker: "§", value: "Duties carried in the access contract.", citation: "A5.8" }
+
+obligationClasses:
+  - number: 1
+    name: Records and retention
+    fields:
+      duty_exists: { state: "unknown", marker: "?", note: "Not researched.", owner: "Colombia escalation owner" }
+      what_must_be_recorded: { state: "unknown", marker: "?", note: "Not researched.", owner: "Colombia escalation owner" }
+      retention_period: { state: "unknown", marker: "?", note: "Not researched.", owner: "Colombia escalation owner" }
+      filed_with: { state: "unknown", marker: "?", note: "Not researched.", owner: "Colombia escalation owner" }
+  - number: 2
+    name: Periodic reporting
+    fields:
+      duty_exists: { state: "established", marker: "§", value: "Yes. Execution, progress and final reports, with follow-up." }
+      frequency: { state: "unknown", marker: "?", note: "Not established.", owner: "Colombia escalation owner" }
+      monitoring_duty: { state: "established", marker: "§", value: "Art. 43 places monitoring duties on the national support institution. The INA is not only a filing formality.", citation: "D391 Art. 43" }
+      submitted_to: { state: "established", marker: "§", value: "MADS, with the INA in the monitoring role" }
+  - number: 3
+    name: Payment cycle
+    fields:
+      duty_exists: { state: "established", marker: "§", value: "Yes, as negotiated in the access contract" }
+      basis: { state: "established", marker: "§", value: "Negotiated. No statutory rate appears." }
+      application_fee: { state: "established", marker: "§", value: "None. MADS states the access procedure is free of charge." }
+      export_tariff: { state: "established", marker: "§", value: "The ANLA No-CITES procedure carries a tariff", citation: "Res. 0921/2025" }
+      calculation_point: { state: "unknown", marker: "?", note: "Not researched.", owner: "Colombia escalation owner" }
+      payment_deadline: { state: "unknown", marker: "?", note: "Not researched.", owner: "Colombia escalation owner" }
+  - number: 4
+    name: Change-triggered re-registration
+    fields:
+      what_counts_as_change: { state: "established", marker: "§", value: "Change in scope, resources or activities" }
+      consequence: { state: "established", marker: "§", value: "An otrosí de adición o modificación against the existing contract. Current MADS practice does not create a separate second contract." }
+      data_model_effect: { state: "inferred", marker: "▸", value: "The database must version the contract, not create an unrelated second object. This decides the shape of the contract table." }
+      authority: { state: "established", marker: "§", value: "MADS" }
+  - number: 5
+    name: Renewal
+    fields:
+      term_exists: { state: "unknown", marker: "?", note: "Not established for access contracts. The D391 provisions prescribe no universal term and actual terms vary.", owner: "Colombia escalation owner" }
+      term_length: { state: "unknown", marker: "?", note: "Varies. The 2025 framework contract located runs 20 years.", owner: "Colombia escalation owner" }
+      ceilings_that_do_not_apply: { state: "established", marker: "§", value: "D.1076 §2.2.2.8.5.3's 10-year and 5-year figures are hasta por ceilings on the collection permit. Never reuse them for access contracts.", citation: "D.1076 §2.2.2.8.5.3" }
+      decided_by: { state: "established", marker: "§", value: "MADS" }
+      on_lapse: { state: "unknown", marker: "?", note: "Not researched.", owner: "Colombia escalation owner" }
+  - number: 6
+    name: Transfer control
+    fields:
+      contract_conditions: { state: "established", marker: "§", value: "D391 Art. 17 contemplates contract terms governing transfer of accessed material to third parties. Store them on the contract object and check before any export or sublicense.", citation: "D391 Art. 17" }
+      cites_route: { state: "established", marker: "§", value: "The CITES procedure where the specimen is listed" }
+      non_cites_route: { state: "established", marker: "§", value: "The ANLA import and export procedure for biological-diversity specimens not listed in CITES, subject to statutory exemptions, tariff under Res. 0921/2025" }
+      other_layers: { state: "established", marker: "§", value: "ICA and sanitary requirements" }
+  - number: 7
+    name: Intellectual-property checkpoints
+    fields:
+      patent_trigger: { state: "established", marker: "§", value: "Removed. Res. 1352/2017 deleted numeral 3 of Res. 1348 Art. 2. Seeking a patent no longer configures access.", citation: "Res. 1352/2017" }
+      surviving_duty: { state: "established", marker: "§", value: "File the contract with the patent office" }
+      andean_conditions: { state: "established", marker: "§", value: "Decisión 486 Art. 26(h) requires the access contract where applicable. Art. 26(i) requires the TK licence only where the invention came from associated traditional knowledge. Two conditional checks, not an unconditional AND.", citation: "Decisión 486 Art. 26(h), (i)" }
+      nullity: { state: "established", marker: "§", value: "Art. 75(g) and (h) follow the same conditions, and nullity may be partial, reaching only affected claims.", citation: "Decisión 486 Art. 75" }
+      no_ip_without_access: { state: "established", marker: "§", value: "Disposición Complementaria Segunda of Decisión 391, not Decisión 486.", citation: "Decisión 391" }
+  - number: 8
+    name: Terminal states
+    fields:
+      states: { state: "established", marker: "§", value: "Returned incomplete, admitted, evaluated, accepted, denied, perfected, terminated" }
+      processing_clock: { state: "established", marker: "§", value: "30 working days extendable by up to 60 more. MADS' own estimate is roughly 120 business days.", citation: "D391 Art. 29" }
+      gl_measurement: { state: "inferred", marker: "[GL]", value: "Median 237 calendar days, P75 410, maximum 3,125 across 347 files. Ours, not a government metric. Dataset stale since May 2023." }
+      acceptance_notice: { state: "established", marker: "§", value: "Five days to notify an acceptance. Attaches to notifying, not deciding.", citation: "D391 Art. 30" }
+      denial: { state: "established", marker: "§", value: "By reasoned resolution at completion of the Art. 29 evaluation. A recurso de reposición is contemplated." }
+      nullity_cascade: { state: "established", marker: "§", value: "One-way. Nullity of the access contract entails nullity of the accessory contract. In the other direction the authority may terminate where an indispensable accessory contract fails.", citation: "D391 Art. 44" }
+      annex_breach: { state: "established", marker: "§", value: "A causal de resolución y nulidad, a ground requiring a determination, not an automatic void state." }
+  - number: 9
+    name: Standing attribution
+    fields:
+      duty_exists: { state: "unknown", marker: "?", note: "Not researched.", owner: "Colombia escalation owner" }
+
+manualReview: []
+
+liveLayers: []
+
+openQuestions:
+  - id: consultation_document
+    question: Which consultation document is currently required
+    affects: A required upload. The regulation and the live checklist name one document, other guidance names another.
+    reg: { state: "unknown", marker: "?", citation: "D.1076 §2.2.2.8.3.2; ANLA VITAL", owner: "Colombia escalation owner", drives: true }
+  - id: certificate_counts
+    question: Published certificate counts
+    affects: Claims about EU documentation burden. The count failed re-check and needs a live query with a retrieval date, or removal.
+    reg: { state: "unknown", marker: "?", note: "An earlier reading gave 6,542 certificates worldwide and zero for Colombia. The non-Party status is independently verified and the conclusion stands without the number.", owner: "Colombia escalation owner" }
+  - id: eu_reach_non_party
+    question: The reach of EU due diligence over non-Party material
+    affects: Whether material from a non-Party State falls inside Regulation (EU) No 511/2014 at all. The answer changes the documentation burden in either direction.
+    reg: { state: "unknown", marker: "?", note: "A legal opinion is being sought.", owner: "Landscape Alliance legal opinion" }
+  - id: dsi_route
+    question: Whether digital sequence information alone is inside the access regime
+    affects: The sequence-data-only route
+    reg: { state: "unknown", marker: "?", note: "An exhaustive negative. Route to legal review.", owner: "Colombia escalation owner", drives: true }
+
+renewalProbe: unknown

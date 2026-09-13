@@ -1,0 +1,9 @@
+/** Illustrative model clauses. Real content comes from Landscape Alliance's legal partners. */
+export const MODEL_CLAUSES = [
+  { id: "mc_parties", title: "Parties and resource identification", text: "Identifies the parties, their seats of authority, and the resource by its GENE-LINK identifier and any GGBN identifier where available. Illustrative wording pending Landscape Alliance model clauses.", source: "illustrative" as const },
+  { id: "mc_purpose", title: "Purpose and permitted use", text: "Scope is set by the activity the user will perform. A change of purpose, locality or quantity is a change of intent and follows the provider country's re-registration rule. Illustrative.", source: "illustrative" as const },
+  { id: "mc_benefit", title: "Benefit sharing", text: "Monetary and non-monetary benefits as negotiated. Where a provider country prescribes opening terms, they are shown as text with their evidence class and are neither presented as editable defaults nor as fixed rates where their status is unresolved. Illustrative.", source: "model_clause" as const },
+  { id: "mc_transfer", title: "Third-party transfer and data", text: "No transfer of the resource, associated traditional knowledge, results or sequence data to a third party without the consent the provider country's instrument requires. Illustrative.", source: "model_clause" as const },
+  { id: "mc_attribution", title: "Attribution", text: "The user acknowledges the origin of any traditional knowledge in every publication, use, exploitation and disclosure for as long as the knowledge is used. Illustrative.", source: "model_clause" as const },
+  { id: "mc_records", title: "Records and retention", text: "Each party keeps the information relevant to access and benefit sharing for twenty years after the end of utilisation, as Regulation (EU) No 511/2014 Article 4(6) requires of users in the Union. Illustrative.", source: "model_clause" as const },
+];

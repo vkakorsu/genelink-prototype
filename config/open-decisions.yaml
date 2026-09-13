@@ -1,0 +1,64 @@
+# Decisions the RFP and its appendices deliberately hold open.
+# Rendered as open states in the prototype. None is resolved by assumption.
+# Each carries the working position the prototype uses so that something can be built, and who decides.
+
+- id: countries_configured
+  source: Appendix A, held open
+  question: How many countries the MVP configures, and which. Six are mapped. The platform is intended to serve fifteen or more.
+  workingPosition: Colombia and Kenya built, Brazil as the dry run, exactly as Section 6 of the RFP and Appendix B A2 describe. No further countries in the MVP.
+  decidedBy: Landscape Alliance at the Discovery Workshop
+  affects: Scope, budget, the dry-run protocol
+- id: post_permit_in_mvp
+  source: Appendix A, held open
+  question: Whether post-permit compliance is in scope for the MVP.
+  workingPosition: Not run. The nine obligation classes are recorded on the instrument for phase two, and the architecture reserves a separate module (R10).
+  decidedBy: Landscape Alliance at the Discovery Workshop
+  affects: The continuity stage and the duties panel
+- id: visible_before_match
+  source: Appendix A, held open
+  question: What is visible before a mutual match.
+  workingPosition: Public projection shows function, resource class, provenance country, indicative scale, organisation kind and verified status, and a DSI exposure flag. Identity, species and locality are withheld until both sides signal interest. The split is configuration.
+  decidedBy: Landscape Alliance at the Discovery Workshop
+  affects: Explore, listing pages, the reveal event
+- id: screening_corridor
+  source: Appendix A, held open pending the user journeys note
+  question: Whether the screening corridor (a lab has untested samples and a company cost-shares the testing) becomes a declared journey.
+  workingPosition: Not a journey in the MVP. Offered as a visit objective so demand is measured.
+  decidedBy: Landscape Alliance, after the user journeys note
+  affects: Declare your journey, pipeline design
+- id: curated_first_cohort
+  source: Appendix A, human review boundary
+  question: Whether curated support for the first cohort is wanted, and who at Landscape Alliance acts as administrator watching cases.
+  workingPosition: A business process, not a platform gate. Administrators can watch cases and record interventions with reasons. No case waits on them.
+  decidedBy: Landscape Alliance
+  affects: Administration console staffing
+- id: escalation_owner
+  source: Appendix B, R3
+  question: Who the named human is that an unresolved requirement routes to, per country, or the rule for how parties name their own adviser.
+  workingPosition: A default owner role per country in configuration, with the name left null and shown as pending. Parties may name an adviser on the case.
+  decidedBy: Landscape Alliance
+  affects: Every halted stage
+- id: r5_judgment_seat
+  source: Appendix B, R5
+  question: Who holds the seat that may record the three manual-review judgments (South Africa stakeholders cannot be identified, Brazil genuine scientific collaboration, Malaysia adequate home-jurisdiction ABS measures).
+  workingPosition: An authorised signatory of a party or a Landscape Alliance administrator, with a recorded reason. Never the system.
+  decidedBy: Landscape Alliance
+  affects: Manual review states
+- id: signing_level
+  source: RFP Section 6, agreement development and execution
+  question: Whether a simple electronic signature by an authenticated authorised signatory with a hashed, chained record is acceptable for the MVP, with qualified electronic signatures as an optional item.
+  workingPosition: Simple electronic signature in the MVP (eIDAS Article 25). Qualified signatures behind the same adapter as an option.
+  decidedBy: Landscape Alliance at the Discovery Workshop
+  affects: Execution, budget
+- id: gdpr_controller
+  source: Technical proposal, Part 4.10
+  question: Whether Landscape Alliance regards itself as controller for the personal data of EU users, given that CIFOR and ICRAF are international organisations, and who the data protection contact is.
+  workingPosition: The platform implements records of processing, rights handling and retention regardless of the answer.
+  decidedBy: Landscape Alliance legal function
+  affects: The compliance specification and DPIA
+- id: eu_reach_non_party
+  source: Appendix B, A7 cross-cutting
+  question: Whether material from a non-Party State (Colombia) falls inside Regulation (EU) No 511/2014 at all.
+  workingPosition: The Colombia pathway shows the European side as an open question. A legal opinion is being sought by GENE-LINK.
+  decidedBy: Legal opinion commissioned by GENE-LINK
+  affects: Documentation burden shown to EU users on Colombian material

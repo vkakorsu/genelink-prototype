@@ -1,0 +1,164 @@
+import Link from "next/link";
+import type { ResolvedStage } from "@/core/engine/pathway";
+import type { Case, CaseDocument, EscalationRecord, ManualReviewRecord } from "@/core/domain/types";
+import { EvidenceChip, RegBlock } from "@/components/Evidence";
+import { markStage, uploadDocument, decideManualReview } from "@/app/actions";
+import { fmtTime } from "@/components/ui";
+
+export function StageCard({
+  stage, c, documents, escalations, manualReviews, canEdit, canJudge, learning,
+}: {
+  stage: ResolvedStage;
+  c: Case;
+  documents: CaseDocument[];
+  escalations: EscalationRecord[];
+  manualReviews: ManualReviewRecord[];
+  canEdit: boolean;
+  canJudge: boolean;
+  learning: { id: string; title: string; status: string }[];
+}) {
+  const progress = c.stageProgress[stage.stage.id] ?? "not_started";
+  const cls = stage.status === "halted" ? "halted" : stage.status === "informational" ? "informational" : progress === "complete" ? "complete" : "";
+  return (
+    <div className={`stage ${cls}`} id={`stage-${stage.stage.id}`}>
+      <div className="num" aria-hidden="true">{stage.index + 1}</div>
+      <div className={`stage-card ${stage.status === "halted" ? "halted" : ""}`}>
+        <div className="stage-head">
+          <span className={`subject ${stage.stage.subject}`}>{SUBJECT_LABEL[stage.stage.subject]}</span>
+          <h3>{stage.stage.title}</h3>
+          {stage.status === "halted" && <span className="status-pill halted">Halted · routed to a named person</span>}
+          {stage.status === "informational" && <span className="status-pill informational">Phase two · recorded, not run</span>}
+          {stage.status === "active" && <span className={`status-pill ${progress === "complete" ? "complete" : progress === "in_progress" ? "in_progress" : "active"}`}>{progress.replace("_", " ")}</span>}
+        </div>
+        <div className="stage-body">
+          <dl className="trig">
+            <dt>Trig</dt><dd>{stage.stage.trig}</dd>
+            <dt>Who</dt><dd>{stage.stage.who}</dd>
+            {stage.stage.needs.length > 0 && <><dt>Needs</dt><dd>{stage.stage.needs.join(" · ")}</dd></>}
+            <dt>Gives</dt><dd>{stage.stage.gives}</dd>
+          </dl>
+
+          {stage.escalations.map((e) => {
+            const rec = escalations.find((r) => r.id === `esc_${c.id}_${e.id}`);
+            return (
+              <div className="halt-box" key={e.id} role="status">
+                <strong>Halted on an unresolved requirement.</strong> {e.question}
+                <div className="small" style={{ marginTop: 6 }}>
+                  Routed to <strong>{e.owner}</strong>{e.ownerName ? ` (${e.ownerName})` : " · name pending Landscape Alliance"}.
+                  {rec && <> Raised {fmtTime(rec.raisedAt)}. Status: {rec.status}.</>}
+                  {" "}The answer is a configuration change with legal review, never an in-case override. Silently applying either possible answer would be a defect.
+                </div>
+              </div>
+            );
+          })}
+
+          {stage.manualReviews.map((m) => {
+            const rec = manualReviews.find((r) => r.reviewId === m.id);
+            return (
+              <div className="halt-box" key={m.id}>
+                <strong>Manual review (R5): a judgment no system can make.</strong> {m.question}
+                <div className="small" style={{ marginTop: 4 }}>Decides: {m.decides} <EvidenceChip reg={m.reg} short /></div>
+                {rec?.status === "decided" && rec.decision && (
+                  <div className="small" style={{ marginTop: 6 }}><strong>Decided</strong> by {rec.decision.by} on {fmtTime(rec.decision.at)}: {rec.decision.outcome}. Reason: {rec.decision.reason}</div>
+                )}
+                {rec?.status === "pending_human_judgment" && (
+                  canJudge ? (
+                    <form action={decideManualReview} className="row" style={{ marginTop: 8 }}>
+                      <input type="hidden" name="recordId" value={rec.id} />
+                      <input type="hidden" name="back" value={`/cases/${c.id}`} />
+                      <input name="outcome" type="text" placeholder="Judgment (free text)" required style={{ flex: 1, minWidth: 180 }} />
+                      <input name="reason" type="text" placeholder="Reason, recorded in the audit chain" required style={{ flex: 2, minWidth: 220 }} />
+                      <button className="btn small" type="submit">Record judgment</button>
+                    </form>
+                  ) : (
+                    <div className="small mute" style={{ marginTop: 6 }}>Pending a human judgment with a recorded reason. Only an authorised signatory or an administrator may record it. Not a self-declaration checkbox.</div>
+                  )
+                )}
+              </div>
+            );
+          })}
+
+          {stage.requirements.length > 0 && (
+            <details className="fold" open={stage.status === "halted" || stage.requirements.length <= 3}>
+              <summary>{stage.requirements.length} requirement statement{stage.requirements.length === 1 ? "" : "s"}, each with its evidence class</summary>
+              {stage.requirements.map((r) => <RegBlock key={r.id} reg={r.reg} text={r.text} compact />)}
+            </details>
+          )}
+
+          {stage.consentParties.length > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <h4>Consent parties</h4>
+              {stage.consentParties.map((p) => <RegBlock key={p.id} reg={p.reg} text={p.label} compact />)}
+            </div>
+          )}
+
+          {stage.documents.length > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <h4>Documents this stage needs</h4>
+              <table className="data compact">
+                <thead><tr><th>Document</th><th>Basis</th><th>On file</th><th>Add</th></tr></thead>
+                <tbody>
+                  {stage.documents.map((d) => {
+                    const onFile = documents.filter((x) => x.requirementId === d.id);
+                    return (
+                      <tr key={d.id}>
+                        <td>{d.label}</td>
+                        <td><EvidenceChip reg={d.reg} short /> <span className="mono small">{d.reg.citation}</span></td>
+                        <td>
+                          {onFile.length === 0 && <span className="mute">Missing</span>}
+                          {onFile.map((f) => <div key={f.id} className="small"><strong>{f.fileName}</strong> <span className="mono mute">{f.sha256.slice(0, 12)}…</span><div className="mute">present, {fmtTime(f.uploadedAt)}. Presence and type checked, never sufficiency.</div></div>)}
+                        </td>
+                        <td>
+                          {canEdit ? (
+                            <details className="fold">
+                              <summary className="small">Upload</summary>
+                              <form action={uploadDocument} className="stack">
+                                <input type="hidden" name="caseId" value={c.id} />
+                                <input type="hidden" name="requirementId" value={d.id} />
+                                <input type="hidden" name="label" value={d.label} />
+                                <input name="fileName" type="text" placeholder="file name" />
+                                <textarea name="content" placeholder="Paste document text. The prototype stores the SHA-256, not the file." required />
+                                <button className="btn small" type="submit">Record document</button>
+                              </form>
+                            </details>
+                          ) : <span className="small mute">read only</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {learning.length > 0 && (
+            <p className="small mute" style={{ marginTop: 10 }}>
+              Learning: {learning.map((l) => <span key={l.id}><Link href="/learn">{l.title}</Link> ({l.status === "available" ? "available" : "pending content"}) </span>)}
+            </p>
+          )}
+
+          {stage.status === "active" && canEdit && (
+            <form action={markStage} className="row" style={{ marginTop: 10 }}>
+              <input type="hidden" name="caseId" value={c.id} />
+              <input type="hidden" name="stageId" value={stage.stage.id} />
+              <span className="small mute">Progress is a human action:</span>
+              {(["not_started", "in_progress", "complete"] as const).filter((p) => p !== progress).map((p) => (
+                <button key={p} className="btn ghost small" type="submit" name="progress" value={p}>Mark {p.replace("_", " ")}</button>
+              ))}
+            </form>
+          )}
+          {stage.status === "halted" && <p className="small mute" style={{ marginTop: 10 }}>This stage cannot be marked complete while it is halted. The engine refuses.</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const SUBJECT_LABEL: Record<string, string> = {
+  government: "Government body decides",
+  community: "Community consent and TK",
+  money: "Money changes hands",
+  prohibition: "Prohibition or offence",
+  platform: "GENE-LINK",
+  applicant: "Applicant",
+};
