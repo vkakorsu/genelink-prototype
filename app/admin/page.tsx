@@ -99,7 +99,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           </ul>
           <h4 style={{ marginTop: 14 }}>Recent administrative actions</h4>
           {interventions.length === 0 && <p className="small mute">None yet.</p>}
-          <ol className="timeline">{interventions.slice(-8).reverse().map((e) => <li key={e.seq}><time>{fmtTime(e.at)}</time> <strong>{e.action}</strong> {e.subject.type} {e.subject.id}<div className="mute">{JSON.stringify(e.detail)}</div></li>)}</ol>
+          <ol className="timeline">{interventions.slice(-8).reverse().map((e) => <li key={e.seq}><time>{fmtTime(e.at)}</time> <strong>{e.action}</strong> {e.subject.type} {e.subject.id}<div className="mute mono" style={{ fontSize: "0.72rem" }}>{JSON.stringify(e.detail)}</div></li>)}</ol>
         </section>
       </div>
     </div>
