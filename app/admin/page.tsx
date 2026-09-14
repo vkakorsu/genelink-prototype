@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getPlatform } from "@/core";
-import { decideManualReview, decideVerification } from "@/app/actions";
+import { decideManualReviewFromConsole, decideVerification } from "@/app/actions";
 import { ErrorNotice, Notice, PageHead, fmtTime } from "@/components/ui";
 import { getSession } from "@/lib/session";
 
@@ -69,7 +69,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
         <section className="card">
           <h3>Manual reviews (R5)</h3>
-          <p className="small soft">Judgments no system can make. Recorded by a human with a reason.</p>
+          <p className="small soft">Judgments no system can make and no party may self-declare. Recorded once, by the reviewer seat, with a reason. Immutable once recorded.</p>
           {reviews.length === 0 && <p className="small mute">None.</p>}
           {reviews.map((r) => (
             <div key={r.id} className="card flat" style={{ marginTop: 8 }}>
@@ -78,7 +78,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               {r.status === "decided" && r.decision ? (
                 <p className="small"><strong>Decided</strong> by {r.decision.by} on {fmtTime(r.decision.at)}: {r.decision.outcome}. Reason: {r.decision.reason}</p>
               ) : (
-                <form action={decideManualReview} className="row">
+                <form action={decideManualReviewFromConsole} className="row">
                   <input type="hidden" name="recordId" value={r.id} />
                   <input name="outcome" type="text" placeholder="Judgment" required style={{ flex: 1, minWidth: 140 }} />
                   <input name="reason" type="text" placeholder="Reason" required style={{ flex: 2, minWidth: 200 }} />

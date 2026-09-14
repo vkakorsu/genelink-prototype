@@ -51,7 +51,7 @@ export async function Shell({ children }: { children: React.ReactNode }) {
             <strong>Prototype with fictional parties.</strong> Compliance output here is information, never advice or approval.
             {" "}Store: <code>{storeKind}</code>, state resets when the free instance restarts.
           </span>
-          {objective && <span className="mute">This visit: I have {objective.have ? `"${objective.have}"` : "…"} and I want to {WANT_LABEL[objective.want]?.toLowerCase() ?? objective.want}. <Link href="/declare">Change</Link></span>}
+          {objective && <span className="mute">This visit: I have {objective.have ? `"${objective.have}"` : "…"} and I want to {WANT_LABEL[objective.want]?.toLowerCase() ?? objective.want}.{objective.redactions ? ` ${objective.redactions} identifying item${objective.redactions === 1 ? "" : "s"} removed from the free text.` : ""} <Link href="/declare">Change</Link></span>}
           {!objective && <Link href="/declare">Declare your journey for this visit</Link>}
           <form action={resetDemo} style={{ marginLeft: "auto" }}>
             <button className="btn ghost small" type="submit" title="Re-seed the demo data">Reset demo data</button>

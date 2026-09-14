@@ -3,18 +3,28 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { ZodError } from "zod";
 import { getPlatform, resetPlatform } from "@/core";
 import { CaseFacts } from "@/core/config/schema";
-import { PermissionDenied } from "@/core/platform";
+import { InvalidRequest, NotFound, PermissionDenied } from "@/core/platform";
+import { TransitionError } from "@/core/engine/stateMachine";
 import { ADMIN } from "@/core/seed/seed";
 import { OBJECTIVE_COOKIE, SEAT_COOKIE, getSession } from "@/lib/session";
 import { MODEL_CLAUSES } from "@/lib/clauses";
+import { redactIdentifiers } from "@/lib/redact";
 
 /**
  * Server actions: the only way the interface mutates state. Each one resolves the
  * acting seat from the session and delegates to the core, which evaluates
  * permissions and writes the audit chain. Errors are surfaced as a query string
  * so the page can show them without a client bundle.
+ *
+ * Case-scoped actions take the case id as a bound argument, not a free-form field, so
+ * the page acts on the case it rendered. Bound arguments travel in the form body, so
+ * they are not treated as trustworthy: the core checks that every agreement, instrument
+ * and review acted on belongs to that case and that the seat is a participant, and the
+ * redirect always returns to the case the action actually touched. Authorisation lives
+ * in the core, never in the interface.
  */
 
 function isRedirect(e: unknown): boolean {
@@ -24,6 +34,27 @@ function isRedirect(e: unknown): boolean {
 function back(path: string, error?: string) {
   revalidatePath(path);
   redirect(error ? `${path}?error=${encodeURIComponent(error)}` : path);
+}
+
+/** Turn any failure into one sentence the page can show. Unexpected errors are logged, never leaked. */
+function describe(e: unknown): string {
+  if (e instanceof ZodError) {
+    const fields = [...new Set(e.issues.map((i) => i.path.join(".") || "form"))];
+    return `The form is incomplete: ${fields.map(friendlyField).join(", ")}. Choose an answer for each before saving.`;
+  }
+  if (e instanceof PermissionDenied || e instanceof InvalidRequest || e instanceof NotFound || e instanceof TransitionError) return e.message;
+  if (e instanceof Error && /Unknown (output|amendment policy)|No configured pathway|Stage not on this pathway/.test(e.message)) return e.message;
+  console.error("[action]", e);
+  return "Not done. Something unexpected happened on the server and has been logged. Nothing was changed.";
+}
+
+const FIELD_NAMES: Record<string, string> = {
+  purpose: "purpose", activity: "activity", provenance: "material provenance", applicantType: "applicant type", exchange: "material-exchange scenario",
+  communityHeld: "community-held", tkInvolved: "traditional knowledge involved", directAffectation: "direct affectation", speciesListed: "species status",
+  scientificCollaboration: "scientific collaboration", localities: "collection localities (a whole number)",
+};
+function friendlyField(f: string) {
+  return FIELD_NAMES[f] ?? f;
 }
 
 async function requireSeat() {
@@ -38,36 +69,46 @@ async function requireAdmin() {
   return ADMIN;
 }
 
-function wrap<T extends unknown[]>(path: (...a: T) => string, fn: (...a: T) => Promise<void> | void) {
+function wrap<T extends unknown[]>(fn: (...a: T) => Promise<void> | void, path: (...a: T) => string) {
   return async (...a: T) => {
     try {
       await fn(...a);
     } catch (e) {
       if (isRedirect(e)) throw e;
-      const msg = e instanceof Error ? e.message : String(e);
-      back(path(...a), msg);
+      back(path(...a), describe(e));
       return;
     }
     back(path(...a));
   };
 }
 
+/** A case-scoped action. The first argument is bound by the page; the form supplies the rest. */
+function onCase(fn: (caseId: string, fd: FormData) => Promise<void> | void) {
+  return wrap(fn, (caseId) => `/cases/${encodeURIComponent(caseId)}`);
+}
+
+function text(fd: FormData, name: string, max = 2000): string {
+  const v = fd.get(name);
+  return typeof v === "string" ? v.slice(0, max).trim() : "";
+}
+
 // ------------------------------------------------------------- persona (demo)
 export async function switchPersona(formData: FormData) {
-  const seat = String(formData.get("seat") ?? "");
+  const seat = text(formData, "seat", 100);
   const jar = await cookies();
   if (!seat) jar.delete(SEAT_COOKIE);
   else jar.set(SEAT_COOKIE, seat, { httpOnly: true, sameSite: "lax", path: "/" });
-  const next = String(formData.get("next") ?? "/");
+  const next = text(formData, "next", 300);
   revalidatePath("/", "layout");
-  redirect(next);
+  redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/");
 }
 
 export async function declareObjective(formData: FormData) {
-  const have = String(formData.get("have") ?? "").slice(0, 200);
-  const want = String(formData.get("want") ?? "learn");
+  // Free text is checked for identifying content before it is stored or shown anywhere, including back to its author.
+  const { text: have, redactions } = redactIdentifiers(text(formData, "have", 200));
+  const want = text(formData, "want", 40) || "learn";
   const jar = await cookies();
-  jar.set(OBJECTIVE_COOKIE, JSON.stringify({ have, want, declaredAt: new Date().toISOString() }), { httpOnly: true, sameSite: "lax", path: "/" });
+  jar.set(OBJECTIVE_COOKIE, JSON.stringify({ have, want, redactions, declaredAt: new Date().toISOString() }), { httpOnly: true, sameSite: "lax", path: "/" });
   revalidatePath("/", "layout");
   redirect(want === "learn" ? "/learn" : want === "get_abs_compliant" ? "/cases" : "/explore");
 }
@@ -80,204 +121,177 @@ export async function resetDemo() {
 
 // -------------------------------------------------------------- discovery
 export const signalInterest = wrap(
-  (fd: FormData) => `/listings/${fd.get("listingId")}`,
-  async (fd) => {
+  async (listingId: string, _fd: FormData) => {
     const actor = await requireSeat();
-    const r = getPlatform().signalInterest(actor, String(fd.get("listingId")));
+    const r = getPlatform().signalInterest(actor, listingId);
     if (r.mutual && r.caseId) redirect(`/cases/${r.caseId}`);
   },
+  (listingId) => `/listings/${encodeURIComponent(listingId)}`,
 );
 
 export const reciprocate = wrap(
-  (fd: FormData) => `/listings/${fd.get("listingId")}`,
-  async (fd) => {
+  async (listingId: string, fd: FormData) => {
     const actor = await requireSeat();
-    const r = getPlatform().reciprocate(actor, String(fd.get("listingId")), String(fd.get("organisationId")));
+    const r = getPlatform().reciprocate(actor, listingId, text(fd, "organisationId", 100));
     redirect(`/cases/${r.caseId}`);
   },
+  (listingId) => `/listings/${encodeURIComponent(listingId)}`,
 );
 
 // -------------------------------------------------------------- verification
 export const requestVerification = wrap(
-  (fd: FormData) => `/organisations/${fd.get("organisationId")}`,
-  async (fd) => {
+  async (organisationId: string, fd: FormData) => {
     const actor = await requireSeat();
-    getPlatform().requestVerification(actor, String(fd.get("organisationId")), String(fd.get("method")) as "institutional_email" | "manual_vetting" | "vouching" | "orcid");
+    getPlatform().requestVerification(actor, organisationId, text(fd, "method", 40) as "institutional_email" | "manual_vetting" | "vouching" | "orcid");
   },
+  (organisationId) => `/organisations/${encodeURIComponent(organisationId)}`,
 );
 
 export const decideVerification = wrap(
-  (_fd: FormData) => `/admin`,
-  async (fd) => {
+  async (fd: FormData) => {
     const admin = await requireAdmin();
-    getPlatform().decideVerification(admin, String(fd.get("organisationId")), String(fd.get("outcome")) as "verified" | "declined", String(fd.get("reason") ?? "").trim() || "No reason given");
+    getPlatform().decideVerification(admin, text(fd, "organisationId", 100), text(fd, "outcome", 20) as "verified" | "declined", text(fd, "reason") || "No reason given");
   },
+  () => `/admin`,
 );
 
 // ------------------------------------------------------------------ cases
 function parseFacts(fd: FormData): CaseFacts {
-  const localities = fd.get("localities");
-  const raw = {
-    purpose: fd.get("purpose"),
-    activity: fd.get("activity"),
-    provenance: fd.get("provenance"),
-    applicantType: fd.get("applicantType"),
-    exchange: fd.get("exchange"),
-    communityHeld: fd.get("communityHeld"),
-    tkInvolved: fd.get("tkInvolved"),
-    directAffectation: fd.get("directAffectation") || undefined,
-    speciesListed: fd.get("speciesListed") || undefined,
-    scientificCollaboration: fd.get("scientificCollaboration") || undefined,
+  const localities = text(fd, "localities", 6);
+  const opt = (name: string) => text(fd, name, 40) || undefined;
+  return CaseFacts.parse({
+    purpose: opt("purpose"),
+    activity: opt("activity"),
+    provenance: opt("provenance"),
+    applicantType: opt("applicantType"),
+    exchange: opt("exchange"),
+    communityHeld: opt("communityHeld"),
+    tkInvolved: opt("tkInvolved"),
+    directAffectation: opt("directAffectation"),
+    speciesListed: opt("speciesListed"),
+    scientificCollaboration: opt("scientificCollaboration"),
     localities: localities ? Number(localities) : undefined,
     flags: {},
-  };
-  return CaseFacts.parse(raw);
+  });
 }
 
-export const updateFacts = wrap(
-  (fd: FormData) => `/cases/${fd.get("caseId")}`,
-  async (fd) => {
-    const actor = await requireSeat();
-    getPlatform().updateFacts(actor, String(fd.get("caseId")), parseFacts(fd));
-  },
-);
+export const updateFacts = onCase(async (caseId, fd) => {
+  const actor = await requireSeat();
+  getPlatform().updateFacts(actor, caseId, parseFacts(fd));
+});
 
-export const changeOfIntent = wrap(
-  (fd: FormData) => `/cases/${fd.get("caseId")}`,
-  async (fd) => {
-    const actor = await requireSeat();
-    getPlatform().changeOfIntent(actor, String(fd.get("caseId")), parseFacts(fd), String(fd.get("description") ?? "Change of intent").trim());
-  },
-);
+export const changeOfIntent = onCase(async (caseId, fd) => {
+  const actor = await requireSeat();
+  const description = text(fd, "description", 300);
+  if (!description) throw new InvalidRequest("Say what changed. The description is the change-of-intent record.");
+  getPlatform().changeOfIntent(actor, caseId, parseFacts(fd), description);
+});
 
-export const uploadDocument = wrap(
-  (fd: FormData) => `/cases/${fd.get("caseId")}`,
-  async (fd) => {
-    const actor = await requireSeat();
-    const content = String(fd.get("content") ?? "");
-    if (!content.trim()) throw new Error("Paste the document text so the prototype can hash it");
-    getPlatform().uploadDocument(actor, String(fd.get("caseId")), String(fd.get("requirementId")), String(fd.get("label")), String(fd.get("fileName") || "document.txt"), content);
-  },
-);
+export const uploadDocument = onCase(async (caseId, fd) => {
+  const actor = await requireSeat();
+  const content = typeof fd.get("content") === "string" ? (fd.get("content") as string) : "";
+  getPlatform().uploadDocument(actor, caseId, text(fd, "requirementId", 100), text(fd, "label", 200), text(fd, "fileName", 200) || "document.txt", content);
+});
 
-export const markStage = wrap(
-  (fd: FormData) => `/cases/${fd.get("caseId")}`,
-  async (fd) => {
-    const actor = await requireSeat();
-    getPlatform().markStage(actor, String(fd.get("caseId")), String(fd.get("stageId")), String(fd.get("progress")) as "not_started" | "in_progress" | "complete");
-  },
-);
+export const markStage = onCase(async (caseId, fd) => {
+  const actor = await requireSeat();
+  getPlatform().markStage(actor, caseId, text(fd, "stageId", 100), text(fd, "progress", 20) as "not_started" | "in_progress" | "complete");
+});
 
-export const fireEvent = wrap(
-  (fd: FormData) => `/cases/${fd.get("caseId")}`,
-  async (fd) => {
-    const s = await getSession();
-    if (s.kind === "anonymous") throw new PermissionDenied("Choose a persona first");
-    getPlatform().fireEvent(s.actor, String(fd.get("caseId")), String(fd.get("event")), String(fd.get("note") ?? "").trim() || undefined);
-  },
-);
+export const fireEvent = onCase(async (caseId, fd) => {
+  const s = await getSession();
+  if (s.kind === "anonymous") throw new PermissionDenied("Choose a persona first");
+  getPlatform().fireEvent(s.actor, caseId, text(fd, "event", 60), text(fd, "note", 500) || undefined);
+});
 
-export const tickClocks = wrap(
-  (fd: FormData) => `/cases/${fd.get("caseId")}`,
-  async (fd) => {
-    const days = Number(fd.get("days") ?? 0);
-    const p = getPlatform();
-    const now = new Date(Date.now() + days * 86_400_000);
-    p.tickClocks(String(fd.get("caseId")), now);
-  },
-);
+export const tickClocks = onCase(async (caseId, fd) => {
+  const s = await getSession();
+  if (s.kind === "anonymous") throw new PermissionDenied("Choose a persona first");
+  const p = getPlatform();
+  const mode = text(fd, "days", 10);
+  if (mode === "lapse") {
+    const r = p.forceLapse(caseId);
+    if (!r) throw new InvalidRequest("No clock is running in the current state, so there is nothing to lapse.");
+    return;
+  }
+  const days = Number(mode || 0);
+  if (!Number.isFinite(days) || days < 0 || days > 3650) throw new InvalidRequest("Days must be a number between 0 and 3650");
+  p.tickClocks(caseId, new Date(Date.now() + days * 86_400_000));
+});
 
-export const recordInstrument = wrap(
-  (fd: FormData) => `/cases/${fd.get("caseId")}`,
-  async (fd) => {
-    const actor = await requireSeat();
-    const content = String(fd.get("content") ?? "");
-    if (!content.trim()) throw new Error("Paste the instrument text so the prototype can hash it");
-    getPlatform().recordExternalInstrument(actor, String(fd.get("caseId")), String(fd.get("outputId")), String(fd.get("fileName") || "instrument.pdf"), content);
-  },
-);
+export const recordInstrument = onCase(async (caseId, fd) => {
+  const actor = await requireSeat();
+  const content = typeof fd.get("content") === "string" ? (fd.get("content") as string) : "";
+  getPlatform().recordExternalInstrument(actor, caseId, text(fd, "outputId", 100), text(fd, "fileName", 200) || "instrument.pdf", content);
+});
 
-export const amendInstrument = wrap(
-  (fd: FormData) => `/cases/${fd.get("caseId")}`,
-  async (fd) => {
-    const actor = await requireSeat();
-    getPlatform().amendInstrument(actor, String(fd.get("instrumentId")), String(fd.get("summary") ?? "Amendment").trim());
-  },
-);
+export const amendInstrument = onCase(async (caseId, fd) => {
+  const actor = await requireSeat();
+  getPlatform().amendInstrument(actor, caseId, text(fd, "instrumentId", 150), text(fd, "summary", 500));
+});
 
-export const setInstrumentStatus = wrap(
-  (fd: FormData) => `/cases/${fd.get("caseId")}`,
-  async (fd) => {
-    const s = await getSession();
-    if (s.kind === "anonymous") throw new PermissionDenied("Choose a persona first");
-    getPlatform().setInstrumentStatus(s.actor, String(fd.get("instrumentId")), String(fd.get("status")) as "verified" | "correction_required" | "cancelled" | "issued", String(fd.get("note") ?? "").trim());
-  },
-);
+export const setInstrumentStatus = onCase(async (caseId, fd) => {
+  const s = await getSession();
+  if (s.kind === "anonymous") throw new PermissionDenied("Choose a persona first");
+  getPlatform().setInstrumentStatus(s.actor, caseId, text(fd, "instrumentId", 150), text(fd, "status", 30) as "verified" | "correction_required" | "cancelled" | "issued", text(fd, "note", 300));
+});
 
-export const createAgreement = wrap(
-  (fd: FormData) => `/cases/${fd.get("caseId")}`,
-  async (fd) => {
-    const actor = await requireSeat();
-    const title = String(fd.get("title") ?? "Draft agreement").trim();
-    const selected = fd.getAll("clause").map(String);
-    const clauses = MODEL_CLAUSES.filter((c) => selected.includes(c.id));
-    if (!clauses.length) throw new Error("Select at least one model clause");
-    getPlatform().createAgreement(actor, String(fd.get("caseId")), title, clauses);
-  },
-);
+export const createAgreement = onCase(async (caseId, fd) => {
+  const actor = await requireSeat();
+  const title = text(fd, "title", 200) || "Draft agreement";
+  const selected = fd.getAll("clause").map(String);
+  const clauses = MODEL_CLAUSES.filter((c) => selected.includes(c.id));
+  getPlatform().createAgreement(actor, caseId, title, clauses);
+});
 
-export const reviseAgreement = wrap(
-  (fd: FormData) => `/cases/${fd.get("caseId")}`,
-  async (fd) => {
-    const actor = await requireSeat();
-    const p = getPlatform();
-    const a = p.store.agreements.get(String(fd.get("agreementId")))!;
-    const latest = a.versions[a.versions.length - 1];
-    const negotiated = String(fd.get("negotiated") ?? "").trim();
-    const clauses = negotiated
-      ? [...latest.clauses, { id: `n${latest.clauses.length + 1}`, title: "Negotiated clause", text: negotiated, source: "negotiated" as const }]
-      : latest.clauses;
-    p.reviseAgreement(actor, a.id, String(fd.get("summary") ?? "Revision").trim(), clauses, fd.get("offPlatform") ? "uploaded_off_platform" : "platform");
-  },
-);
+export const reviseAgreement = onCase(async (caseId, fd) => {
+  const actor = await requireSeat();
+  const p = getPlatform();
+  const agreementId = text(fd, "agreementId", 150);
+  const a = p.store.agreements.get(agreementId);
+  if (!a) throw new NotFound(`Agreement ${agreementId} was not found. The demo may have been reset since this page was rendered. Reload the page.`);
+  const latest = a.versions[a.versions.length - 1];
+  const negotiated = text(fd, "negotiated", 4000);
+  const clauses = negotiated
+    ? [...latest.clauses, { id: `n${latest.clauses.length + 1}`, title: "Negotiated clause", text: negotiated, source: "negotiated" as const }]
+    : latest.clauses;
+  p.reviseAgreement(actor, caseId, agreementId, text(fd, "summary", 300), clauses, fd.get("offPlatform") ? "uploaded_off_platform" : "platform");
+});
 
-export const approveAgreement = wrap(
-  (fd: FormData) => `/cases/${fd.get("caseId")}`,
-  async (fd) => {
-    const actor = await requireSeat();
-    getPlatform().approveAgreement(actor, String(fd.get("agreementId")));
-  },
-);
+export const approveAgreement = onCase(async (caseId, fd) => {
+  const actor = await requireSeat();
+  getPlatform().approveAgreement(actor, caseId, text(fd, "agreementId", 150));
+});
 
-export const executeAgreement = wrap(
-  (fd: FormData) => `/cases/${fd.get("caseId")}`,
-  async (fd) => {
-    const actor = await requireSeat();
-    getPlatform().executeAgreement(actor, String(fd.get("agreementId")));
-  },
-);
+export const executeAgreement = onCase(async (caseId, fd) => {
+  const actor = await requireSeat();
+  getPlatform().executeAgreement(actor, caseId, text(fd, "agreementId", 150));
+});
 
-export const requestSupport = wrap(
-  (fd: FormData) => `/cases/${fd.get("caseId")}`,
-  async (fd) => {
-    const actor = await requireSeat();
-    getPlatform().requestSupport(actor, String(fd.get("caseId")), String(fd.get("kind")) as "technical" | "expert", String(fd.get("note") ?? "").trim());
-  },
-);
+export const requestSupport = onCase(async (caseId, fd) => {
+  const actor = await requireSeat();
+  getPlatform().requestSupport(actor, caseId, text(fd, "kind", 20) as "technical" | "expert", text(fd, "note", 1000));
+});
 
-export const decideManualReview = wrap(
-  (fd: FormData) => (fd.get("back") ? String(fd.get("back")) : `/admin`),
-  async (fd) => {
-    const s = await getSession();
-    if (s.kind === "anonymous") throw new PermissionDenied("Choose a persona first");
-    getPlatform().decideManualReview(s.actor, String(fd.get("recordId")), String(fd.get("outcome")).trim(), String(fd.get("reason") ?? "").trim() || "No reason given");
-  },
-);
+/** R5. The reviewer seat is the administrator in the prototype. Bound to the case so the redirect can never point elsewhere. */
+export const decideManualReview = onCase(async (caseId, fd) => {
+  const admin = await requireAdmin();
+  const recordId = text(fd, "recordId", 150);
+  const rec = getPlatform().store.manualReviews.get(recordId);
+  if (rec && rec.caseId !== caseId) throw new PermissionDenied("Manual review does not belong to this case");
+  getPlatform().decideManualReview(admin, recordId, text(fd, "outcome", 500), text(fd, "reason", 1000));
+});
 
-export const adminIntervene = wrap(
-  (fd: FormData) => `/cases/${fd.get("caseId")}`,
-  async (fd) => {
+/** The same judgment recorded from the administrator console. */
+export const decideManualReviewFromConsole = wrap(
+  async (fd: FormData) => {
     const admin = await requireAdmin();
-    getPlatform().adminIntervene(admin, String(fd.get("caseId")), String(fd.get("action")), String(fd.get("reason") ?? "").trim() || "No reason given");
+    getPlatform().decideManualReview(admin, text(fd, "recordId", 150), text(fd, "outcome", 500), text(fd, "reason", 1000));
   },
+  () => `/admin`,
 );
+
+export const adminIntervene = onCase(async (caseId, fd) => {
+  const admin = await requireAdmin();
+  getPlatform().adminIntervene(admin, caseId, text(fd, "action", 500), text(fd, "reason", 1000));
+});

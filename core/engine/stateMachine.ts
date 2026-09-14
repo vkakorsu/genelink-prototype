@@ -58,11 +58,16 @@ export function fire(cfg: CountryConfig, snap: MachineSnapshot, event: string, a
     history: [...snap.history, { from: snap.state, to: t.to, event, actor, at: at.toISOString(), note }],
     clocks: { ...snap.clocks },
   };
-  // Suspend or resume clocks by state.
+  // Suspend or resume clocks by state. A clock that has lapsed and whose state is
+  // re-entered (an administrator resumes) starts afresh: the old deadline is history,
+  // recorded in the snapshot's history, and a new one runs from the resumption.
   for (const c of sm.clocks) {
     const status = next.clocks[c.id];
     if (!status) continue;
-    next.clocks[c.id] = { ...status, suspended: c.suspendsIn.includes(t.to) };
+    const restart = status.lapsed && t.to === c.startsIn;
+    next.clocks[c.id] = restart
+      ? { clockId: c.id, startedAt: null, deadline: null, suspended: false, lapsed: false, daysRemaining: null }
+      : { ...status, suspended: c.suspendsIn.includes(t.to) };
   }
   return startClocksFor(sm, next, at);
 }

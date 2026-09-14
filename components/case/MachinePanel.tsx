@@ -47,12 +47,12 @@ export function MachinePanel({ cfg, c, canAct, isAdmin }: { cfg: CountryConfig; 
           })}
           <p className="small mute">On lapse: <EvidenceChip reg={clocks[0].onLapse.reg} short /> {clocks[0].onLapse.reg.value}</p>
           {canAct && (
-            <form action={tickClocks} className="row">
-              <input type="hidden" name="caseId" value={c.id} />
-              <span className="small mute">Demo control: advance time and re-check clocks.</span>
+            <form action={tickClocks.bind(null, c.id)} className="row">
+              <span className="small mute">Demo control: re-check clocks at a chosen time. Nothing else in the demo moves.</span>
               <button className="btn ghost small" type="submit" name="days" value="0">Check now</button>
-              <button className="btn ghost small" type="submit" name="days" value="45">Advance 45 days</button>
-              <button className="btn ghost small" type="submit" name="days" value="90">Advance 90 days</button>
+              <button className="btn ghost small" type="submit" name="days" value="45">Check at +45 days</button>
+              <button className="btn ghost small" type="submit" name="days" value="90">Check at +90 days</button>
+              <button className="btn ghost small" type="submit" name="days" value="lapse" title="Evaluate the running clock one day past its own deadline">Force lapse now</button>
             </form>
           )}
         </div>
@@ -63,8 +63,7 @@ export function MachinePanel({ cfg, c, canAct, isAdmin }: { cfg: CountryConfig; 
         {events.length === 0 && <p className="small mute">Terminal state. No further events are declared.</p>}
         {events.length > 0 && !canAct && <p className="small mute">Your seat can view but not record regulator events.</p>}
         {events.length > 0 && canAct && (
-          <form action={fireEvent} className="stack">
-            <input type="hidden" name="caseId" value={c.id} />
+          <form action={fireEvent.bind(null, c.id)} className="stack">
             <input name="note" type="text" placeholder="Note for the audit record (optional)" />
             <div className="row">
               {events.map((t) => (

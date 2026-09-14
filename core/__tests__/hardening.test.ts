@@ -1,0 +1,277 @@
+import { describe, expect, it } from "vitest";
+import { join } from "node:path";
+import { loadCountries } from "../config/load";
+import { InMemoryStore } from "../store/memory";
+import { seed, ADMIN } from "../seed/seed";
+import { InvalidRequest, MAX_DOCUMENT_BYTES, NotFound, PermissionDenied, Platform } from "../platform";
+import { verifyChain } from "../audit/chain";
+import { redactIdentifiers } from "../../lib/redact";
+import type { CaseFacts } from "../config/schema";
+
+/**
+ * Defects found by multi-session, two-sided testing of the live prototype, each pinned here so
+ * it cannot come back. Every test drives the platform the way a second user at the other end
+ * would, through the same public methods the server actions call.
+ */
+
+const countries = loadCountries(join(process.cwd(), "config", "countries"));
+const fresh = () => seed(new InMemoryStore(), countries);
+
+const keFacts = (over: Partial<CaseFacts> = {}): CaseFacts => ({
+  purpose: "commercial", activity: "collection_research", provenance: "in_situ", applicantType: "foreign_legal", exchange: "no_movement",
+  communityHeld: "no", tkInvolved: "no", speciesListed: "not_listed", localities: 1, flags: {}, ...over,
+});
+
+function grantedKenyaCase(p: Platform) {
+  const wanjiru = p.actorFor("seat_wanjiru_lbnpi");
+  const tobias = p.actorFor("seat_tobias_nordlicht");
+  // A fresh pairing so the seeded Nordlicht case is untouched: Nordlicht signals on the Kenya offer via Tobias, LBNPI reciprocates.
+  const c0 = p.store.cases.list().find((c) => c.listingId === "lst_ke_antiinfl" && c.participants.some((x) => x.organisationId === "org_nordlicht"))!;
+  p.updateFacts(wanjiru, c0.id, keFacts());
+  p.fireEvent(wanjiru, c0.id, "submit");
+  p.fireEvent(ADMIN, c0.id, "acknowledge");
+  p.fireEvent(ADMIN, c0.id, "grant");
+  void tobias;
+  return p.store.cases.get(c0.id)!;
+}
+
+describe("R5: a manual-review judgment is never a party's self-declaration", () => {
+  it("a case party with a signatory seat cannot record it; the reviewer seat can, once", () => {
+    const p = fresh();
+    const br = p.store.cases.list().find((c) => c.providerCountry === "BR")!;
+    const [review] = p.manualReviewsFor(br.id);
+    const luana = p.actorFor("seat_luana_iam"); // authorised signatory AND a party to the case
+    expect(() => p.decideManualReview(luana, review.id, "yes", "we say so")).toThrow(PermissionDenied);
+    p.decideManualReview(ADMIN, review.id, "Genuine collaboration exists", "Joint protocol reviewed");
+    expect(() => p.decideManualReview(ADMIN, review.id, "no", "changed my mind")).toThrow(/immutable/);
+    expect(() => p.decideManualReview(luana, review.id, "no", "overwrite attempt")).toThrow(PermissionDenied);
+    const rec = p.store.manualReviews.get(review.id)!;
+    expect(rec.decision?.outcome).toBe("Genuine collaboration exists");
+    expect(rec.decision?.by).toBe(ADMIN.admin.name);
+  });
+
+  it("an empty outcome or reason is refused", () => {
+    const p = fresh();
+    const br = p.store.cases.list().find((c) => c.providerCountry === "BR")!;
+    const [review] = p.manualReviewsFor(br.id);
+    expect(() => p.decideManualReview(ADMIN, review.id, "   ", "reason")).toThrow(InvalidRequest);
+  });
+});
+
+describe("Kenya: two instruments from two issuers is a real gate, not an auto-issue", () => {
+  it("grant produces two awaiting-record instruments with no hash, and the applicant holds nothing until both are recorded", () => {
+    const p = fresh();
+    const c = grantedKenyaCase(p);
+    const instruments = p.instrumentsFor(c.id);
+    expect(instruments.map((i) => i.outputId).sort()).toEqual(["nacosti_research_licence", "nema_access_permit"]);
+    expect(instruments.every((i) => i.status === "awaiting_record" && i.versions.length === 0)).toBe(true);
+    expect(p.holdings(c)).toMatchObject({ required: 2, recorded: 0 });
+    expect(p.holdings(c).missing).toHaveLength(2);
+
+    const otieno = p.actorFor("seat_otieno_lbnpi");
+    p.recordExternalInstrument(otieno, c.id, "nema_access_permit", "NEMA-2027-001.pdf", "NEMA permit text (fictional)");
+    const h1 = p.holdings(c);
+    expect(h1.recorded).toBe(1);
+    expect(h1.missing.map((m) => m.outputId)).toEqual(["nacosti_research_licence"]);
+    // Recording NEMA did not conjure NACOSTI.
+    expect(p.store.instruments.get(`inst_${c.id}_nacosti_research_licence`)!.versions).toHaveLength(0);
+
+    p.recordExternalInstrument(otieno, c.id, "nacosti_research_licence", "NACOSTI-2027-77.pdf", "NACOSTI licence text (fictional)");
+    expect(p.holdings(c)).toMatchObject({ required: 2, recorded: 2, missing: [] });
+    // The audit says the platform waited rather than fabricated.
+    expect(p.store.audit.list().filter((e) => e.action === "instrument.awaiting_record" && e.subject.id.startsWith(`inst_${c.id}_`))).toHaveLength(2);
+    expect(verifyChain(p.store.audit.list()).ok).toBe(true);
+  });
+
+  it("an instrument cannot be recorded twice as an original, and an awaiting instrument cannot be amended", () => {
+    const p = fresh();
+    const c = grantedKenyaCase(p);
+    const otieno = p.actorFor("seat_otieno_lbnpi");
+    expect(() => p.amendInstrument(otieno, c.id, `inst_${c.id}_nema_access_permit`, "change")).toThrow(/not been recorded yet/);
+    p.recordExternalInstrument(otieno, c.id, "nema_access_permit", "a.pdf", "text");
+    expect(() => p.recordExternalInstrument(otieno, c.id, "nema_access_permit", "b.pdf", "text 2")).toThrow(InvalidRequest);
+    expect(() => p.recordExternalInstrument(otieno, c.id, "nema_permit", "b.pdf", "text")).toThrow(/Unknown output nema_permit/);
+  });
+
+  it("Brazil's automatic receipt is still recorded on the act itself", () => {
+    const p = fresh();
+    const br = p.store.cases.list().find((c) => c.providerCountry === "BR")!;
+    const [receipt] = p.instrumentsFor(br.id);
+    expect(receipt.status).toBe("verification_open");
+    expect(receipt.versions).toHaveLength(1);
+  });
+});
+
+describe("Colombia: an addendum cannot be recorded after the contract's case has ended", () => {
+  it("terminate freezes the contract, and the freeze is recorded on the instrument", () => {
+    const p = fresh();
+    const co = p.store.cases.list().find((c) => c.providerCountry === "CO" && c.participants.some((x) => x.organisationId === "org_nordlicht"))!;
+    const camila = p.actorFor("seat_camila_ibp");
+    const [contract] = p.instrumentsFor(co.id);
+    const before = contract.versions.length;
+    p.amendInstrument(camila, co.id, contract.id, "Otrosí before termination");
+    expect(p.store.instruments.get(contract.id)!.versions).toHaveLength(before + 1);
+    p.fireEvent(ADMIN, co.id, "terminate", "Indispensable accessory contract failed (fictional)");
+    expect(p.store.cases.get(co.id)!.machine.state).toBe("terminated");
+    expect(p.store.instruments.get(contract.id)!.status).toBe("cancelled");
+    expect(() => p.amendInstrument(camila, co.id, contract.id, "Post-terminate addendum")).toThrow(PermissionDenied);
+    expect(p.store.instruments.get(contract.id)!.versions).toHaveLength(before + 1);
+  });
+});
+
+describe("need listings: a match runs under the supplying organisation's country", () => {
+  it("community custodian (KE) meets an EU need and a Kenya case opens with the roles the right way round", () => {
+    const p = fresh();
+    const nyokabi = p.actorFor("seat_nyokabi_olkalou");
+    const ines = p.actorFor("seat_ines_nordlicht");
+    const r = p.signalInterest(nyokabi, "lst_need_preservative");
+    expect(r.mutual).toBe(false);
+    const { caseId } = p.reciprocate(ines, "lst_need_preservative", "org_olkalou");
+    const c = p.store.cases.get(caseId)!;
+    expect(c.providerCountry).toBe("KE");
+    expect(c.participants).toEqual(expect.arrayContaining([
+      { organisationId: "org_nordlicht", role: "demand" },
+      { organisationId: "org_olkalou", role: "supply" },
+    ]));
+    expect(p.pathwayFor(c).stages.length).toBeGreaterThan(2);
+  });
+
+  it("a supplier whose country has no configuration is told so before anyone signals, not after", () => {
+    const p = fresh();
+    const kwame = p.actorFor("seat_kwame_asheokoro"); // Ghana, not configured
+    expect(() => p.signalInterest(kwame, "lst_need_preservative")).toThrow(/no configured pathway for GH/);
+    expect(p.interestsOn("lst_need_preservative").some((i) => i.fromOrganisationId === "org_asheokoro")).toBe(false);
+  });
+
+  it("signalling back to an organisation that never signalled is refused", () => {
+    const p = fresh();
+    const ines = p.actorFor("seat_ines_nordlicht");
+    expect(() => p.reciprocate(ines, "lst_need_preservative", "org_olkalou")).toThrow(InvalidRequest);
+  });
+});
+
+describe("declined organisations do not match", () => {
+  it("a declined organisation cannot signal, and cannot be signalled back to", () => {
+    const p = fresh();
+    const nyokabi = p.actorFor("seat_nyokabi_olkalou");
+    const wanjiru = p.actorFor("seat_wanjiru_lbnpi");
+    // Signal while pending is allowed (Path B onboarding continues in parallel).
+    p.signalInterest(nyokabi, "lst_co_emulsifier");
+    p.decideVerification(ADMIN, "org_olkalou", "declined", "Biocultural protocol could not be confirmed (fictional)");
+    const camila = p.actorFor("seat_camila_ibp");
+    expect(() => p.reciprocate(camila, "lst_co_emulsifier", "org_olkalou")).toThrow(/declined verification/);
+    const nyokabi2 = p.actorFor("seat_nyokabi_olkalou");
+    expect(() => p.signalInterest(nyokabi2, "lst_ke_antiinfl")).toThrow(/declined/);
+    void wanjiru;
+  });
+});
+
+describe("confused deputy: an agreement or instrument acts only on its own case", () => {
+  it("approving an agreement through a different case id is refused even for a participant of both", () => {
+    const p = fresh();
+    const ines = p.actorFor("seat_ines_nordlicht");
+    const ke = p.store.cases.list().find((c) => c.providerCountry === "KE" && c.participants.some((x) => x.organisationId === "org_nordlicht"))!;
+    const co = p.store.cases.list().find((c) => c.providerCountry === "CO" && c.participants.some((x) => x.organisationId === "org_nordlicht"))!;
+    const [keAgreement] = p.agreementsFor(ke.id);
+    expect(() => p.approveAgreement(ines, co.id, keAgreement.id)).toThrow(/does not belong to this case/);
+    expect(() => p.executeAgreement(ines, co.id, keAgreement.id)).toThrow(/does not belong to this case/);
+    expect(() => p.reviseAgreement(ines, co.id, keAgreement.id, "x", keAgreement.versions[0].clauses)).toThrow(/does not belong to this case/);
+    const [coContract] = p.instrumentsFor(co.id);
+    const camila = p.actorFor("seat_camila_ibp");
+    expect(() => p.amendInstrument(camila, ke.id, coContract.id, "x")).toThrow(/does not belong to this case/);
+  });
+
+  it("a stale id after a reset is a sentence, not a crash", () => {
+    const p = fresh();
+    const ines = p.actorFor("seat_ines_nordlicht");
+    const ke = p.store.cases.list().find((c) => c.providerCountry === "KE" && c.participants.some((x) => x.organisationId === "org_nordlicht"))!;
+    expect(() => p.approveAgreement(ines, ke.id, "agr_does_not_exist")).toThrow(NotFound);
+    expect(() => p.updateFacts(ines, "case_null", keFacts())).toThrow(NotFound);
+    expect(() => p.fireEvent(ines, "case_null", "submit")).toThrow(NotFound);
+  });
+
+  it("a signatory-level seat in either party can approve; a member cannot; both approvals then execution", () => {
+    const p = fresh();
+    const c = grantedKenyaCase(p);
+    const otieno = p.actorFor("seat_otieno_lbnpi");
+    const ines = p.actorFor("seat_ines_nordlicht");
+    const tobias = p.actorFor("seat_tobias_nordlicht");
+    const a = p.createAgreement(otieno, c.id, "MAT", [{ id: "c1", title: "t", text: "x", source: "illustrative" }]);
+    expect(() => p.approveAgreement(tobias, c.id, a.id)).toThrow(PermissionDenied);
+    p.approveAgreement(otieno, c.id, a.id);
+    expect(() => p.executeAgreement(ines, c.id, a.id)).toThrow(/Both organisations must approve/);
+    p.approveAgreement(ines, c.id, a.id);
+    p.executeAgreement(ines, c.id, a.id);
+    p.executeAgreement(otieno, c.id, a.id);
+    const done = p.store.agreements.get(a.id)!;
+    expect(done.status).toBe("executed");
+    expect(new Set(done.executions.map((e) => e.sha256)).size).toBe(1);
+  });
+});
+
+describe("clocks: resume restarts the clock, and a lapse can be forced for the demo", () => {
+  it("after administrator_resumes the determination clock runs afresh and lapses again past its new deadline", () => {
+    const p = fresh();
+    const lapsed = p.store.cases.list().find((c) => c.machine.state === "deadline_lapsed")!;
+    p.fireEvent(ADMIN, lapsed.id, "administrator_resumes", "Resumed after remedy");
+    const c = p.store.cases.get(lapsed.id)!;
+    expect(c.machine.state).toBe("under_review");
+    const clock = c.machine.clocks.determination;
+    expect(clock.lapsed).toBe(false);
+    expect(new Date(clock.deadline!).getTime()).toBeGreaterThan(Date.now());
+    // Checking now does not lapse it.
+    expect(p.tickClocks(c.id).lapsed).toEqual([]);
+    expect(p.store.cases.get(c.id)!.machine.state).toBe("under_review");
+    // Forcing evaluates one day past the deadline.
+    const r = p.forceLapse(c.id);
+    expect(r?.lapsed).toEqual(["determination"]);
+    expect(p.store.cases.get(c.id)!.machine.state).toBe("deadline_lapsed");
+    expect(p.instrumentsFor(c.id)).toHaveLength(0);
+  });
+
+  it("forceLapse is null when no clock governs the current state", () => {
+    const p = fresh();
+    const br = p.store.cases.list().find((c) => c.providerCountry === "BR")!;
+    expect(p.forceLapse(br.id)).toBeNull();
+  });
+});
+
+describe("documents and instruments: limits and duplicates are refused with a sentence", () => {
+  it("oversized and duplicate uploads are InvalidRequest, never a crash", () => {
+    const p = fresh();
+    const ke = p.store.cases.list().find((c) => c.providerCountry === "KE" && c.participants.some((x) => x.organisationId === "org_nordlicht"))!;
+    const tobias = p.actorFor("seat_tobias_nordlicht");
+    const big = "x".repeat(MAX_DOCUMENT_BYTES + 1);
+    expect(() => p.uploadDocument(tobias, ke.id, "mta_application", "MTA", "big.txt", big)).toThrow(/limit/);
+    expect(() => p.uploadDocument(tobias, ke.id, "mta_application", "MTA", "e.txt", "   ")).toThrow(InvalidRequest);
+    p.uploadDocument(tobias, ke.id, "mta_application", "MTA", "one.txt", "same content");
+    expect(() => p.uploadDocument(tobias, ke.id, "mta_application", "MTA", "two.txt", "same content")).toThrow(/identical document/);
+    expect(() => p.uploadDocument(tobias, ke.id, "not_a_requirement", "X", "x.txt", "content")).toThrow(InvalidRequest);
+  });
+});
+
+describe("administrator intervention is visible on the case, not only in the audit chain", () => {
+  it("records on the case body", () => {
+    const p = fresh();
+    const ke = p.store.cases.list().find((c) => c.providerCountry === "KE")!;
+    p.adminIntervene(ADMIN, ke.id, "Contacted both parties", "Escalation owner unnamed for 30 days");
+    expect(p.store.cases.get(ke.id)!.interventions).toHaveLength(1);
+    expect(() => p.adminIntervene(ADMIN, ke.id, "", "no action")).toThrow(InvalidRequest);
+  });
+});
+
+describe("free text is checked for identifying content", () => {
+  it("removes emails, phone numbers, URLs and ORCID iDs and keeps the rest", () => {
+    const r = redactIdentifiers("Lamiaceae extracts, contact i.halvorsen@nordlicht.example or +49-40-1234567, see https://nordlicht.example/x, ORCID 0000-0002-1825-0097");
+    expect(r.text).not.toMatch(/halvorsen|\+49|https|0000-0002/);
+    expect(r.text).toMatch(/Lamiaceae extracts/);
+    expect(r.redactions).toBe(4);
+    expect(r.kinds.sort()).toEqual(["email", "orcid", "phone", "url"]);
+  });
+
+  it("leaves ordinary text and short numbers alone", () => {
+    const r = redactIdentifiers("a 2028 product line needing 3 natural preservatives at 40% concentration");
+    expect(r.redactions).toBe(0);
+    expect(r.text).toBe("a 2028 product line needing 3 natural preservatives at 40% concentration");
+  });
+});

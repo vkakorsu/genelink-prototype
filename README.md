@@ -49,7 +49,7 @@ Requires Node 22.
 
 ```bash
 npm ci
-npm run test:ci        # 52 tests on the core: schema, lint, scope, pathway, state machines, instruments, audit, full journeys, dry run for every country
+npm run test:ci        # 71 tests on the core: schema, lint, scope, pathway, state machines, instruments, audit, full journeys, dry run for every country, and a hardening suite replaying every defect found in live evaluation
 npm run dry-run -- BR  # walk Brazil end to end in the terminal. Try CO or KE too
 npm run lint:config    # validate every country file
 npm run dev            # http://localhost:3000
@@ -102,6 +102,8 @@ scripts/
 app/                          Next.js App Router. Server components and server actions. No client bundle for the journey
 components/                   evidence chips, stage cards, machine panel, instruments, agreements
 lib/session.ts                demo sign-in boundary
+lib/redact.ts                 strips emails, phone numbers, URLs and ORCID iDs from free text before it is shown
+proxy.ts                      request guard in front of every route: malformed or oversized POSTs get a 4xx, never the action runtime
 ```
 
 ## The configuration format

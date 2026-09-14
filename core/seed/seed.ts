@@ -141,8 +141,9 @@ export function seed(store: Store, countries: Map<string, CountryConfig>, baseDa
     platform.fireEvent(ev === "resubmit" || ev === "submit" ? camila : ADMIN, coId, ev, note);
     step(60 * 24 * 3);
   }
-  const [coContract] = platform.instrumentsFor(coId);
-  platform.amendInstrument(camila, coContract.id, "Otrosí No. 1: adds accession IBP-A-121 to the resource scope");
+  // Publication perfected the contract. The State holds the document; the platform records the copy the signatory supplies.
+  const coContract = platform.recordExternalInstrument(camila, coId, "access_contract", "contrato-acceso-ANLA-2027-014.pdf", "Contrato de acceso a recursos genéticos No. 014 de 2027 (fictional). Perfected on publication.");
+  platform.amendInstrument(camila, coId, coContract.id, "Otrosí No. 1: adds accession IBP-A-121 to the resource scope");
   step(60 * 24 * 20);
   platform.changeOfIntent(camila, coId, { ...store.cases.get(coId)!.facts, exchange: "service_shipment" }, "Samples to be sent abroad for sequencing service and returned, rather than transferred with title");
   step();
@@ -150,11 +151,11 @@ export function seed(store: Store, countries: Map<string, CountryConfig>, baseDa
     { id: "a1", title: "Suspensive condition", text: "This accessory contract takes effect only on the access contract taking effect (D391 Art. 42).", source: "model_clause" },
     { id: "a2", title: "Monitoring duties", text: "The national support institution carries the Art. 43 monitoring duties. Illustrative wording pending Landscape Alliance clauses.", source: "illustrative" },
   ]);
-  platform.approveAgreement(camila, coAgreement.id);
-  platform.approveAgreement(ines, coAgreement.id);
+  platform.approveAgreement(camila, coId, coAgreement.id);
+  platform.approveAgreement(ines, coId, coAgreement.id);
   step();
-  platform.executeAgreement(camila, coAgreement.id);
-  platform.executeAgreement(ines, coAgreement.id);
+  platform.executeAgreement(camila, coId, coAgreement.id);
+  platform.executeAgreement(ines, coId, coAgreement.id);
   step();
 
   // ---------------------------------------------- Kenya lapsed-clock case (second)
