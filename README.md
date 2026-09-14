@@ -43,6 +43,7 @@ The RFP's appendices make claims that are easy to write and hard to fake. This p
 | Adviser and broker attachment; publishing new listings | MVP flows behind the same seat model | Marked on the case page and `/open-decisions`; listings are seeded |
 | Real verification checks | The flow runs (request, vouching, administrator decision, declined state); the checks behind a decision are seeded. No domain check or ORCID lookup executes | Organisation verification rows carry seeded evidence |
 | Document files | Uploads accept pasted text, hashed and versioned as a file would be | S3-compatible storage ships dormant in `docker-compose.yml` |
+| Assistive AI | Feature-flagged and off by default in the MVP; provider and use decided with Landscape Alliance | `lib/ai.ts` documents the adapter interface, unimplemented; the checks it would assist (`lib/redact.ts`, taxonomy filters) already run as code |
 | Countries beyond Kenya, Colombia and the Brazil dry run; the R10 duties module | Further countries need legal research Landscape Alliance supplies; duty tracking is phase two | Madagascar, Malaysia and South Africa analysed in the proposal; nine obligation classes recorded as configuration |
 | Live ABS Clearing-House lookup, qualified signatures, payments | Deferred or optional in the proposal | Not present |
 | Any assertion about the law beyond what Appendix B marks | Where Appendix B says ? the prototype says ? | Everywhere |
