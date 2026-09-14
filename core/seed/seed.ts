@@ -134,11 +134,13 @@ export function seed(store: Store, countries: Map<string, CountryConfig>, baseDa
     ["begin_evaluation", undefined],
     ["request_information", "Methodology clarification requested"],
     ["resubmit", "Methodology clarified"],
-    ["accept", "Accepted. Notification within five days recorded."],
+    ["deny", "Denied after evaluation: the benefit-sharing methodology remained insufficient (fictional)"],
+    ["appeal", "Appeal lodged within the statutory window (fictional)"],
+    ["uphold_appeal", "Appeal upheld. The file returns to evaluation and is accepted. Notification within five days recorded."],
     ["begin_negotiation", "Draft contract meeting with MADS (fictional)"],
     ["publish_contract", "Contract published, perfected on publication"],
   ] as [string, string | undefined][]) {
-    platform.fireEvent(ev === "resubmit" || ev === "submit" ? camila : ADMIN, coId, ev, note);
+    platform.fireEvent(ev === "resubmit" || ev === "submit" || ev === "appeal" ? camila : ADMIN, coId, ev, note);
     step(60 * 24 * 3);
   }
   // Publication perfected the contract. The State holds the document; the platform records the copy the signatory supplies.
@@ -183,7 +185,7 @@ export function seed(store: Store, countries: Map<string, CountryConfig>, baseDa
     communityHeld: "no", tkInvolved: "no", scientificCollaboration: "unclear", flags: {},
   });
   step();
-  platform.fireEvent(luana, brId, "complete_form", "SisGen form completed. Receipt issued automatically.");
+  platform.fireEvent({ system: true }, brId, "complete_form", "SisGen form completed. Receipt issued automatically.");
   step();
 
   // A signal with no reciprocation: the negative control for anonymisation-until-match.

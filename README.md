@@ -17,7 +17,7 @@ The RFP's appendices make claims that are easy to write and hard to fake. This p
 | **Unknown halts and escalates, never defaults (R3).** A stage that depends on an unresolved value stops, shows the question, and routes it to a named owner slot. | Kenya case, stages "Consent and terms" and "Traditional knowledge". Colombia case, "Prior consultation". |
 | **Evidence class reaches the interface (R4).** Every rule shown carries §, ▸, ?, ⊘ or [GL], visibly distinguished. | Every case page, `/admin/config/KE` |
 | **Manual-review states for judgments no system can make (R5).** Brazil's "genuine scientific collaboration" is a state only a human with a recorded reason can move. Never a checkbox. | Brazil case, stage "Who holds the registration" |
-| **Live data layers (R6).** Modelled in the schema (`liveLayers`), populated for Kenya's species status list with a pending source. | `/admin/config/KE` |
+| **Live data layers (R6).** Modelled in the schema (`liveLayers`); Kenya's species status list carries clearly-marked demonstration entries pending a maintained source. | `/admin/config/KE` |
 | **One contract, versioned by addendum (R7).** The Colombian access contract is one record with an otrosí history. Kenya's change of intent requires a new application instead. | Colombia case, "What the applicant holds" |
 | **A lapsed clock never grants (R8).** The second Kenya case sits in `deadline_lapsed` with a remedy against the administrator and no permit. The linter refuses any clock whose lapse target is a granted state. | Case `case_3_ke`, `core/config/lint.ts` |
 | **Full state machines with unhappy paths (R9).** Returned incomplete, information requested, resubmitted, refused, appealed, withdrawn, correction required, cancelled, all declared per country and walkable. | "Regulator processing" panel on any case |
@@ -48,6 +48,7 @@ The RFP's appendices make claims that are easy to write and hard to fake. This p
 | Assistive AI | Feature-flagged and off by default in the MVP; provider and use decided with Landscape Alliance | `lib/ai.ts` documents the adapter interface, unimplemented; the checks it would assist (`lib/redact.ts`, taxonomy filters) already run as code |
 | Countries beyond Kenya, Colombia and the Brazil dry run; the R10 duties module | Further countries need legal research Landscape Alliance supplies; duty tracking is phase two | Madagascar, Malaysia and South Africa analysed in the proposal; nine obligation classes recorded as configuration |
 | Live ABS Clearing-House lookup, qualified signatures, payments | Deferred or optional in the proposal | Not present |
+| Nonce-based CSP | Next.js emits inline bootstrap scripts for hydration and the components use inline `style` attributes, so `script-src` and `style-src` carry `unsafe-inline`. Production tightening is per-request nonces in middleware | `next.config.ts` headers |
 | Any assertion about the law beyond what Appendix B marks | Where Appendix B says ? the prototype says ? | Everywhere |
 
 ## Run it
@@ -110,7 +111,7 @@ app/                          Next.js App Router. Server components and server a
 components/                   evidence chips, stage cards, machine panel, instruments, agreements
 lib/session.ts                demo sign-in boundary
 lib/redact.ts                 strips emails, phone numbers, URLs and ORCID iDs from free text before it is shown
-proxy.ts                      request guard in front of every route: malformed or oversized POSTs get a 4xx, never the action runtime
+proxy.ts                      request guard in front of every route: cross-origin posts get a 403, unsupported methods a 405, and malformed or oversized action posts a 4xx, never the action runtime
 ```
 
 ## The configuration format

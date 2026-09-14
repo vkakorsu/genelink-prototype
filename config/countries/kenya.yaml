@@ -633,7 +633,10 @@ liveLayers:
     description: reg. 11(4)(e) requires the species status to be resolved against an authoritative list before the application is accepted. The list is data the platform reads, not the applicant's answer.
     maintainedBy: Landscape Alliance administrator, pending source selection
     reg: { state: "established", marker: "§", value: "Resolve against a recognised source.", citation: "reg. 11(4)(e)" }
-    entries: []
+    entries:
+      - { taxon: "Lamiaceae accession LBNPI-A-003 (fictional)", status: "not listed in the sources checked", provenance: "Demonstration entry pending source selection. Real rows come from the maintained list." }
+      - { taxon: "Lamiaceae accession LBNPI-A-011 (fictional)", status: "not listed in the sources checked", provenance: "Demonstration entry pending source selection. Real rows come from the maintained list." }
+      - { taxon: "Streptomyces isolate LBNPI-E-002 (fictional)", status: "not listed in the sources checked", provenance: "Demonstration entry pending source selection. Real rows come from the maintained list." }
 
 openQuestions:
   - id: ln68_in_force

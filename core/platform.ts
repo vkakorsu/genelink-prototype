@@ -370,7 +370,10 @@ export class Platform {
    */
   decideManualReview(actor: Actor, recordId: string, outcome: string, reason: string) {
     if ("system" in actor) throw new PermissionDenied("Manual review judgments cannot be made by the system");
-    if (!("admin" in actor)) throw new PermissionDenied("A manual-review judgment is recorded by the reviewer seat, not by a party to the case. Recording it yourself would be self-declaration.");
+    if (!("admin" in actor)) {
+      this.audit(actor, "manual_review.decision_denied", { type: "manual_review", id: recordId }, { reason: "a party seat attempted to record a manual-review judgment" });
+      throw new PermissionDenied("A manual-review judgment is recorded by the reviewer seat, not by a party to the case. Recording it yourself would be self-declaration. This attempt has been recorded.");
+    }
     if (!outcome.trim() || !reason.trim()) throw new InvalidRequest("A judgment needs both an outcome and a reason. Both go into the audit chain.");
     const rec = this.must(this.store.manualReviews.get(recordId), "Manual review", recordId);
     if (rec.status === "decided") throw new PermissionDenied(`This judgment was recorded by ${rec.decision?.by} and is immutable. It cannot be overwritten.`);
@@ -422,9 +425,15 @@ export class Platform {
     this.requireParticipant(actor, c);
     const cfg = this.country(c.providerCountry);
     const actorKind = "system" in actor ? "system" : "admin" in actor ? "authority" : "applicant";
-    // In the prototype, regulator events are recorded by a participant or an administrator on the authority's behalf.
     const declared = cfg.stateMachine.transitions.find((t) => t.from === c.machine.state && t.event === event);
     const effectiveActor = declared ? declared.actor : actorKind;
+    // Authority and system events are recorded by an administrator on the authority's
+    // behalf. A party seat can record only applicant events; a denied attempt is
+    // audited rather than silently ignored.
+    if (effectiveActor !== "applicant" && !("admin" in actor) && !("system" in actor)) {
+      this.audit(actor, "regulator.event_denied", { type: "case", id: caseId }, { event, reason: "authority events are recorded by an administrator on the authority's behalf" });
+      throw new PermissionDenied("That event belongs to the authority. An administrator records it on the authority's behalf; your seat can record applicant events only.");
+    }
     const wasGranted = isGranted(cfg, c.machine);
     c.machine = fire(cfg, c.machine, event, effectiveActor, this.now(), note);
     this.store.cases.put(c);

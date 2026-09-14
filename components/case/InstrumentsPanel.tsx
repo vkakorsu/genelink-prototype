@@ -28,7 +28,7 @@ export function InstrumentsPanel({ cfg, c, instruments, canSign, isAdmin, seatPe
         <h3 style={{ margin: 0 }}>What the applicant holds</h3>
         <span className="small mute">&ldquo;Permit&rdquo; is not one object across regimes (A5.4)</span>
       </div>
-      <p className="small soft">This country&apos;s journey ends in: {cfg.outputs.map((o) => `${o.label} (${o.issuer})`).join(" and ")}. Amendment policy: <strong>{cfg.outputs[0].amendmentPolicy.replace("_", " ")}</strong>.{cfg.outputs.length > 1 && <> The applicant holds nothing usable until <strong>all {cfg.outputs.length}</strong> are recorded. One issuer&apos;s grant is never treated as the other&apos;s.</>}</p>
+      <p className="small soft">This country&apos;s journey ends in: {cfg.outputs.map((o) => `${o.label} (${o.issuer})`).join(" and ")}. Amendment policy: <strong>{cfg.outputs[0].amendmentPolicy.replace("_", " ")}</strong>.{cfg.outputs.length > 1 && <> The applicant holds nothing usable until <strong>all {cfg.outputs.length}</strong> are externally recorded, each from its own issuer. Recording one never satisfies the other.</>}</p>
 
       {instruments.length === 0 && <p className="small mute">No instrument recorded yet. When the regulator state machine reaches a granted state the instruments this regime issues appear here as awaiting record. The platform holds no copy until an authorised signatory records the document the State issued. It never creates one.</p>}
       {awaiting.length > 0 && (
