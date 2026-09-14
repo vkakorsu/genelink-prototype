@@ -60,14 +60,15 @@ function collectStrings(value: unknown, out: string[]): void {
 }
 
 /**
- * A bound-argument payload that names a resource id of the same family as the
- * URL's but a different member — e.g. `["case_2_co"]` posted to `/cases/case_1_ke`.
- * A rewritten bound argument must not quietly retarget an action to a resource
- * the address does not name; the address is authoritative.
+ * A bound argument naming a resource must match the address it is posted to.
+ * `["case_2_co"]` sent to `/cases/case_1_ke` retargets silently; the same
+ * payload sent to `/admin` runs a case action on a route that never rendered
+ * it. Either way the address is authoritative: a bound `case_*` or `lst_*`
+ * id must be the one in the path.
  */
-function boundArgsDisagree(n: string, form: FormData, urlId: string, prefix: string): boolean {
+function boundArgsMatchAddress(n: string, form: FormData, pathname: string): boolean {
   const raw = form.get(`$ACTION_${n}:1`);
-  if (typeof raw !== "string" || !raw) return false;
+  if (typeof raw !== "string" || !raw) return true;
   let args: unknown;
   try {
     args = JSON.parse(raw);
@@ -76,11 +77,35 @@ function boundArgsDisagree(n: string, form: FormData, urlId: string, prefix: str
   }
   const strings: string[] = [];
   collectStrings(args, strings);
-  return strings.some((s) => s.startsWith(prefix) && s !== urlId);
+  for (const s of strings) {
+    if (s.startsWith("case_") && !(pathname === `/cases/${s}` || pathname.startsWith(`/cases/${s}/`))) return false;
+    if (s.startsWith("lst_") && !(pathname === `/listings/${s}` || pathname.startsWith(`/listings/${s}/`))) return false;
+  }
+  return true;
 }
 
 export async function proxy(request: NextRequest) {
-  if (request.method !== "POST") return NextResponse.next();
+  // Only reads and action posts exist here. Anything else is a 405, not a rendered page.
+  if (request.method !== "POST") {
+    if (request.method === "GET" || request.method === "HEAD") return NextResponse.next();
+    return refuse(405, "This address does not accept that method. Nothing was changed.");
+  }
+
+  // Same-origin check. A browser form post sends Origin; a cross-site, null or
+  // malformed one is refused here rather than reaching the action runtime.
+  const origin = request.headers.get("origin");
+  if (origin) {
+    let originHost: string | null = null;
+    try {
+      originHost = new URL(origin).host;
+    } catch {
+      originHost = null;
+    }
+    const expected = request.headers.get("x-forwarded-host") ?? request.nextUrl.host;
+    if (!originHost || originHost !== expected) {
+      return refuse(403, "The submission did not come from this site. Nothing was changed.");
+    }
+  }
 
   const length = Number(request.headers.get("content-length") ?? 0);
   if (length > MAX_BODY_BYTES) return refuse(413, `Request body too large. The prototype accepts up to ${MAX_BODY_BYTES / 1024} KB per submission; the MVP streams files to object storage.`);
@@ -103,8 +128,7 @@ export async function proxy(request: NextRequest) {
   } catch {
     return refuse(400, "The form body could not be read. Nothing was changed.");
   }
-  const resource = request.nextUrl.pathname.match(/^\/(cases|listings)\/([^/]+)/);
-  const resourcePrefix = resource?.[1] === "cases" ? "case_" : resource?.[1] === "listings" ? "lst_" : null;
+  const pathname = request.nextUrl.pathname;
   let sawAction = false;
   for (const key of form.keys()) {
     const idMatch = key.match(ACTION_ID);
@@ -117,7 +141,7 @@ export async function proxy(request: NextRequest) {
     if (refMatch) {
       sawAction = true;
       if (!refIsComplete(refMatch[1], form, known)) return refuse(400, "The submission's action fields are incomplete or malformed. Reload the page and try again. Nothing was changed.");
-      if (resource && resourcePrefix && boundArgsDisagree(refMatch[1], form, resource[2], resourcePrefix)) {
+      if (!boundArgsMatchAddress(refMatch[1], form, pathname)) {
         return refuse(400, "The bound arguments do not match this address. Nothing was changed.");
       }
     }

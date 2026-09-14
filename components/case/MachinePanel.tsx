@@ -62,19 +62,25 @@ export function MachinePanel({ cfg, c, canAct, isAdmin }: { cfg: CountryConfig; 
         <h4>Record what happened</h4>
         {events.length === 0 && <p className="small mute">Terminal state. No further events are declared.</p>}
         {events.length > 0 && !canAct && <p className="small mute">Your seat can view but not record regulator events.</p>}
-        {events.length > 0 && canAct && (
-          <form action={fireEvent.bind(null, c.id)} className="stack">
-            <input name="note" type="text" placeholder="Note for the audit record (optional)" />
-            <div className="row">
-              {events.map((t) => (
-                <button key={t.event} className={`btn small ${t.actor === "authority" ? "secondary" : t.actor === "system" ? "ghost" : ""}`} type="submit" name="event" value={t.event} title={`Actor: ${t.actor}. Target: ${sm.states[t.to].label}`}>
-                  {t.event.replace(/_/g, " ")} <span className="mute">· {t.actor}</span>
-                </button>
-              ))}
-            </div>
-            <p className="small mute">The platform records the regulator&apos;s acts. It does not perform them. Authority events are recorded on the authority&apos;s behalf by a participant{isAdmin ? " or administrator" : ""}, and the audit entry says so.</p>
-          </form>
-        )}
+        {events.length > 0 && canAct && (() => {
+          const mine = events.filter((t) => isAdmin || t.actor === "applicant");
+          const held = events.length - mine.length;
+          return (
+            <form action={fireEvent.bind(null, c.id)} className="stack">
+              <input name="note" type="text" placeholder="Note for the audit record (optional)" />
+              <div className="row">
+                {mine.map((t) => (
+                  <button key={t.event} className={`btn small ${t.actor === "authority" ? "secondary" : t.actor === "system" ? "ghost" : ""}`} type="submit" name="event" value={t.event} title={`Actor: ${t.actor}. Target: ${sm.states[t.to].label}`}>
+                    {t.event.replace(/_/g, " ")} <span className="mute">· {t.actor}</span>
+                  </button>
+                ))}
+              </div>
+              {mine.length === 0 && <p className="small mute">Your seat has no applicant act at this stage. The next events belong to the authority.</p>}
+              {held > 0 && <p className="small mute">{held} authority or system event{held === 1 ? " is" : "s are"} not shown to your seat.</p>}
+              <p className="small mute">The platform records the regulator&apos;s acts. It does not perform them. Authority and system events are recorded by an administrator on the authority&apos;s behalf{isAdmin ? "" : " — your seat can record applicant events only, and a denied attempt is written to the audit chain"}.</p>
+            </form>
+          );
+        })()}
       </div>
 
       {c.machine.history.length > 0 && (

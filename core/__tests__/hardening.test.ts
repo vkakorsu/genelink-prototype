@@ -209,6 +209,39 @@ describe("confused deputy: an agreement or instrument acts only on its own case"
   });
 });
 
+describe("the regulator's acts belong to the authority, recorded by an administrator", () => {
+  it("a party seat can fire applicant events but not authority or system events; the denied attempt is audited", () => {
+    const p = fresh();
+    const wanjiru = p.actorFor("seat_wanjiru_lbnpi");
+    const c0 = p.store.cases.list().find((c) => c.listingId === "lst_ke_antiinfl" && c.participants.some((x) => x.organisationId === "org_nordlicht"))!;
+    p.updateFacts(wanjiru, c0.id, keFacts());
+    p.fireEvent(wanjiru, c0.id, "submit"); // the applicant's own act
+    const underReview = p.store.cases.get(c0.id)!.machine.state;
+    expect(() => p.fireEvent(wanjiru, c0.id, "acknowledge")).toThrow(PermissionDenied);
+    expect(p.store.cases.get(c0.id)!.machine.state).toBe(underReview);
+    const denied = p.store.audit.list().filter((e) => e.action === "regulator.event_denied" && e.subject.id === c0.id);
+    expect(denied).toHaveLength(1);
+    expect(denied[0].detail).toMatchObject({ event: "acknowledge" });
+    p.fireEvent(ADMIN, c0.id, "acknowledge", "Recorded on NEMA's behalf");
+    expect(p.store.cases.get(c0.id)!.machine.state).not.toBe(underReview);
+    // A system transition is not the party's either: lapse is the clock's act, not a button.
+    expect(() => p.fireEvent(wanjiru, c0.id, "lapse")).toThrow(PermissionDenied);
+    expect(p.store.audit.list().filter((e) => e.action === "regulator.event_denied" && e.subject.id === c0.id)).toHaveLength(2);
+    expect(verifyChain(p.store.audit.list()).ok).toBe(true);
+  });
+
+  it("a party's attempt to record a manual-review judgment is audited as denied", () => {
+    const p = fresh();
+    const br = p.store.cases.list().find((c) => c.providerCountry === "BR")!;
+    const [review] = p.manualReviewsFor(br.id);
+    const luana = p.actorFor("seat_luana_iam");
+    expect(() => p.decideManualReview(luana, review.id, "yes", "we say so")).toThrow(PermissionDenied);
+    const denied = p.store.audit.list().filter((e) => e.action === "manual_review.decision_denied" && e.subject.id === review.id);
+    expect(denied).toHaveLength(1);
+    expect(p.store.manualReviews.get(review.id)!.status).toBe("pending_human_judgment");
+  });
+});
+
 describe("clocks: resume restarts the clock, and a lapse can be forced for the demo", () => {
   it("after administrator_resumes the determination clock runs afresh and lapses again past its new deadline", () => {
     const p = fresh();
