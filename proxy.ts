@@ -6,7 +6,8 @@ import { knownActionIds } from "@/lib/actionIds";
  * actions, which arrive as POST requests to the page they were rendered on. A POST that
  * cannot be a server action (wrong content type, no action identifier, an identifier of
  * the wrong shape or not emitted by this build, a reference whose companion fields are
- * missing or malformed, or a body over the limit) is answered here with a 4xx and one
+ * missing or malformed, a bound argument rewritten to name a resource the address
+ * does not, or a body over the limit) is answered here with a 4xx and one
  * sentence, instead of reaching the action runtime and surfacing as a 500.
  *
  * Authorisation is not done here. It lives in the core, per action.
@@ -51,6 +52,33 @@ function refIsComplete(n: string, form: FormData, known: Set<string>): boolean {
   return true;
 }
 
+/** Every string anywhere inside a parsed bound-argument payload. */
+function collectStrings(value: unknown, out: string[]): void {
+  if (typeof value === "string") out.push(value);
+  else if (Array.isArray(value)) value.forEach((v) => collectStrings(v, out));
+  else if (value && typeof value === "object") Object.values(value).forEach((v) => collectStrings(v, out));
+}
+
+/**
+ * A bound-argument payload that names a resource id of the same family as the
+ * URL's but a different member — e.g. `["case_2_co"]` posted to `/cases/case_1_ke`.
+ * A rewritten bound argument must not quietly retarget an action to a resource
+ * the address does not name; the address is authoritative.
+ */
+function boundArgsDisagree(n: string, form: FormData, urlId: string, prefix: string): boolean {
+  const raw = form.get(`$ACTION_${n}:1`);
+  if (typeof raw !== "string" || !raw) return false;
+  let args: unknown;
+  try {
+    args = JSON.parse(raw);
+  } catch {
+    return false;
+  }
+  const strings: string[] = [];
+  collectStrings(args, strings);
+  return strings.some((s) => s.startsWith(prefix) && s !== urlId);
+}
+
 export async function proxy(request: NextRequest) {
   if (request.method !== "POST") return NextResponse.next();
 
@@ -75,6 +103,8 @@ export async function proxy(request: NextRequest) {
   } catch {
     return refuse(400, "The form body could not be read. Nothing was changed.");
   }
+  const resource = request.nextUrl.pathname.match(/^\/(cases|listings)\/([^/]+)/);
+  const resourcePrefix = resource?.[1] === "cases" ? "case_" : resource?.[1] === "listings" ? "lst_" : null;
   let sawAction = false;
   for (const key of form.keys()) {
     const idMatch = key.match(ACTION_ID);
@@ -87,6 +117,9 @@ export async function proxy(request: NextRequest) {
     if (refMatch) {
       sawAction = true;
       if (!refIsComplete(refMatch[1], form, known)) return refuse(400, "The submission's action fields are incomplete or malformed. Reload the page and try again. Nothing was changed.");
+      if (resource && resourcePrefix && boundArgsDisagree(refMatch[1], form, resource[2], resourcePrefix)) {
+        return refuse(400, "The bound arguments do not match this address. Nothing was changed.");
+      }
     }
   }
   if (!sawAction) return refuse(400, "The submission names no action, or names one of the wrong shape. Reload the page and try again. Nothing was changed.");
