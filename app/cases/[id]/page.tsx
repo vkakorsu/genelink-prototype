@@ -163,7 +163,7 @@ export default async function CasePage({ params, searchParams }: { params: Promi
         </div>
 
         <aside className="stack">
-          <section className="card sticky">
+          <section className="card sticky" tabIndex={0}>
             <h3>Facts on file</h3>
             <dl className="kv">
               <dt>Purpose</dt><dd>{c.facts.purpose.replace("_", " ")}</dd>
