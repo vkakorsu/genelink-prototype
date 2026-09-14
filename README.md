@@ -28,6 +28,7 @@ The RFP's appendices make claims that are easy to write and hard to fake. This p
 | **Compliance output is information, never advice or approval, and what the system told each user is recorded.** | The wording everywhere, and `/disclosures` |
 | **Hash-chained audit and integrity verification.** Every consequential action is an entry whose hash covers the previous entry. Tampering is detected. Any party can verify a document against the record. | `/verify`, `/cases/<id>/audit`, `/admin/audit` |
 | **Open decisions are open.** Every held-open item in Appendix A and every A7 question is rendered as an open state with a decision slot, not resolved by drawing. | `/open-decisions`, inline `?` markers |
+| **Production posture from the first commit.** Security headers (CSP, HSTS, frame denial), a non-root container, zero known dependency vulnerabilities, zero WCAG 2.2 AA violations under axe-core across every route, and a `/health` probe that verifies the audit chain and returns 503 if it is broken. | `next.config.ts`, `Dockerfile`, `/health` |
 | **Out of scope is a stated position.** Non-commercial users reach a page that records the basis. No "already proven" exit exists anywhere. | `/out-of-scope`, case `case_5_co` |
 
 ## What it deliberately does not do
