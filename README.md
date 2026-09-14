@@ -40,7 +40,11 @@ The RFP's appendices make claims that are easy to write and hard to fake. This p
 | Named escalation owners | R3 wants a named human. Only Landscape Alliance can name them | `escalation.defaultOwnerName: null` in every country file, shown as "name pending" |
 | Template and clause content | Legal partners supply it | `lib/clauses.ts`, every clause labelled illustrative |
 | Learning content, support contacts, the 48-code function taxonomy | Landscape Alliance content and constructs | Marked pending on `/learn` and `/explore` |
-| Live ABS Clearing-House lookup, qualified signatures, payments, additional countries | Deferred or optional in the proposal | Not present |
+| Adviser and broker attachment; publishing new listings | MVP flows behind the same seat model | Marked on the case page and `/open-decisions`; listings are seeded |
+| Real verification checks | The flow runs (request, vouching, administrator decision, declined state); the checks behind a decision are seeded. No domain check or ORCID lookup executes | Organisation verification rows carry seeded evidence |
+| Document files | Uploads accept pasted text, hashed and versioned as a file would be | S3-compatible storage ships dormant in `docker-compose.yml` |
+| Countries beyond Kenya, Colombia and the Brazil dry run; the R10 duties module | Further countries need legal research Landscape Alliance supplies; duty tracking is phase two | Madagascar, Malaysia and South Africa analysed in the proposal; nine obligation classes recorded as configuration |
+| Live ABS Clearing-House lookup, qualified signatures, payments | Deferred or optional in the proposal | Not present |
 | Any assertion about the law beyond what Appendix B marks | Where Appendix B says ? the prototype says ? | Everywhere |
 
 ## Run it
