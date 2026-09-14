@@ -19,6 +19,12 @@ export default async function ListingPage({ params, searchParams }: { params: Pr
   const interests = platform.interestsOn(id);
   const myInterest = session.kind === "seat" ? interests.find((i) => i.fromOrganisationId === session.actor.organisation.id) : undefined;
   const cases = platform.store.cases.list().filter((c) => c.listingId === id);
+  const myCase = session.kind === "seat" ? cases.find((c) => c.participants.some((p) => p.organisationId === session.actor.organisation.id)) : undefined;
+  const myOrg = session.kind === "seat" ? session.actor.organisation : null;
+  const myPathway = myOrg && !isOwner ? platform.providerCountryFor(raw, myOrg) : null;
+  const myPathwayConfigured = myPathway ? platform.countries.has(myPathway) : true;
+  const signalWithListing = signalInterest.bind(null, id);
+  const reciprocateOnListing = reciprocate.bind(null, id);
 
   return (
     <div className="container">
@@ -68,13 +74,21 @@ export default async function ListingPage({ params, searchParams }: { params: Pr
             <h3>Mutual interest</h3>
             {session.kind === "anonymous" && <p className="small">Sign in with a seat to signal interest. <Link href={`/persona?next=/listings/${id}`}>Choose a persona</Link>.</p>}
             {session.kind === "admin" && <p className="small mute">Administrators watch. They do not signal interest.</p>}
-            {session.kind === "seat" && !isOwner && (
+            {session.kind === "seat" && !isOwner && myCase && (
+              <Notice kind="ok">Mutual interest recorded and both identities revealed {myCase.revealedAt ? fmtTime(myCase.revealedAt) : ""}. Full projection shown. <Link href={`/cases/${myCase.id}`}>Open the case</Link>.</Notice>
+            )}
+            {session.kind === "seat" && !isOwner && !myCase && (
               myInterest ? (
                 <Notice kind="pending">Interest signalled on {fmtTime(myInterest.at)}. The reveal happens when the listing owner signals back, and both sides see the same thing at the same time.</Notice>
+              ) : myOrg?.verification.status === "declined" ? (
+                <Notice kind="halt">Your organisation&apos;s verification was declined{myOrg.verification.reason ? ` (${myOrg.verification.reason})` : ""}. Interest cannot be signalled until a new verification request is decided.</Notice>
+              ) : !myPathwayConfigured ? (
+                <Notice kind="halt">
+                  {raw.side === "need" ? "This need accepts any provenance with a lawful pathway, and the pathway would be your organisation's country" : "The pathway for this listing is"} ({myPathway}), which has no configuration on this instance. Configured: {[...platform.countries.keys()].sort().join(", ")}. Adding a country is a configuration file, not a release.
+                </Notice>
               ) : (
-                <form action={signalInterest}>
-                  <input type="hidden" name="listingId" value={id} />
-                  <p className="small soft">Signalling interest tells the owner that your organisation (kind and verified status, not name) is interested. Nothing more is revealed until they signal back.</p>
+                <form action={signalWithListing}>
+                  <p className="small soft">Signalling interest tells the owner that your organisation (kind and verified status, not name) is interested. Nothing more is revealed until they signal back.{raw.side === "need" && myPathway ? ` A match would run under ${platform.countries.get(myPathway)?.name}'s rules, your organisation's country.` : ""}</p>
                   <button className="btn block" type="submit">Signal interest</button>
                 </form>
               )
@@ -84,20 +98,26 @@ export default async function ListingPage({ params, searchParams }: { params: Pr
                 <p className="small soft">{interests.length} organisation{interests.length === 1 ? "" : "s"} signalled interest. Signalling back opens a case and reveals both full projections at once.</p>
                 {interests.length === 0 && <p className="small mute">No signals yet.</p>}
                 {interests.map((i) => {
-                  const org = platform.store.organisations.get(i.fromOrganisationId)!;
+                  const org = platform.store.organisations.get(i.fromOrganisationId);
+                  if (!org) return null;
                   const existing = cases.find((c) => c.participants.some((p) => p.organisationId === org.id));
+                  const pathway = platform.providerCountryFor(raw, org);
+                  const configured = platform.countries.has(pathway);
+                  const declined = org.verification.status === "declined";
                   return (
                     <div key={i.id} className="row between" style={{ padding: "8px 10px", background: "var(--sand)", borderRadius: 6 }}>
                       <div className="small">
                         <strong>{existing ? org.name : `${org.kind.replace("_", " ")} (${org.country})`}</strong>
                         {" · "}{org.verification.status}
-                        <div className="mute">{fmtTime(i.at)}</div>
+                        <div className="mute">{fmtTime(i.at)}{raw.side === "need" ? ` · pathway ${configured ? platform.countries.get(pathway)?.name : `${pathway}, not configured`}` : ""}</div>
+                        {declined && <div className="mute">Verification declined. Signalling back is not available until a new request is decided.</div>}
                       </div>
                       {existing ? (
                         <Link className="btn small secondary" href={`/cases/${existing.id}`}>Open case</Link>
+                      ) : declined || !configured ? (
+                        <span className="small mute">Not available</span>
                       ) : (
-                        <form action={reciprocate}>
-                          <input type="hidden" name="listingId" value={id} />
+                        <form action={reciprocateOnListing}>
                           <input type="hidden" name="organisationId" value={org.id} />
                           <button className="btn small" type="submit">Signal back and reveal</button>
                         </form>

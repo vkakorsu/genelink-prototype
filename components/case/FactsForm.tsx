@@ -5,11 +5,10 @@ import { EvidenceChip } from "@/components/Evidence";
 const TRI = [["yes", "Yes"], ["no", "No"], ["unclear", "Unclear"]] as const;
 
 export function FactsForm({ cfg, caseId, facts, mode, canEdit }: { cfg: CountryConfig; caseId: string; facts: CaseFacts; mode: "intake" | "change"; canEdit: boolean }) {
-  const action = mode === "intake" ? updateFacts : changeOfIntent;
+  const action = (mode === "intake" ? updateFacts : changeOfIntent).bind(null, caseId);
   const q = cfg.scope.questions[0];
   return (
     <form action={action} className="stack">
-      <input type="hidden" name="caseId" value={caseId} />
       <fieldset>
         <legend>Purpose (decides the route before any {cfg.name} rule applies)</legend>
         <div className="radio-list">
@@ -55,7 +54,7 @@ export function FactsForm({ cfg, caseId, facts, mode, canEdit }: { cfg: CountryC
         </div>
         <div className="field">
           <label htmlFor="localities">Collection localities</label>
-          <input id="localities" name="localities" type="text" inputMode="numeric" defaultValue={facts.localities ?? ""} placeholder="1" />
+          <input id="localities" name="localities" type="number" min={1} max={999} step={1} inputMode="numeric" defaultValue={facts.localities ?? ""} placeholder="1" />
         </div>
       </div>
       <div className="grid cols-3">

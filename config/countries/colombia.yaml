@@ -116,7 +116,7 @@ eligibility:
       value: MADS defines the INA as a Colombian legal person conducting research and assisting both applicant and Ministry. Do not hard-code "pair with a Colombian lab". The role is broader.
       citation: D391 Art. 26(c); MADS operating procedure
   - id: individual_or_framework
-    text: Individual or framework contract? Decided by the applicant and project structure, not by a commercial versus non-commercial divide.
+    text: Individual or framework contract? Decided by the applicant and project structure (universities, research centres, recognised researchers, and whether several projects are contemplated), not by a commercial versus non-commercial divide. The contrato individual is the single-project route. The contrato marco is the framework route, and nothing in Art. 36 restricts it to non-commercial use.
     reg:
       state: established
       marker: "§"
@@ -244,9 +244,12 @@ stages:
       - id: acceptance_not_contract
         text: Any model that jumps from accepted to signed loses the step where the obligations are actually set.
         reg: { state: "established", marker: "§", value: "Contract negotiation is the state where benefit sharing becomes system data." }
+      - id: state_is_counterparty
+        text: The access contract is between the State and the applicant. It is one instrument with one counterparty, which is why a later modification is an addendum to it and not a second contract.
+        reg: { state: "established", marker: "§", value: "The State is the counterparty. Accessory contracts with third parties hang off it and do not replace it.", citation: "D391 Art. 32" }
       - id: accessory_contracts
-        text: Is an accessory contract needed? Whether a third party supplies land, the biological resource, ex-situ material or national support. The counterparty may be the owner, the possessor or the administrator, three roles, not one landholder.
-        reg: { state: "established", marker: "§", value: "Accessory contracts carry a suspensive condition and take effect only on the access contract taking effect. Nullity cascades one way only.", citation: "D391 Arts. 41, 42, 44" }
+        text: Is an accessory contract needed? Whether a third party supplies land, the biological resource, ex-situ material or national support. The counterparty may be the owner, the possessor or the administrator, three roles, not one landholder. Ex-situ centres and other entities that carry out access activities are caught by the activity, not by their institutional form.
+        reg: { state: "established", marker: "§", value: "Accessory contracts carry a suspensive condition and take effect only on the access contract taking effect. Nullity cascades one way only. The Art. 37 trigger is the activity, not the institution.", citation: "D391 Arts. 37, 41, 42, 44" }
       - id: perfected_on_publication
         text: The contract is perfected on publication. The public register is declaratory.
         reg: { state: "established", marker: "§", value: "Arts. 38 and 21.", citation: "D391 Arts. 38, 21" }

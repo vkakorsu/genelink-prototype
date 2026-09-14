@@ -45,7 +45,11 @@ export default async function CasePage({ params, searchParams }: { params: Promi
   const rank = { viewer: 0, member: 1, authorised_signatory: 2, administrator: 3 } as const;
   const canEdit = !!seat && rank[seat.permission] >= 1;
   const canSign = !!seat && rank[seat.permission] >= 2;
-  const canJudge = isAdmin || canSign;
+  // R5: a manual-review judgment is recorded by the reviewer seat, never by a party to the case.
+  const canJudge = isAdmin;
+  const holdings = platform.holdings(c);
+  const requestSupportHere = requestSupport.bind(null, c.id);
+  const adminInterveneHere = adminIntervene.bind(null, c.id);
 
   // What GENE-LINK told this person, recorded now.
   if (session.kind === "seat") platform.discloseCase(session.actor.person, session.actor.seat, c);
@@ -63,6 +67,18 @@ export default async function CasePage({ params, searchParams }: { params: Promi
       {cfg.operativeInstrumentStatus.state === "unknown" && (
         <Notice kind="pending">
           <OpenMarker /> <strong>The operative instrument for {cfg.name} is not settled.</strong> {cfg.operativeInstrumentStatus.note} <EvidenceChip reg={cfg.operativeInstrumentStatus} short />
+        </Notice>
+      )}
+      {holdings.missing.length > 0 && (
+        <Notice kind="pending">
+          <strong>Granted, but the applicant does not yet hold everything this regime issues.</strong> {holdings.recorded} of {holdings.required} instrument{holdings.required === 1 ? "" : "s"} recorded. Awaiting: {holdings.missing.map((m) => `${m.label} (${m.issuer})`).join(" and ")}. The platform records instruments the State issued. It does not create them, and it does not treat one issuer&apos;s grant as the other&apos;s.
+        </Notice>
+      )}
+      {(c.interventions?.length ?? 0) > 0 && (
+        <Notice kind="info">
+          <strong>Administrator intervention on this case.</strong>{" "}
+          {c.interventions!.map((i) => <span key={i.id}>{fmtTime(i.at)}: {i.action} (reason: {i.reason}, by {i.by}). </span>)}
+          Every intervention is also in the <Link href={`/cases/${c.id}/audit`}>audit chain</Link>.
         </Notice>
       )}
 
@@ -118,8 +134,8 @@ export default async function CasePage({ params, searchParams }: { params: Promi
           )}
 
           {pathway.scope.kind !== "out_of_scope" && <MachinePanel cfg={cfg} c={c} canAct={canEdit || isAdmin} isAdmin={isAdmin} />}
-          {pathway.scope.kind !== "out_of_scope" && <InstrumentsPanel cfg={cfg} c={c} instruments={instruments} canSign={canSign} isAdmin={isAdmin} />}
-          {pathway.scope.kind !== "out_of_scope" && <AgreementsPanel c={c} agreements={agreements} orgs={orgs} mySeat={seat} canEdit={canEdit} canSign={canSign} />}
+          {pathway.scope.kind !== "out_of_scope" && <InstrumentsPanel cfg={cfg} c={c} instruments={instruments} canSign={canSign} isAdmin={isAdmin} seatPermission={seat?.permission ?? null} />}
+          {pathway.scope.kind !== "out_of_scope" && <AgreementsPanel c={c} agreements={agreements} orgs={orgs} mySeat={seat} canEdit={canEdit} canSign={canSign} seatPermission={seat?.permission ?? null} />}
 
           {/* Duties, phase two */}
           {pathway.scope.kind !== "out_of_scope" && (
@@ -186,20 +202,19 @@ export default async function CasePage({ params, searchParams }: { params: Promi
             <h4>Human assistance</h4>
             <p className="small soft">Escalation is optional and external. Where a step stops, it routes to the parties&apos; own counsel or to a paid or partner-provided adviser. There is no GENE-LINK review queue holding the journey open.</p>
             {canEdit && (
-              <form action={requestSupport} className="stack">
-                <input type="hidden" name="caseId" value={c.id} />
-                <select name="kind"><option value="expert">Expert assistance (routes to an adviser)</option><option value="technical">Technical issue (GENE-LINK support)</option></select>
+              <form action={requestSupportHere} className="stack">
+                <select name="kind"><option value="expert">Expert assistance (recorded for the parties&apos; own adviser)</option><option value="technical">Technical issue (GENE-LINK support)</option></select>
                 <textarea name="note" placeholder="What do you need?" />
                 <button className="btn small secondary" type="submit">Request</button>
               </form>
             )}
-            {c.supportRequests.length > 0 && <ol className="timeline" style={{ marginTop: 8 }}>{c.supportRequests.map((r) => <li key={r.id}><time>{fmtTime(r.at)}</time> {r.kind}: {r.note}<div className="mute">Routed to: {r.routedTo}</div></li>)}</ol>}
+            {c.supportRequests.length > 0 && <ol className="timeline" style={{ marginTop: 8 }}>{c.supportRequests.map((r) => <li key={r.id}><time>{fmtTime(r.at)}</time> {r.kind}: {r.note}<div className="mute">{r.routedTo}</div></li>)}</ol>}
+            <p className="small mute">Attaching an adviser or broker as a participant on a case is MVP work behind the same seat model. The prototype records the request and does not attach anyone.</p>
             {isAdmin && (
               <>
                 <hr className="rule" />
                 <h4>Administrator intervention</h4>
-                <form action={adminIntervene} className="stack">
-                  <input type="hidden" name="caseId" value={c.id} />
+                <form action={adminInterveneHere} className="stack">
                   <input name="action" type="text" placeholder="What you did (e.g. contacted both parties)" required />
                   <input name="reason" type="text" placeholder="Reason, recorded in the audit chain" required />
                   <button className="btn small ghost" type="submit">Record intervention</button>

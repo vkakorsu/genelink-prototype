@@ -3,15 +3,20 @@ import { approveAgreement, createAgreement, executeAgreement, reviseAgreement } 
 import { MODEL_CLAUSES } from "@/lib/clauses";
 import { fmtTime } from "@/components/ui";
 
-export function AgreementsPanel({ c, agreements, orgs, mySeat, canEdit, canSign }: {
+export function AgreementsPanel({ c, agreements, orgs, mySeat, canEdit, canSign, seatPermission }: {
   c: Case;
   agreements: Agreement[];
   orgs: Map<string, Organisation>;
   mySeat: { organisationId: string } | null;
   canEdit: boolean;
   canSign: boolean;
+  seatPermission: string | null;
 }) {
   const parties = c.participants.filter((p) => p.role === "demand" || p.role === "supply");
+  const approveHere = approveAgreement.bind(null, c.id);
+  const executeHere = executeAgreement.bind(null, c.id);
+  const reviseHere = reviseAgreement.bind(null, c.id);
+  const createHere = createAgreement.bind(null, c.id);
   return (
     <section className="card">
       <div className="row between">
@@ -53,7 +58,7 @@ export function AgreementsPanel({ c, agreements, orgs, mySeat, canEdit, canSign 
                   return (
                     <tr key={p.organisationId}>
                       <td>{orgs.get(p.organisationId)?.name} <span className="mute">({p.role})</span></td>
-                      <td>{ap ? `Approved ${fmtTime(ap.at)} by authorised signatory` : <span className="mute">not yet</span>}</td>
+                      <td>{ap ? `Approved ${fmtTime(ap.at)} by seat ${ap.seatId}` : <span className="mute">not yet</span>}</td>
                       <td>{ex ? <>Executed {fmtTime(ex.at)} · {ex.method.replace(/_/g, " ")} · hash <span className="mono">{ex.sha256.slice(0, 12)}…</span></> : <span className="mute">not yet</span>}</td>
                     </tr>
                   );
@@ -62,16 +67,15 @@ export function AgreementsPanel({ c, agreements, orgs, mySeat, canEdit, canSign 
             </table>
             <div className="row" style={{ marginTop: 8 }}>
               {canSign && a.status !== "executed" && !myApproved && (
-                <form action={approveAgreement}><input type="hidden" name="caseId" value={c.id} /><input type="hidden" name="agreementId" value={a.id} /><button className="btn small secondary" type="submit">Approve v{latest.version} for my organisation</button></form>
+                <form action={approveHere}><input type="hidden" name="agreementId" value={a.id} /><button className="btn small secondary" type="submit">Approve v{latest.version} for my organisation</button></form>
               )}
               {canSign && a.status === "approved" && !myExecuted && (
-                <form action={executeAgreement}><input type="hidden" name="caseId" value={c.id} /><input type="hidden" name="agreementId" value={a.id} /><button className="btn small" type="submit" title="Simple electronic signature: an authenticated authorised signatory records assent to this document hash">Execute (click to sign v{latest.version})</button></form>
+                <form action={executeHere}><input type="hidden" name="agreementId" value={a.id} /><button className="btn small" type="submit" title="Simple electronic signature: an authenticated signatory-level seat records assent to this document hash">Execute (click to sign v{latest.version})</button></form>
               )}
               {canEdit && a.status !== "executed" && (
                 <details className="fold">
                   <summary className="small">Revise (on or off platform)</summary>
-                  <form action={reviseAgreement} className="stack">
-                    <input type="hidden" name="caseId" value={c.id} />
+                  <form action={reviseHere} className="stack">
                     <input type="hidden" name="agreementId" value={a.id} />
                     <input name="summary" type="text" placeholder="What changed in this version" required />
                     <textarea name="negotiated" placeholder="Negotiated clause text to add (optional)" />
@@ -82,7 +86,7 @@ export function AgreementsPanel({ c, agreements, orgs, mySeat, canEdit, canSign 
                 </details>
               )}
               {a.status === "executed" && <span className="small soft">Executed versions are immutable. Amendments are recorded as new instrument versions or a new agreement.</span>}
-              {!canSign && a.status !== "executed" && <span className="small mute">Approval and execution require an authorised signatory seat.</span>}
+              {!canSign && a.status !== "executed" && <span className="small mute">Approval and execution require an authorised signatory or administrator seat. Your seat is {seatPermission ?? "none"}.</span>}
             </div>
           </div>
         );
@@ -91,8 +95,7 @@ export function AgreementsPanel({ c, agreements, orgs, mySeat, canEdit, canSign 
       {canEdit && (
         <details className="fold" style={{ marginTop: 12 }}>
           <summary>Assemble a new draft from model clauses</summary>
-          <form action={createAgreement} className="stack">
-            <input type="hidden" name="caseId" value={c.id} />
+          <form action={createHere} className="stack">
             <div className="field"><label htmlFor="title">Title</label><input id="title" name="title" type="text" defaultValue="Draft benefit-sharing and access terms" /></div>
             <div className="radio-list">
               {MODEL_CLAUSES.map((cl) => (

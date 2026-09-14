@@ -236,9 +236,18 @@ stages:
       - id: two_authorisations
         text: An authorisation to use traditional knowledge is not an authorisation to access the genetic resource, and the reverse holds too.
         reg: { state: "established", marker: "§", value: "The section separates the two authorisations.", citation: "TK Act s.26" }
+      - id: publication_not_an_exit
+        text: Publication does not end protection, but protection is not absolute either. It holds while the s.6 criteria are met, and s.19 carries exceptions for teaching, research, criticism and review and certain non-commercial uses. Test the criteria and the intended use. Do not test whether someone published.
+        reg: { state: "established", marker: "§", value: "Protection turns on the s.6 criteria and the intended use, not on prior publication.", citation: "TK Act ss.6, 19" }
       - id: own_procedures
         text: Each community adopts its own procedures. One national community-meeting workflow cannot be hard-coded. Where the protocol cannot be established, escalate.
         reg: { state: "established", marker: "§", value: "The community's protocol is data the platform collects, not a template it supplies.", citation: "TK Act s.10(3)" }
+      - id: consult_then_negotiate
+        text: Consult the community on the proposed terms before any agreement is signed. Owners may accept and enter negotiations within the specified 60-day period. The section does not require negotiations to conclude within 60 days.
+        reg: { state: "established", marker: "§", value: "The 60-day window is for entering negotiations, not for concluding them. A clock on conclusion would be a misreading.", citation: "TK Act ss.32, 33" }
+      - id: twelve_terms
+        text: The authorised-user agreement must contain all twelve listed terms, among them royalties, exclusivity, intellectual property sharing, publication control and moral rights.
+        reg: { state: "established", marker: "§", value: "Twelve mandatory terms. A template that omits one produces an agreement the Act does not recognise.", citation: "TK Act s.34" }
       - id: filing_sequence
         text: Before signing, inform the Cabinet Secretary and supply the proposed agreement for comment. After signing, file the executed agreement within 30 days.
         reg: { state: "established", marker: "§", value: "s.36 filing sequence runs around the signature.", citation: "TK Act s.36" }

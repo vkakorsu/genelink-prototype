@@ -116,14 +116,14 @@ describe("seeded platform: the full partnership journey", () => {
     expect(agreement.status).toBe("executed");
     expect(agreement.executions).toHaveLength(2);
     const camila = p.actorFor("seat_camila_ibp");
-    expect(() => p.reviseAgreement(camila, agreement.id, "late change", agreement.versions[0].clauses)).toThrow(PermissionDenied);
+    expect(() => p.reviseAgreement(camila, co.id, agreement.id, "late change", agreement.versions[0].clauses)).toThrow(PermissionDenied);
   });
 
   it("a member seat cannot execute, an authorised signatory can", () => {
     const ke = p.store.cases.list().find((c) => c.providerCountry === "KE" && c.participants.some((x) => x.organisationId === "org_nordlicht"))!;
     const [agr] = p.agreementsFor(ke.id);
     const tobias = p.actorFor("seat_tobias_nordlicht");
-    expect(() => p.approveAgreement(tobias, agr.id)).toThrow(PermissionDenied);
+    expect(() => p.approveAgreement(tobias, ke.id, agr.id)).toThrow(PermissionDenied);
   });
 
   it("verification page matches recorded hashes", () => {

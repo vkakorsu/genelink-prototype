@@ -52,6 +52,8 @@ export type VisitObjective = {
   have: string;
   want: "sell_to_eu_buyer" | "source_from_south" | "find_broker" | "get_abs_compliant" | "learn" | "screening_agreement";
   declaredAt: string;
+  /** How many identifying items (emails, phone numbers, identifiers) were removed from the free text before it was stored. */
+  redactions?: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -153,6 +155,8 @@ export type Case = {
   stageProgress: Record<string, "not_started" | "in_progress" | "complete">;
   changeOfIntent: ChangeOfIntentEvent[];
   supportRequests: { id: string; at: string; bySeatId: string; kind: "technical" | "expert"; routedTo: string; note: string }[];
+  /** Administrator interventions, visible to the parties on the case, not only in the audit chain. */
+  interventions?: { id: string; at: string; by: string; action: string; reason: string }[];
 };
 
 // ---------------------------------------------------------------------------
@@ -175,7 +179,12 @@ export type Instrument = {
   label: string;
   kind: string;
   issuer: string;
-  status: "issued" | "verification_open" | "verified" | "correction_required" | "cancelled" | "revoked" | "surrendered";
+  /**
+   * awaiting_record: the regime says this instrument now exists (the machine reached its issuing state)
+   * but the platform holds no copy. The platform never fabricates an instrument an authority issued.
+   * An authorised signatory records it, and only then does it carry a version and a hash.
+   */
+  status: "awaiting_record" | "issued" | "verification_open" | "verified" | "correction_required" | "cancelled" | "revoked" | "surrendered";
   amendmentPolicy: string;
   versions: InstrumentVersion[];
   issuedAt: string;

@@ -19,6 +19,9 @@ export function StageCard({
 }) {
   const progress = c.stageProgress[stage.stage.id] ?? "not_started";
   const cls = stage.status === "halted" ? "halted" : stage.status === "informational" ? "informational" : progress === "complete" ? "complete" : "";
+  const judgeHere = decideManualReview.bind(null, c.id);
+  const uploadHere = uploadDocument.bind(null, c.id);
+  const markHere = markStage.bind(null, c.id);
   return (
     <div className={`stage ${cls}`} id={`stage-${stage.stage.id}`}>
       <div className="num" aria-hidden="true">{stage.index + 1}</div>
@@ -59,19 +62,18 @@ export function StageCard({
                 <strong>Manual review (R5): a judgment no system can make.</strong> {m.question}
                 <div className="small" style={{ marginTop: 4 }}>Decides: {m.decides} <EvidenceChip reg={m.reg} short /></div>
                 {rec?.status === "decided" && rec.decision && (
-                  <div className="small" style={{ marginTop: 6 }}><strong>Decided</strong> by {rec.decision.by} on {fmtTime(rec.decision.at)}: {rec.decision.outcome}. Reason: {rec.decision.reason}</div>
+                  <div className="small" style={{ marginTop: 6 }}><strong>Decided</strong> by {rec.decision.by} on {fmtTime(rec.decision.at)}: {rec.decision.outcome}. Reason: {rec.decision.reason}. <span className="mute">Immutable. A party to the case cannot record or overwrite this judgment.</span></div>
                 )}
                 {rec?.status === "pending_human_judgment" && (
                   canJudge ? (
-                    <form action={decideManualReview} className="row" style={{ marginTop: 8 }}>
+                    <form action={judgeHere} className="row" style={{ marginTop: 8 }}>
                       <input type="hidden" name="recordId" value={rec.id} />
-                      <input type="hidden" name="back" value={`/cases/${c.id}`} />
                       <input name="outcome" type="text" placeholder="Judgment (free text)" required style={{ flex: 1, minWidth: 180 }} />
                       <input name="reason" type="text" placeholder="Reason, recorded in the audit chain" required style={{ flex: 2, minWidth: 220 }} />
-                      <button className="btn small" type="submit">Record judgment</button>
+                      <button className="btn small" type="submit">Record judgment (once, immutable)</button>
                     </form>
                   ) : (
-                    <div className="small mute" style={{ marginTop: 6 }}>Pending a human judgment with a recorded reason. Only an authorised signatory or an administrator may record it. Not a self-declaration checkbox.</div>
+                    <div className="small mute" style={{ marginTop: 6 }}>Pending a human judgment with a recorded reason. It is recorded by the reviewer seat (the administrator in this prototype; which named seat holds it is an open decision), never by a party to the case. A party recording it would be self-declaration under another name.</div>
                   )
                 )}
               </div>
@@ -112,12 +114,11 @@ export function StageCard({
                           {canEdit ? (
                             <details className="fold">
                               <summary className="small">Upload</summary>
-                              <form action={uploadDocument} className="stack">
-                                <input type="hidden" name="caseId" value={c.id} />
+                              <form action={uploadHere} className="stack">
                                 <input type="hidden" name="requirementId" value={d.id} />
                                 <input type="hidden" name="label" value={d.label} />
                                 <input name="fileName" type="text" placeholder="file name" />
-                                <textarea name="content" placeholder="Paste document text. The prototype stores the SHA-256, not the file." required />
+                                <textarea name="content" placeholder="Paste document text. The prototype stores the SHA-256, not the file. 256 KB limit." required />
                                 <button className="btn small" type="submit">Record document</button>
                               </form>
                             </details>
@@ -138,8 +139,7 @@ export function StageCard({
           )}
 
           {stage.status === "active" && canEdit && (
-            <form action={markStage} className="row" style={{ marginTop: 10 }}>
-              <input type="hidden" name="caseId" value={c.id} />
+            <form action={markHere} className="row" style={{ marginTop: 10 }}>
               <input type="hidden" name="stageId" value={stage.stage.id} />
               <span className="small mute">Progress is a human action:</span>
               {(["not_started", "in_progress", "complete"] as const).filter((p) => p !== progress).map((p) => (

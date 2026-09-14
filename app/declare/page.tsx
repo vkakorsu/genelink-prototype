@@ -24,7 +24,7 @@ export default async function DeclarePage() {
         <div className="field">
           <label htmlFor="have">I have</label>
           <input id="have" name="have" type="text" defaultValue={current?.have ?? ""} placeholder="e.g. an ex-situ collection with characterised anti-inflammatory activity, or a 2028 product line needing a natural preservative" />
-          <div className="hint">Free text. Structured identity fields are hidden by code in public projections. Free text is checked for identifying content before publication.</div>
+          <div className="hint">Free text. Structured identity fields are hidden by code in public projections. Free text is checked for identifying content before it is stored: email addresses, phone numbers, web addresses, ORCID iDs and handles are removed and the count is shown to you.{current?.redactions ? ` Last time, ${current.redactions} item${current.redactions === 1 ? " was" : "s were"} removed.` : ""}</div>
         </div>
         <fieldset>
           <legend>I want to</legend>

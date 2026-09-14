@@ -185,6 +185,9 @@ stages:
       - id: standing_attribution
         text: Every publication, use, exploitation and disclosure must cite the origin of the traditional knowledge. This never expires and is not discharged by the cadastro.
         reg: { state: "established", marker: "§", value: "Failure is an offence under Decreto Art. 84.", citation: "Lei Art. 10 II; Decreto Art. 84" }
+      - id: traditional_varieties_own_rule
+        text: Traditional and local varieties and creole breeds carry their own rule even where no associated traditional knowledge is claimed. Answering no to the traditional knowledge question does not clear this branch.
+        reg: { state: "established", marker: "§", value: "A separate rule for traditional and local varieties and creole breeds, independent of the associated-knowledge test.", citation: "Lei Art. 9 §3" }
   - id: downstream_triggers
     title: The five triggers (the cadastro must precede each)
     subject: government

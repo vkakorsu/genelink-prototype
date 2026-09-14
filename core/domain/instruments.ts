@@ -53,6 +53,30 @@ export function instrumentFrom(out: OutputInstrument, caseId: string, at: Date, 
 }
 
 /**
+ * The regime says the instrument exists, the platform has no copy yet. No version, no hash,
+ * no fabricated content. Kenya's two instruments from two issuers each sit here until an
+ * authorised signatory records the real document.
+ */
+export function awaitingInstrument(out: OutputInstrument, caseId: string, at: Date): Instrument {
+  return {
+    id: `inst_${caseId}_${out.id}`,
+    caseId,
+    outputId: out.id,
+    label: out.label,
+    kind: out.kind,
+    issuer: out.issuer,
+    status: "awaiting_record",
+    amendmentPolicy: out.amendmentPolicy,
+    versions: [],
+    issuedAt: at.toISOString(),
+    origin: "recorded_external",
+  };
+}
+
+/** Statuses under which no further version may be appended. */
+export const FROZEN_STATUSES: ReadonlySet<Instrument["status"]> = new Set(["awaiting_record", "cancelled", "revoked", "surrendered"]);
+
+/**
  * Apply a modification according to the instrument's amendment policy (R7).
  *  addendum          -> append a version to the SAME instrument. Never a second object.
  *  variation         -> append a variation version to the same instrument.
@@ -65,6 +89,13 @@ export type AmendmentOutcome =
   | { kind: "new_instrument_required"; instrument: Instrument; policy: string; reason: string };
 
 export function amendInstrument(instrument: Instrument, summary: string, at: Date, seatId: string): AmendmentOutcome {
+  if (FROZEN_STATUSES.has(instrument.status)) {
+    throw new Error(
+      instrument.status === "awaiting_record"
+        ? `${instrument.label} has not been recorded yet. There is nothing to amend until an authorised signatory records the instrument the State issued.`
+        : `${instrument.label} is ${instrument.status.replace("_", " ")}. No further version can be recorded against it.`,
+    );
+  }
   switch (instrument.amendmentPolicy) {
     case "addendum":
     case "variation":

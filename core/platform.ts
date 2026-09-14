@@ -1,10 +1,10 @@
 import { nextEntry, verifyChain, type AuditEntry } from "./audit/chain";
 import { makeDisclosure, type Disclosure } from "./audit/disclosure";
 import type { CaseFacts, CountryConfig, RegValue } from "./config/schema";
-import { amendInstrument, issueInstruments, sha256 } from "./domain/instruments";
+import { FROZEN_STATUSES, amendInstrument, awaitingInstrument, issueInstruments, sha256 } from "./domain/instruments";
 import { fullProjection, publicProjection, type FullListing, type PublicListing } from "./domain/listings";
 import type {
-  Agreement, AgreementVersion, Case, CaseDocument, EscalationRecord, Instrument, ManualReviewRecord, Membership, Organisation, Permission, Person,
+  Agreement, AgreementVersion, Case, CaseDocument, EscalationRecord, Instrument, Listing, ManualReviewRecord, Membership, Organisation, Permission, Person,
 } from "./domain/types";
 import { attachedDuties, buildPathway, type Pathway } from "./engine/pathway";
 import { applyLapse, fire, initialSnapshot, isGranted, tick } from "./engine/stateMachine";
@@ -20,8 +20,14 @@ import type { Store } from "./store/Store";
 export type Actor = { seat: Membership; person: Person; organisation: Organisation } | { system: true } | { admin: { personId: string; name: string } };
 
 export class PermissionDenied extends Error {}
+export class NotFound extends Error {}
+/** A request the platform understood and refused. Interfaces answer 4xx, never 500. */
+export class InvalidRequest extends Error {}
 
 const rank: Record<Permission, number> = { viewer: 0, member: 1, authorised_signatory: 2, administrator: 3 };
+
+/** Prototype paste limit. Real files go to object storage in the MVP; the prototype hashes pasted text. */
+export const MAX_DOCUMENT_BYTES = 256 * 1024;
 
 export class Platform {
   constructor(
@@ -33,8 +39,18 @@ export class Platform {
   // ----------------------------------------------------------------- helpers
   country(code: string): CountryConfig {
     const c = this.countries.get(code);
-    if (!c) throw new Error(`No configuration for provider country ${code}`);
+    if (!c) throw new Error(`No configured pathway for provider country ${code}. Configured: ${[...this.countries.keys()].sort().join(", ")}. Adding a country is a configuration file, not a release.`);
     return c;
+  }
+
+  /** Records may vanish between a page render and a form submission (the demo resets). Fail with a sentence, never a stack trace. */
+  private must<T>(value: T | undefined, what: string, id: string): T {
+    if (value === undefined) throw new NotFound(`${what} ${id} was not found. The demo may have been reset since this page was rendered. Reload the page.`);
+    return value;
+  }
+
+  private mustBelong(caseId: string, owned: { caseId: string }, what: string) {
+    if (owned.caseId !== caseId) throw new PermissionDenied(`${what} does not belong to this case`);
   }
 
   private audit(actor: Actor, action: string, subject: { type: string; id: string }, detail: Record<string, unknown> = {}): AuditEntry {
@@ -125,7 +141,9 @@ export class Platform {
   // ------------------------------------------------------- verification
   requestVerification(actor: Actor, organisationId: string, method: Organisation["verification"]["method"]) {
     this.require(actor, "administrator", organisationId);
-    const org = this.store.organisations.get(organisationId)!;
+    const org = this.must(this.store.organisations.get(organisationId), "Organisation", organisationId);
+    const methods: Organisation["verification"]["method"][] = ["orcid", "institutional_email", "manual_vetting", "vouching"];
+    if (!methods.includes(method)) throw new InvalidRequest(`Unknown verification method ${method}`);
     org.verification = { status: "pending", method };
     this.store.organisations.put(org);
     this.audit(actor, "organisation.verification_requested", { type: "organisation", id: organisationId }, { method });
@@ -133,7 +151,8 @@ export class Platform {
 
   decideVerification(admin: Actor, organisationId: string, outcome: "verified" | "declined", reason: string) {
     if (!("admin" in admin)) throw new PermissionDenied("Verification decisions are administrative actions");
-    const org = this.store.organisations.get(organisationId)!;
+    const org = this.must(this.store.organisations.get(organisationId), "Organisation", organisationId);
+    if (outcome !== "verified" && outcome !== "declined") throw new InvalidRequest(`Unknown verification outcome ${outcome}`);
     org.verification = { ...org.verification, status: outcome, decidedBy: admin.admin.name, decidedAt: this.now().toISOString(), reason };
     this.store.organisations.put(org);
     this.audit(admin, "organisation.verification_decided", { type: "organisation", id: organisationId }, { outcome, reason });
@@ -146,8 +165,8 @@ export class Platform {
 
   /** Full projection is available only to the owner or to a counterparty after mutual interest. */
   listingFor(actor: Actor, listingId: string): PublicListing | FullListing {
-    const l = this.store.listings.get(listingId)!;
-    const org = this.store.organisations.get(l.organisationId)!;
+    const l = this.must(this.store.listings.get(listingId), "Listing", listingId);
+    const org = this.must(this.store.organisations.get(l.organisationId), "Organisation", l.organisationId);
     if ("admin" in actor || "system" in actor) return fullProjection(l, org);
     if (actor.seat.organisationId === l.organisationId) return fullProjection(l, org);
     if (this.mutualInterest(actor.seat.organisationId, l)) return fullProjection(l, org);
@@ -157,8 +176,10 @@ export class Platform {
   signalInterest(actor: Actor, listingId: string): { mutual: boolean; caseId?: string } {
     if (!("seat" in actor)) throw new PermissionDenied("Only a seat can signal interest");
     this.require(actor, "member");
-    const listing = this.store.listings.get(listingId)!;
+    const listing = this.must(this.store.listings.get(listingId), "Listing", listingId);
     if (listing.organisationId === actor.seat.organisationId) throw new PermissionDenied("Cannot signal interest in your own listing");
+    if (actor.organisation.verification.status === "declined") throw new PermissionDenied("Your organisation's verification was declined. Interest cannot be signalled until a new verification request is decided.");
+    this.requireCounterpartyPathway(listing, actor.organisation);
     const id = `int_${actor.seat.organisationId}_${listingId}`;
     this.store.interests.put({ id, fromOrganisationId: actor.seat.organisationId, toListingId: listingId, at: this.now().toISOString(), bySeatId: actor.seat.id });
     this.audit(actor, "interest.signalled", { type: "listing", id: listingId });
@@ -172,8 +193,12 @@ export class Platform {
   /** The listing owner signals back on the interested organisation. Recorded symmetrically. */
   reciprocate(actor: Actor, listingId: string, interestedOrganisationId: string): { caseId: string } {
     if (!("seat" in actor)) throw new PermissionDenied("Only a seat can reciprocate");
-    const listing = this.store.listings.get(listingId)!;
+    const listing = this.must(this.store.listings.get(listingId), "Listing", listingId);
     this.require(actor, "member", listing.organisationId);
+    const interested = this.must(this.store.organisations.get(interestedOrganisationId), "Organisation", interestedOrganisationId);
+    if (!this.store.interests.get(`int_${interestedOrganisationId}_${listingId}`)) throw new InvalidRequest("That organisation has not signalled interest in this listing. A reveal is mutual or it does not happen.");
+    if (interested.verification.status === "declined") throw new PermissionDenied(`${interested.kind.replace("_", " ")} (${interested.country}) was declined verification. Signalling back is not available until a new verification request is decided.`);
+    this.requireCounterpartyPathway(listing, interested);
     const id = `int_${listing.organisationId}_${listingId}_to_${interestedOrganisationId}`;
     this.store.interests.put({ id, fromOrganisationId: listing.organisationId, toListingId: `${listingId}:${interestedOrganisationId}`, at: this.now().toISOString(), bySeatId: actor.seat.id });
     this.audit(actor, "interest.reciprocated", { type: "listing", id: listingId }, { counterparty: interestedOrganisationId });
@@ -191,21 +216,45 @@ export class Platform {
     return this.store.interests.list().filter((i) => i.toListingId === listingId);
   }
 
-  private openCaseFromMatch(actor: Actor, listing: { id: string; organisationId: string; provenanceCountry: string; publicSummary: string }, counterpartyId?: string): Case {
+  /**
+   * Which country's rules a match would run under. An offer carries its provenance. A need
+   * says "any provenance with a lawful pathway", so the pathway is the supplying
+   * organisation's country. Where that country has no configuration the platform says so
+   * before anyone signals, rather than opening a case it cannot run.
+   */
+  providerCountryFor(listing: Listing, counterparty: Organisation): string {
+    if (listing.side === "offer") return listing.provenanceCountry;
+    return listing.provenanceCountry === "any" ? counterparty.country : listing.provenanceCountry;
+  }
+
+  private requireCounterpartyPathway(listing: Listing, counterparty: Organisation) {
+    const code = this.providerCountryFor(listing, counterparty);
+    if (!this.countries.has(code)) {
+      throw new InvalidRequest(
+        listing.side === "need"
+          ? `This need accepts any provenance with a lawful pathway, and the platform has no configured pathway for ${code}, the supplying organisation's country. Configured: ${[...this.countries.keys()].sort().join(", ")}.`
+          : `No configured pathway for provider country ${code}.`,
+      );
+    }
+  }
+
+  private openCaseFromMatch(actor: Actor, listing: Listing, counterpartyId?: string): Case {
     const other = counterpartyId ?? ("seat" in actor ? actor.seat.organisationId : listing.organisationId);
     const existing = this.store.cases.list().find((c) => c.listingId === listing.id && c.participants.some((p) => p.organisationId === other));
     if (existing) return existing;
-    const cfg = this.country(listing.provenanceCountry);
-    const supplier = this.store.organisations.get(listing.organisationId)!;
-    const demand = this.store.organisations.get(other)!;
+    const owner = this.must(this.store.organisations.get(listing.organisationId), "Organisation", listing.organisationId);
+    const counterparty = this.must(this.store.organisations.get(other), "Organisation", other);
+    // On an offer the owner supplies. On a need the owner is the demand side and the counterparty supplies.
+    const [demand, supplier] = listing.side === "offer" ? [counterparty, owner] : [owner, counterparty];
+    const cfg = this.country(this.providerCountryFor(listing, counterparty));
     const at = this.now();
     const c: Case = {
       id: `case_${this.store.cases.list().length + 1}_${cfg.code.toLowerCase()}`,
       title: `${demand.name} and ${supplier.name}`,
       providerCountry: cfg.code,
       participants: [
-        { organisationId: other, role: "demand" },
-        { organisationId: listing.organisationId, role: "supply" },
+        { organisationId: demand.id, role: "demand" },
+        { organisationId: supplier.id, role: "supply" },
       ],
       listingId: listing.id,
       facts: { purpose: "commercial", activity: cfg.scope.questions[0].options[0].id, provenance: "in_situ", applicantType: "foreign_legal", exchange: "no_movement", communityHeld: "unclear", tkInvolved: "unclear", flags: {} },
@@ -235,8 +284,12 @@ export class Platform {
     return attachedDuties(this.country(c.providerCountry));
   }
 
+  private caseFor(caseId: string): Case {
+    return this.must(this.store.cases.get(caseId), "Case", caseId);
+  }
+
   updateFacts(actor: Actor, caseId: string, facts: CaseFacts): Case {
-    const c = this.store.cases.get(caseId)!;
+    const c = this.caseFor(caseId);
     this.requireParticipant(actor, c);
     this.require(actor, "member");
     c.facts = facts;
@@ -248,7 +301,7 @@ export class Platform {
 
   /** Change of intent is a first-class event. It re-runs scope and applies the country's Class 4 consequence. */
   changeOfIntent(actor: Actor, caseId: string, newFacts: CaseFacts, description: string): Case {
-    const c = this.store.cases.get(caseId)!;
+    const c = this.caseFor(caseId);
     this.requireParticipant(actor, c);
     this.require(actor, "member");
     const cfg = this.country(c.providerCountry);
@@ -263,8 +316,9 @@ export class Platform {
     c.facts = newFacts;
     this.store.cases.put(c);
     this.audit(actor, "case.change_of_intent", { type: "case", id: caseId }, { description, policy: cfg.changeOfIntent.policy });
-    // Apply to instruments already issued
+    // Apply to instruments already recorded. An instrument the platform is still awaiting has nothing to version.
     for (const inst of this.instrumentsFor(caseId)) {
+      if (FROZEN_STATUSES.has(inst.status)) continue;
       const out = amendInstrument(inst, `Change of intent: ${description}`, this.now(), "seat" in actor ? actor.seat.id : "system");
       if (out.kind === "versioned") {
         this.store.instruments.put(out.instrument);
@@ -308,23 +362,37 @@ export class Platform {
     return this.store.manualReviews.list().filter((e) => e.caseId === caseId);
   }
 
-  /** Only a human with a recorded reason may move a manual-review state (R5). */
+  /**
+   * R5. A manual-review judgment is one no system and no party can make: a case party recording
+   * it would be self-declaration under another name. In the prototype the reviewer seat is the
+   * administrator; which named seat holds it in production is an open decision. Once decided,
+   * the record is immutable. A second judgment is a new record, never an overwrite.
+   */
   decideManualReview(actor: Actor, recordId: string, outcome: string, reason: string) {
     if ("system" in actor) throw new PermissionDenied("Manual review judgments cannot be made by the system");
-    const rec = this.store.manualReviews.get(recordId)!;
-    const by = "admin" in actor ? actor.admin.name : actor.person.name;
+    if (!("admin" in actor)) throw new PermissionDenied("A manual-review judgment is recorded by the reviewer seat, not by a party to the case. Recording it yourself would be self-declaration.");
+    if (!outcome.trim() || !reason.trim()) throw new InvalidRequest("A judgment needs both an outcome and a reason. Both go into the audit chain.");
+    const rec = this.must(this.store.manualReviews.get(recordId), "Manual review", recordId);
+    if (rec.status === "decided") throw new PermissionDenied(`This judgment was recorded by ${rec.decision?.by} and is immutable. It cannot be overwritten.`);
     rec.status = "decided";
-    rec.decision = { by, at: this.now().toISOString(), outcome, reason };
+    rec.decision = { by: actor.admin.name, at: this.now().toISOString(), outcome: outcome.trim(), reason: reason.trim() };
     this.store.manualReviews.put(rec);
-    this.audit(actor, "manual_review.decided", { type: "manual_review", id: recordId }, { outcome, reason });
+    this.audit(actor, "manual_review.decided", { type: "manual_review", id: recordId }, { outcome: rec.decision.outcome, reason: rec.decision.reason });
   }
 
   uploadDocument(actor: Actor, caseId: string, requirementId: string, label: string, fileName: string, content: string): CaseDocument {
     if (!("seat" in actor)) throw new PermissionDenied("Only a seat can upload");
-    const c = this.store.cases.get(caseId)!;
+    const c = this.caseFor(caseId);
     this.requireParticipant(actor, c);
     this.require(actor, "member");
-    const doc: CaseDocument = { id: `doc_${caseId}_${requirementId}_${this.store.documents.list().length + 1}`, caseId, requirementId, label, fileName, sha256: sha256(content), uploadedBySeatId: actor.seat.id, uploadedAt: this.now().toISOString(), check: "present" };
+    if (!content.trim()) throw new InvalidRequest("The document is empty. Paste the text so the platform can hash it.");
+    if (Buffer.byteLength(content, "utf8") > MAX_DOCUMENT_BYTES) throw new InvalidRequest(`The document exceeds the prototype's ${MAX_DOCUMENT_BYTES / 1024} KB paste limit. The MVP stores files in EU object storage and hashes the upload stream.`);
+    const pathway = this.pathwayFor(c);
+    if (!pathway.stages.some((s) => s.documents.some((d) => d.id === requirementId))) throw new InvalidRequest(`No document requirement ${requirementId} on this pathway.`);
+    const h = sha256(content);
+    const dup = this.documentsFor(caseId).find((d) => d.requirementId === requirementId && d.sha256 === h);
+    if (dup) throw new InvalidRequest(`An identical document (${dup.fileName}) is already on file for this requirement. Same content, same hash, nothing to add.`);
+    const doc: CaseDocument = { id: `doc_${caseId}_${requirementId}_${this.store.documents.list().length + 1}`, caseId, requirementId, label, fileName, sha256: h, uploadedBySeatId: actor.seat.id, uploadedAt: this.now().toISOString(), check: "present" };
     this.store.documents.put(doc);
     this.audit(actor, "document.uploaded", { type: "document", id: doc.id }, { requirementId, sha256: doc.sha256, check: "presence and type only, never sufficiency" });
     return doc;
@@ -335,12 +403,13 @@ export class Platform {
   }
 
   markStage(actor: Actor, caseId: string, stageId: string, progress: Case["stageProgress"][string]) {
-    const c = this.store.cases.get(caseId)!;
+    const c = this.caseFor(caseId);
     this.requireParticipant(actor, c);
     this.require(actor, "member");
+    if (!["not_started", "in_progress", "complete"].includes(progress)) throw new InvalidRequest(`Unknown progress value ${progress}`);
     const pathway = this.pathwayFor(c);
     const stage = pathway.stages.find((s) => s.stage.id === stageId);
-    if (!stage) throw new Error("Stage not on this pathway");
+    if (!stage) throw new InvalidRequest("Stage not on this pathway");
     if (stage.status === "halted" && progress === "complete") throw new PermissionDenied("A halted stage cannot be completed. The open question must be answered through configuration review first.");
     c.stageProgress[stageId] = progress;
     this.store.cases.put(c);
@@ -349,22 +418,39 @@ export class Platform {
 
   // -------------------------------------------------------- state machine
   fireEvent(actor: Actor, caseId: string, event: string, note?: string): Case {
-    const c = this.store.cases.get(caseId)!;
+    const c = this.caseFor(caseId);
     this.requireParticipant(actor, c);
     const cfg = this.country(c.providerCountry);
     const actorKind = "system" in actor ? "system" : "admin" in actor ? "authority" : "applicant";
     // In the prototype, regulator events are recorded by a participant or an administrator on the authority's behalf.
     const declared = cfg.stateMachine.transitions.find((t) => t.from === c.machine.state && t.event === event);
     const effectiveActor = declared ? declared.actor : actorKind;
+    const wasGranted = isGranted(cfg, c.machine);
     c.machine = fire(cfg, c.machine, event, effectiveActor, this.now(), note);
     this.store.cases.put(c);
     this.audit(actor, "regulator.event_recorded", { type: "case", id: caseId }, { event, to: c.machine.state, recordedOnBehalfOf: effectiveActor, note });
     if (isGranted(cfg, c.machine)) this.issueOutputs(actor, c);
+    else if (wasGranted && cfg.stateMachine.states[c.machine.state]?.kind === "terminal") this.closeInstruments(actor, c, event);
     return c;
   }
 
+  /**
+   * A granted case that reaches a terminal state that is not granted (Colombia: terminated) has
+   * no live instrument left. The status is recorded on each instrument so that nothing can be
+   * amended against a contract that no longer runs. Recorded, not performed: the authority acted.
+   */
+  private closeInstruments(actor: Actor, c: Case, event: string) {
+    const label = this.country(c.providerCountry).stateMachine.states[c.machine.state]?.label ?? c.machine.state;
+    for (const inst of this.instrumentsFor(c.id)) {
+      if (FROZEN_STATUSES.has(inst.status)) continue;
+      inst.status = "cancelled";
+      this.store.instruments.put(inst);
+      this.audit(actor, "instrument.status", { type: "instrument", id: inst.id }, { status: "cancelled", note: `Case reached "${label}" on ${event}. No further version can be recorded.` });
+    }
+  }
+
   tickClocks(caseId: string, now = this.now()): { lapsed: string[] } {
-    const c = this.store.cases.get(caseId)!;
+    const c = this.caseFor(caseId);
     const cfg = this.country(c.providerCountry);
     const { snap, lapsed } = tick(cfg, c.machine, now);
     c.machine = snap;
@@ -376,38 +462,80 @@ export class Platform {
     return { lapsed };
   }
 
+  /** Demo control: evaluate the running clock one day past its own deadline. Returns null when no clock governs the current state. */
+  forceLapse(caseId: string): { lapsed: string[]; at: Date } | null {
+    const c = this.caseFor(caseId);
+    const cfg = this.country(c.providerCountry);
+    const running = cfg.stateMachine.clocks.find((k) => k.startsIn === c.machine.state && c.machine.clocks[k.id]?.deadline && !c.machine.clocks[k.id].suspended);
+    if (!running) return null;
+    const at = new Date(new Date(c.machine.clocks[running.id].deadline!).getTime() + 86_400_000);
+    return { ...this.tickClocks(caseId, at), at };
+  }
+
+  /**
+   * The machine reached a state in which the configuration says instruments issue. Two cases:
+   *  automatic (Brazil's SisGen receipt) — the regime issues it on the act itself, so the record is made now;
+   *  everything else (Kenya's two instruments from two issuers, Colombia's contract) — an authority holds
+   *  the document and the platform holds nothing until a signatory records it. The instrument appears as
+   *  awaiting record. It never gets a fabricated hash. Kenya's applicant holds nothing until both are recorded.
+   */
   private issueOutputs(actor: Actor, c: Case) {
     const cfg = this.country(c.providerCountry);
-    // The configuration says which instruments issue in which state. The engine does not guess.
-    const outputs = cfg.outputs.filter((o) => o.issuedInState === c.machine.state).map((o) => o.id);
     const already = this.instrumentsFor(c.id).map((i) => i.outputId);
-    const toIssue = outputs.filter((o) => !already.includes(o));
-    for (const inst of issueInstruments(cfg, c.id, toIssue, this.now(), "seat" in actor ? actor.seat.id : "system")) {
-      this.store.instruments.put(inst);
-      this.audit(actor, "instrument.recorded", { type: "instrument", id: inst.id }, { outputId: inst.outputId, issuer: inst.issuer, status: inst.status, sha256: inst.versions[0].sha256 });
+    const at = this.now();
+    for (const out of cfg.outputs.filter((o) => o.issuedInState === c.machine.state && !already.includes(o.id))) {
+      if (out.automatic) {
+        const [inst] = issueInstruments(cfg, c.id, [out.id], at, "seat" in actor ? actor.seat.id : "system");
+        this.store.instruments.put(inst);
+        this.audit(actor, "instrument.recorded", { type: "instrument", id: inst.id }, { outputId: inst.outputId, issuer: inst.issuer, status: inst.status, sha256: inst.versions[0].sha256, automatic: true });
+      } else {
+        const inst = awaitingInstrument(out, c.id, at);
+        this.store.instruments.put(inst);
+        this.audit({ system: true }, "instrument.awaiting_record", { type: "instrument", id: inst.id }, { outputId: inst.outputId, issuer: inst.issuer, note: "The regime says this instrument now exists. The platform holds no copy until an authorised signatory records it." });
+      }
     }
+  }
+
+  /** Every instrument the configuration says this case should hold, and whether the platform actually holds it. */
+  holdings(c: Case): { required: number; recorded: number; missing: Instrument[] } {
+    const cfg = this.country(c.providerCountry);
+    const instruments = this.instrumentsFor(c.id);
+    const required = isGranted(cfg, c.machine) ? cfg.outputs.filter((o) => o.issuedInState === c.machine.state).length : 0;
+    const missing = instruments.filter((i) => i.status === "awaiting_record");
+    return { required, recorded: instruments.filter((i) => i.versions.length > 0).length, missing };
   }
 
   recordExternalInstrument(actor: Actor, caseId: string, outputId: string, fileName: string, content: string): Instrument {
     if (!("seat" in actor)) throw new PermissionDenied("Only a seat can record an instrument");
-    const c = this.store.cases.get(caseId)!;
+    const c = this.caseFor(caseId);
     this.requireParticipant(actor, c);
     this.require(actor, "authorised_signatory");
     const cfg = this.country(c.providerCountry);
+    const out = cfg.outputs.find((o) => o.id === outputId);
+    if (!out) throw new InvalidRequest(`Unknown output ${outputId} for ${cfg.name}. This regime's outputs are ${cfg.outputs.map((o) => o.id).join(", ")}.`);
+    if (!content.trim()) throw new InvalidRequest("The instrument is empty. Paste the text so the platform can hash it.");
+    if (Buffer.byteLength(content, "utf8") > MAX_DOCUMENT_BYTES) throw new InvalidRequest(`The instrument exceeds the prototype's ${MAX_DOCUMENT_BYTES / 1024} KB paste limit.`);
+    const existing = this.store.instruments.get(`inst_${caseId}_${outputId}`);
+    if (existing && existing.versions.length > 0) throw new InvalidRequest(`${existing.label} is already recorded on this case (v${existing.versions.length}). A change is a new version under its amendment policy, not a second original.`);
     const [inst] = issueInstruments(cfg, caseId, [outputId], this.now(), actor.seat.id, "recorded_external");
     inst.versions[0].sha256 = sha256(content);
     inst.versions[0].summary = `${inst.label} recorded from ${fileName}`;
     this.store.instruments.put(inst);
-    this.audit(actor, "instrument.recorded", { type: "instrument", id: inst.id }, { outputId, fileName, sha256: inst.versions[0].sha256, origin: "recorded_external" });
+    this.audit(actor, "instrument.recorded", { type: "instrument", id: inst.id }, { outputId, fileName, sha256: inst.versions[0].sha256, origin: "recorded_external", wasAwaiting: Boolean(existing) });
     return inst;
   }
 
-  amendInstrument(actor: Actor, instrumentId: string, summary: string) {
-    const inst = this.store.instruments.get(instrumentId)!;
-    const c = this.store.cases.get(inst.caseId)!;
+  amendInstrument(actor: Actor, caseId: string, instrumentId: string, summary: string) {
+    const inst = this.must(this.store.instruments.get(instrumentId), "Instrument", instrumentId);
+    this.mustBelong(caseId, inst, "Instrument");
+    const c = this.caseFor(inst.caseId);
     this.requireParticipant(actor, c);
     this.require(actor, "authorised_signatory");
-    const out = amendInstrument(inst, summary, this.now(), "seat" in actor ? actor.seat.id : "system");
+    if (!summary.trim()) throw new InvalidRequest("Describe the modification. The summary goes into the version record.");
+    const cfg = this.country(c.providerCountry);
+    const st = cfg.stateMachine.states[c.machine.state];
+    if (st?.kind === "terminal" && st.outcome !== "granted") throw new PermissionDenied(`The case has reached "${st.label}". No amendment can be recorded against an instrument of a case that has ended.`);
+    const out = amendInstrument(inst, summary.trim(), this.now(), "seat" in actor ? actor.seat.id : "system");
     if (out.kind === "versioned") {
       this.store.instruments.put(out.instrument);
       this.audit(actor, "instrument.versioned", { type: "instrument", id: instrumentId }, { version: out.version.version, kind: out.version.kind, summary });
@@ -417,8 +545,17 @@ export class Platform {
     return out;
   }
 
-  setInstrumentStatus(actor: Actor, instrumentId: string, status: Instrument["status"], note: string) {
-    const inst = this.store.instruments.get(instrumentId)!;
+  setInstrumentStatus(actor: Actor, caseId: string, instrumentId: string, status: Instrument["status"], note: string) {
+    const inst = this.must(this.store.instruments.get(instrumentId), "Instrument", instrumentId);
+    this.mustBelong(caseId, inst, "Instrument");
+    const c = this.caseFor(inst.caseId);
+    this.requireParticipant(actor, c);
+    if ("seat" in actor) this.require(actor, "authorised_signatory");
+    const allowed: Instrument["status"][] = ["verified", "correction_required", "cancelled", "issued"];
+    if (!allowed.includes(status)) throw new InvalidRequest(`Status ${status} cannot be set here`);
+    if (inst.status === "awaiting_record") throw new InvalidRequest(`${inst.label} has not been recorded yet. Record it before recording a verification outcome on it.`);
+    const out = this.country(c.providerCountry).outputs.find((o) => o.id === inst.outputId);
+    if (!out?.verificationOpenAfterIssue) throw new InvalidRequest(`${inst.label} has no post-issue verification step in this regime.`);
     inst.status = status;
     this.store.instruments.put(inst);
     this.audit(actor, "instrument.status", { type: "instrument", id: instrumentId }, { status, note });
@@ -431,9 +568,10 @@ export class Platform {
   // ------------------------------------------------------------ agreements
   createAgreement(actor: Actor, caseId: string, title: string, clauses: AgreementVersion["clauses"]): Agreement {
     if (!("seat" in actor)) throw new PermissionDenied("Only a seat can draft");
-    const c = this.store.cases.get(caseId)!;
+    const c = this.caseFor(caseId);
     this.requireParticipant(actor, c);
     this.require(actor, "member");
+    if (!clauses.length) throw new InvalidRequest("Select at least one model clause");
     const version = this.makeVersion(1, actor.seat.id, "Initial draft from model clauses", clauses, "platform");
     const a: Agreement = { id: `agr_${caseId}_${this.store.agreements.list().length + 1}`, caseId, title, status: "drafting", versions: [version], approvals: [], executions: [] };
     this.store.agreements.put(a);
@@ -441,14 +579,22 @@ export class Platform {
     return a;
   }
 
-  reviseAgreement(actor: Actor, agreementId: string, summary: string, clauses: AgreementVersion["clauses"], origin: AgreementVersion["origin"] = "platform"): Agreement {
-    if (!("seat" in actor)) throw new PermissionDenied("Only a seat can revise");
-    const a = this.store.agreements.get(agreementId)!;
-    const c = this.store.cases.get(a.caseId)!;
+  /** Resolve an agreement, check it belongs to the case the interface is acting on, and check the seat is a participant. */
+  private agreementFor(actor: Actor, caseId: string, agreementId: string): { a: Agreement; c: Case } {
+    const a = this.must(this.store.agreements.get(agreementId), "Agreement", agreementId);
+    this.mustBelong(caseId, a, "Agreement");
+    const c = this.caseFor(a.caseId);
     this.requireParticipant(actor, c);
+    return { a, c };
+  }
+
+  reviseAgreement(actor: Actor, caseId: string, agreementId: string, summary: string, clauses: AgreementVersion["clauses"], origin: AgreementVersion["origin"] = "platform"): Agreement {
+    if (!("seat" in actor)) throw new PermissionDenied("Only a seat can revise");
+    const { a } = this.agreementFor(actor, caseId, agreementId);
     this.require(actor, "member");
     if (a.status === "executed" || a.status === "recorded") throw new PermissionDenied("An executed agreement is immutable. Record an amendment as a new agreement or an instrument version.");
-    const version = this.makeVersion(a.versions.length + 1, actor.seat.id, summary, clauses, origin);
+    if (!summary.trim()) throw new InvalidRequest("Say what changed in this version");
+    const version = this.makeVersion(a.versions.length + 1, actor.seat.id, summary.trim(), clauses, origin);
     a.versions.push(version);
     a.status = "drafting";
     a.approvals = []; // approvals attach to a version
@@ -457,12 +603,11 @@ export class Platform {
     return a;
   }
 
-  approveAgreement(actor: Actor, agreementId: string): Agreement {
+  approveAgreement(actor: Actor, caseId: string, agreementId: string): Agreement {
     if (!("seat" in actor)) throw new PermissionDenied("Only a seat can approve");
-    const a = this.store.agreements.get(agreementId)!;
-    const c = this.store.cases.get(a.caseId)!;
-    this.requireParticipant(actor, c);
+    const { a, c } = this.agreementFor(actor, caseId, agreementId);
     this.require(actor, "authorised_signatory");
+    if (a.status === "executed" || a.status === "recorded") throw new PermissionDenied("This agreement is already executed");
     const latest = a.versions[a.versions.length - 1];
     if (a.approvals.some((ap) => ap.organisationId === actor.seat.organisationId && ap.versionNumber === latest.version)) return a;
     a.approvals.push({ seatId: actor.seat.id, organisationId: actor.seat.organisationId, at: this.now().toISOString(), versionNumber: latest.version });
@@ -474,11 +619,9 @@ export class Platform {
   }
 
   /** Simple electronic signature: an authenticated authorised signatory records assent to a specific document hash. */
-  executeAgreement(actor: Actor, agreementId: string): Agreement {
+  executeAgreement(actor: Actor, caseId: string, agreementId: string): Agreement {
     if (!("seat" in actor)) throw new PermissionDenied("Only a seat can execute");
-    const a = this.store.agreements.get(agreementId)!;
-    const c = this.store.cases.get(a.caseId)!;
-    this.requireParticipant(actor, c);
+    const { a, c } = this.agreementFor(actor, caseId, agreementId);
     this.require(actor, "authorised_signatory");
     if (a.status !== "approved" && a.status !== "executed") throw new PermissionDenied("Both organisations must approve the current version before execution");
     const latest = a.versions[a.versions.length - 1];
@@ -513,17 +656,25 @@ export class Platform {
   // -------------------------------------------------------------- support
   requestSupport(actor: Actor, caseId: string, kind: "technical" | "expert", note: string) {
     if (!("seat" in actor)) throw new PermissionDenied("Only a seat can request support");
-    const c = this.store.cases.get(caseId)!;
+    const c = this.caseFor(caseId);
     this.requireParticipant(actor, c);
-    const routedTo = kind === "expert" ? "The parties' own adviser, or a partner-provided adviser. Not a GENE-LINK review queue." : "GENE-LINK technical support";
+    if (kind !== "technical" && kind !== "expert") throw new InvalidRequest(`Unknown support kind ${kind}`);
+    const routedTo = kind === "expert"
+      ? "Recorded on the case for the parties to take to their own adviser, or to a partner-provided adviser. Not a GENE-LINK review queue, and no adviser is attached to the case by this request."
+      : "GENE-LINK technical support";
     c.supportRequests.push({ id: `sup_${caseId}_${c.supportRequests.length + 1}`, at: this.now().toISOString(), bySeatId: actor.seat.id, kind, routedTo, note });
     this.store.cases.put(c);
     this.audit(actor, "support.requested", { type: "case", id: caseId }, { kind, routedTo });
   }
 
   // ---------------------------------------------------------------- admin
+  /** An intervention is recorded in the audit chain and on the case itself, so the parties see it without opening the log. */
   adminIntervene(admin: Actor, caseId: string, action: string, reason: string) {
     if (!("admin" in admin)) throw new PermissionDenied("Interventions are administrative actions");
-    this.audit(admin, "admin.intervention", { type: "case", id: caseId }, { action, reason });
+    const c = this.caseFor(caseId);
+    if (!action.trim() || !reason.trim()) throw new InvalidRequest("An intervention needs both what was done and why");
+    c.interventions = [...(c.interventions ?? []), { id: `int_${caseId}_${(c.interventions?.length ?? 0) + 1}`, at: this.now().toISOString(), by: admin.admin.name, action: action.trim(), reason: reason.trim() }];
+    this.store.cases.put(c);
+    this.audit(admin, "admin.intervention", { type: "case", id: caseId }, { action: action.trim(), reason: reason.trim() });
   }
 }
