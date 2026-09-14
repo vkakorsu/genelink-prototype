@@ -82,9 +82,20 @@ function wrap<T extends unknown[]>(fn: (...a: T) => Promise<void> | void, path: 
   };
 }
 
+/** A form field that echoes a route id is refused outright when it disagrees with the bound argument. */
+function rejectStrayId(fd: FormData, name: string, bound: string) {
+  const v = fd.get(name);
+  if (typeof v === "string" && v.trim() && v.trim() !== bound) {
+    throw new InvalidRequest(`The submitted ${name} does not match this address. Reload the page and try again.`);
+  }
+}
+
 /** A case-scoped action. The first argument is bound by the page; the form supplies the rest. */
 function onCase(fn: (caseId: string, fd: FormData) => Promise<void> | void) {
-  return wrap(fn, (caseId) => `/cases/${encodeURIComponent(caseId)}`);
+  return wrap(async (caseId: string, fd: FormData) => {
+    rejectStrayId(fd, "caseId", caseId);
+    await fn(caseId, fd);
+  }, (caseId) => `/cases/${encodeURIComponent(caseId)}`);
 }
 
 function text(fd: FormData, name: string, max = 2000): string {
@@ -121,7 +132,8 @@ export async function resetDemo() {
 
 // -------------------------------------------------------------- discovery
 export const signalInterest = wrap(
-  async (listingId: string, _fd: FormData) => {
+  async (listingId: string, fd: FormData) => {
+    rejectStrayId(fd, "listingId", listingId);
     const actor = await requireSeat();
     const r = getPlatform().signalInterest(actor, listingId);
     if (r.mutual && r.caseId) redirect(`/cases/${r.caseId}`);
@@ -131,6 +143,7 @@ export const signalInterest = wrap(
 
 export const reciprocate = wrap(
   async (listingId: string, fd: FormData) => {
+    rejectStrayId(fd, "listingId", listingId);
     const actor = await requireSeat();
     const r = getPlatform().reciprocate(actor, listingId, text(fd, "organisationId", 100));
     redirect(`/cases/${r.caseId}`);
