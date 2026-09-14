@@ -1,0 +1,63 @@
+# GENE-LINK: the whole stack in one file, so that it can move to any EU host or to
+# Landscape Alliance's own infrastructure without code changes (proposal Part 10.1,
+# IP statement B6). `docker compose up` runs the prototype as deployed. The
+# postgres and storage services are the MVP adapters' targets: they start today,
+# and the application begins using them when PostgresStore and the object-storage
+# adapter are implemented in the build phase.
+
+name: genelink
+
+services:
+  app:
+    build: .
+    image: genelink-prototype
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      # Read by the MVP persistence adapter. The prototype ignores it and runs in memory.
+      DATABASE_URL: postgres://genelink:${POSTGRES_PASSWORD:-change-me}@postgres:5432/genelink
+      # Read by the MVP object-storage adapter. S3-compatible, so any EU provider or MinIO works.
+      OBJECT_STORAGE_ENDPOINT: http://storage:9000
+      OBJECT_STORAGE_BUCKET: genelink-documents
+    healthcheck:
+      # /health verifies the audit chain and returns 503 if it is broken.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: genelink
+      POSTGRES_USER: genelink
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U genelink -d genelink"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  storage:
+    # S3-compatible object storage for evidence documents and rendered agreements.
+    # In production this is the EU provider's object storage; MinIO stands in locally.
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: genelink
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me-too}
+    volumes:
+      - objectdata:/data
+
+volumes:
+  pgdata:
+  objectdata:
