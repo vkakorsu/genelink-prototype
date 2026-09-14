@@ -142,9 +142,10 @@ export function seed(store: Store, countries: Map<string, CountryConfig>, baseDa
     step(60 * 24 * 3);
   }
   // Publication perfected the contract. The State holds the document; the platform records the copy the signatory supplies.
-  const coContract = platform.recordExternalInstrument(camila, coId, "access_contract", "contrato-acceso-ANLA-2027-014.pdf", "Contrato de acceso a recursos genéticos No. 014 de 2027 (fictional). Perfected on publication.");
+  const coContract = platform.recordExternalInstrument(camila, coId, "access_contract", "contrato-acceso-ANLA-2026-014.pdf", "Contrato de acceso a recursos genéticos No. 014 de 2026 (fictional). Perfected on publication.");
+  step(60 * 24 * 12);
   platform.amendInstrument(camila, coId, coContract.id, "Otrosí No. 1: adds accession IBP-A-121 to the resource scope");
-  step(60 * 24 * 20);
+  step(60 * 24 * 8);
   platform.changeOfIntent(camila, coId, { ...store.cases.get(coId)!.facts, exchange: "service_shipment" }, "Samples to be sent abroad for sequencing service and returned, rather than transferred with title");
   step();
   const coAgreement = platform.createAgreement(camila, coId, "Accessory contract: national support institution", [
@@ -183,6 +184,12 @@ export function seed(store: Store, countries: Map<string, CountryConfig>, baseDa
   });
   step();
   platform.fireEvent(luana, brId, "complete_form", "SisGen form completed. Receipt issued automatically.");
+  step();
+
+  // A signal with no reciprocation: the negative control for anonymisation-until-match.
+  // Ol Kalou (a pending-verification Path B custodian) answers Nordlicht's need. Until Ines
+  // reciprocates, each side sees a placeholder for the other, not an identity.
+  platform.signalInterest(nyokabi, "lst_need_preservative");
   step();
 
   // ----------------------------------------------------- Out-of-scope example

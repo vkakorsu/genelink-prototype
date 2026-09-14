@@ -146,7 +146,7 @@ describe("need listings: a match runs under the supplying organisation's country
   it("signalling back to an organisation that never signalled is refused", () => {
     const p = fresh();
     const ines = p.actorFor("seat_ines_nordlicht");
-    expect(() => p.reciprocate(ines, "lst_need_preservative", "org_olkalou")).toThrow(InvalidRequest);
+    expect(() => p.reciprocate(ines, "lst_need_preservative", "org_asheokoro")).toThrow(InvalidRequest);
   });
 });
 
