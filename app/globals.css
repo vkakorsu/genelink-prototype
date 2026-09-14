@@ -179,6 +179,9 @@ footer.site .topbar-inner { padding: 16px 20px; }
 .two-col > aside { min-width: 0; }
 @media (max-width: 960px) { .two-col { grid-template-columns: minmax(0, 1fr); } }
 .sticky { position: sticky; top: 16px; }
+@media (min-width: 961px) {
+  .sticky { max-height: calc(100vh - 32px); overflow-y: auto; }
+}
 .stack > * + * { margin-top: 12px; }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .row.between { justify-content: space-between; }
