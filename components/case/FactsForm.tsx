@@ -25,14 +25,15 @@ export function FactsForm({ cfg, caseId, facts, mode, canEdit }: { cfg: CountryC
         </div>
         <p className="small mute">Deciding fact: the activity the user will perform. Not whether the function is already proven, not whether the material was bought.</p>
       </fieldset>
-      <div className="grid cols-2">
+      <div className="grid cols-fit">
         <div className="field">
           <label htmlFor="provenance">Material provenance</label>
           <select id="provenance" name="provenance" defaultValue={facts.provenance}>
             <option value="in_situ">In situ</option>
-            <option value="ex_situ">Held ex situ (record the place of origin, not the holder)</option>
+            <option value="ex_situ">Held ex situ</option>
             <option value="dsi_only">Digital sequence information only</option>
           </select>
+          <div className="hint">For ex situ holdings the place of origin is recorded, not the holding institution.</div>
         </div>
         <div className="field">
           <label htmlFor="applicantType">Applicant (legal personality and nationality)</label>
@@ -48,22 +49,24 @@ export function FactsForm({ cfg, caseId, facts, mode, canEdit }: { cfg: CountryC
           <select id="exchange" name="exchange" defaultValue={facts.exchange}>
             <option value="no_movement">Nothing leaves the country</option>
             <option value="title_transfer">Physical transfer with title</option>
-            <option value="service_shipment">Temporary service shipment, returned or destroyed</option>
+            <option value="service_shipment">Temporary service shipment</option>
             <option value="dsi_only">Sequence data only</option>
           </select>
+          <div className="hint">A service shipment is temporary: the material is returned or destroyed after the work.</div>
         </div>
         <div className="field">
           <label htmlFor="localities">Collection localities</label>
           <input id="localities" name="localities" type="number" min={1} max={999} step={1} inputMode="numeric" defaultValue={facts.localities ?? ""} placeholder="1" />
         </div>
       </div>
-      <div className="grid cols-3">
+      <div className="grid cols-fit-sm">
         <fieldset>
           <legend>Resource held by a community or local manager?</legend>
           <div className="radio-list">{TRI.map(([v, l]) => <label key={v}><input type="radio" name="communityHeld" value={v} defaultChecked={facts.communityHeld === v} /> {l}</label>)}</div>
         </fieldset>
         <fieldset>
-          <legend>Traditional knowledge involved? <span className="small mute">(adds a consent party, never decides whether consent is needed)</span></legend>
+          <legend>Traditional knowledge involved?</legend>
+          <p className="small mute" style={{ marginTop: 0 }}>Adds a consent party. Never decides whether consent is needed.</p>
           <div className="radio-list">{TRI.map(([v, l]) => <label key={v}><input type="radio" name="tkInvolved" value={v} defaultChecked={facts.tkInvolved === v} /> {l}</label>)}</div>
         </fieldset>
         {cfg.code === "CO" && (
@@ -73,7 +76,7 @@ export function FactsForm({ cfg, caseId, facts, mode, canEdit }: { cfg: CountryC
           </fieldset>
         )}
         {cfg.code === "KE" && (
-          <fieldset>
+          <fieldset style={{ gridColumn: "1 / -1" }}>
             <legend>Species status on an authoritative list</legend>
             <div className="radio-list">
               <label><input type="radio" name="speciesListed" value="unchecked" defaultChecked={(facts.speciesListed ?? "unchecked") === "unchecked"} /> Not yet checked</label>
@@ -85,10 +88,10 @@ export function FactsForm({ cfg, caseId, facts, mode, canEdit }: { cfg: CountryC
         {cfg.code === "BR" && (
           <fieldset>
             <legend>Genuine scientific collaboration with the Brazilian institution?</legend>
+            <p className="small mute" style={{ marginTop: 0 }}>Recorded as a fact for the file. It is <strong>not</strong> the decision: the judgment is a manual-review state (R5) because no statutory test exists. <EvidenceChip reg={cfg.manualReview[0].reg} short /></p>
             <div className="radio-list">
               {TRI.map(([v, l]) => <label key={v}><input type="radio" name="scientificCollaboration" value={v} defaultChecked={facts.scientificCollaboration === v} /> {l}</label>)}
             </div>
-            <p className="small mute">Recorded as a fact for the file. It is <strong>not</strong> the decision: the judgment is a manual-review state (R5) because no statutory test exists. <EvidenceChip reg={cfg.manualReview[0].reg} short /></p>
           </fieldset>
         )}
       </div>
