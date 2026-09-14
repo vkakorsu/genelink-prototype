@@ -57,6 +57,16 @@ Find the service id with `render services list`. To get automatic deploys on eve
 - **Oracle Cloud Always Free VM, Frankfurt.** The most robust free option (a real VM that never sleeps) but requires a card for identity verification and manual VM setup: Ubuntu 24.04, open ports 80/443, install Docker, `docker build -t genelink-prototype .`, `docker run -d -p 80:3000 --restart unless-stopped genelink-prototype`.
 - **Hetzner CX22** (Falkenstein or Nuremberg), a few euros a month, same `docker run` command. Paid fallback if the free tier changes terms.
 
+## Moving hosts: the Compose route
+
+`docker-compose.yml` defines the whole stack (application, PostgreSQL 17, S3-compatible object storage) so that moving to another EU provider or to Landscape Alliance's own infrastructure is the same three steps everywhere:
+
+1. Provision a Linux host with Docker in the EU region of choice (Hetzner, IONOS, Scaleway, OVH, or an internal VM).
+2. Clone the repository, set `POSTGRES_PASSWORD` and `MINIO_ROOT_PASSWORD` in a `.env` file, run `docker compose up -d`.
+3. Point DNS at the host and put a TLS terminator in front (Caddy or the provider's load balancer).
+
+For the prototype the database and storage services start but are unused. For the MVP they are the persistence and document adapters' targets, and the same file runs staging and production. The proposal's move-hosting runbook (Part 10.1) is exercised once during the build by deploying staging to a second provider with this file.
+
 ## Verification checklist
 
 1. Open https://genelink-prototype.onrender.com in a private window.

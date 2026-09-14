@@ -62,6 +62,14 @@ docker build -t genelink-prototype .
 docker run -p 3000:3000 genelink-prototype
 ```
 
+Or the whole stack, which is how the MVP is delivered and how it moves between hosts (proposal Part 10.1):
+
+```bash
+docker compose up
+```
+
+`docker-compose.yml` starts the application, PostgreSQL 17 and S3-compatible object storage. The prototype runs in memory and ignores the database and storage services. They are there so that the MVP's `PostgresStore` and object-storage adapter have their targets from the first day of the build, and so that the move-hosting runbook is one file on any provider.
+
 ## Repository structure
 
 ```
