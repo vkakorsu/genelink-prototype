@@ -170,6 +170,9 @@ footer.site .topbar-inner { padding: 16px 20px; }
 .grid.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .grid.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.grid.cols-fit { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.grid.cols-fit-sm { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); align-items: stretch; }
+.grid > fieldset { margin: 0; min-width: 0; height: 100%; }
 @media (max-width: 900px) { .grid.cols-3, .grid.cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .grid.cols-2, .grid.cols-3, .grid.cols-4 { grid-template-columns: minmax(0, 1fr); } }
 .two-col { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: stretch; }
@@ -203,8 +206,8 @@ hr.rule { border: 0; border-top: 1px solid var(--rule); margin: 18px 0; }
 .btn.small { padding: 5px 10px; font-size: 0.78rem; }
 .btn[disabled], .btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
 .btn.block { width: 100%; justify-content: center; }
-label { display: block; font-size: var(--step--1); font-weight: 600; color: var(--ink-soft); margin-bottom: 4px; }
-input[type="text"], input[type="search"], input[type="email"], select, textarea {
+label { display: block; font-size: var(--step--1); font-weight: 600; color: var(--ink-soft); margin-bottom: 4px; text-wrap: balance; }
+input[type="text"], input[type="search"], input[type="email"], input[type="number"], input[type="date"], select, textarea {
   font: inherit; font-size: var(--step-0); width: 100%;
   padding: 8px 10px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper); color: var(--ink);
 }
@@ -213,7 +216,7 @@ textarea { min-height: 84px; resize: vertical; }
 .field { margin-bottom: 12px; }
 .field .hint { font-size: var(--step--1); color: var(--mute); margin-top: 3px; }
 fieldset { border: 1px solid var(--rule); border-radius: var(--radius); padding: 12px 14px; margin: 0 0 12px 0; }
-legend { font-size: var(--step--1); font-weight: 600; color: var(--ink-soft); padding: 0 6px; }
+legend { font-size: var(--step--1); font-weight: 600; color: var(--ink-soft); padding: 0 6px; text-wrap: balance; }
 .radio-list label { display: flex; gap: 10px; align-items: flex-start; font-weight: 500; color: var(--ink); padding: 6px 0; }
 .radio-list input { margin-top: 4px; }
 

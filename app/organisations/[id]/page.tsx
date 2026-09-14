@@ -76,7 +76,7 @@ export default async function OrganisationPage({ params, searchParams }: { param
             {org.verification.status === "declined" && <Notice kind="halt">Declined: {org.verification.reason}. A declined organisation cannot signal interest or be signalled back to until a new request is decided.</Notice>}
             {isAdminSeat && org.verification.status !== "verified" && org.verification.status !== "pending" && (
               <form action={requestVerification.bind(null, id)} className="stack" style={{ marginTop: 8 }}>
-                <select name="method"><option value="institutional_email">Institutional email (Path A)</option><option value="orcid">ORCID (Path A)</option><option value="vouching">Vouching by a verified organisation (Path B)</option><option value="manual_vetting">Manual vetting (Path B)</option></select>
+                <select name="method"><option value="institutional_email">Institutional email (Path A)</option><option value="orcid">ORCID (Path A)</option><option value="vouching">Vouching by verified org (Path B)</option><option value="manual_vetting">Manual vetting (Path B)</option></select>
                 <button className="btn small" type="submit">Request verification</button>
               </form>
             )}
