@@ -58,7 +58,7 @@ Requires Node 24 (the current LTS line; Node 26 enters LTS on 28 October 2026 an
 
 ```bash
 npm ci
-npm run test:ci        # 77 tests on the core: schema, lint, scope, pathway, state machines, instruments, audit, full journeys, dry run for every country, and a hardening suite replaying every defect found in live evaluation
+npm run test:ci        # 79 tests on the core: schema, lint, scope, pathway, state machines, instruments, audit, full journeys, dry run for every country, and a hardening suite replaying every defect found in live evaluation
 npm run dry-run -- BR  # walk Brazil end to end in the terminal. Try CO or KE too
 npm run lint:config    # validate every country file
 npm run deps:update    # updates dependencies to the newest versions published at least seven days ago (the supply-chain rule in the proposal, Part 4.4)
@@ -113,7 +113,7 @@ app/                          Next.js App Router. Server components and server a
 components/                   evidence chips, stage cards, machine panel, instruments, agreements
 lib/session.ts                demo sign-in boundary
 lib/redact.ts                 strips emails, phone numbers, URLs and ORCID iDs from free text before it is shown
-proxy.ts                      request guard in front of every route: cross-origin posts get a 403, unsupported methods a 405, and malformed or oversized action posts a 4xx, never the action runtime
+proxy.ts                      request guard in front of every route: cross-origin posts get a 403, unsupported methods a 405, and malformed or oversized action posts a 4xx, never the action runtime. A post carrying no Origin at all is refused inside the action layer, where the refusal can be audited
 ```
 
 ## The configuration format
