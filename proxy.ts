@@ -66,6 +66,14 @@ function collectStrings(value: unknown, out: string[]): void {
  * it. Either way the address is authoritative: a bound `case_*` or `lst_*`
  * id must be the one in the path.
  */
+/** A string that names a case or listing id other than the one in the address. */
+function stringTargetsOtherResource(s: string, pathname: string): boolean {
+  const id = s.trim();
+  if (/^case_[a-z0-9_]+$/.test(id)) return !(pathname === `/cases/${id}` || pathname.startsWith(`/cases/${id}/`));
+  if (/^lst_[a-z0-9_]+$/.test(id)) return !(pathname === `/listings/${id}` || pathname.startsWith(`/listings/${id}/`));
+  return false;
+}
+
 function boundArgsMatchAddress(n: string, form: FormData, pathname: string): boolean {
   const raw = form.get(`$ACTION_${n}:1`);
   if (typeof raw !== "string" || !raw) return true;
@@ -77,11 +85,20 @@ function boundArgsMatchAddress(n: string, form: FormData, pathname: string): boo
   }
   const strings: string[] = [];
   collectStrings(args, strings);
-  for (const s of strings) {
-    if (s.startsWith("case_") && !(pathname === `/cases/${s}` || pathname.startsWith(`/cases/${s}/`))) return false;
-    if (s.startsWith("lst_") && !(pathname === `/listings/${s}` || pathname.startsWith(`/listings/${s}/`))) return false;
+  return !strings.some((s) => stringTargetsOtherResource(s, pathname));
+}
+
+/** A field value that is itself a resource id, or a JSON payload containing one. */
+function fieldTargetsOtherResource(value: string, pathname: string): boolean {
+  if (stringTargetsOtherResource(value, pathname)) return true;
+  if (!/^[{\[]/.test(value.trim())) return false;
+  try {
+    const strings: string[] = [];
+    collectStrings(JSON.parse(value), strings);
+    return strings.some((s) => stringTargetsOtherResource(s, pathname));
+  } catch {
+    return false;
   }
-  return true;
 }
 
 export async function proxy(request: NextRequest) {
@@ -112,11 +129,44 @@ export async function proxy(request: NextRequest) {
 
   const known = knownActionIds();
   const type = (request.headers.get("content-type") ?? "").toLowerCase();
+  const pathname = request.nextUrl.pathname;
   // A JavaScript-initiated server action call carries the action id in a header.
   const headerId = request.headers.get("next-action");
   if (headerId) {
     if (!ACTION_META.test(headerId) || !idIsKnown(headerId, known)) return refuse(400, "Malformed or unknown action identifier. Reload the page and try again. Nothing was changed.");
-    return NextResponse.next();
+    // The call transports its arguments as a JSON array in a text/plain body, or as
+    // form fields when the arguments carry FormData. Anything else is not a call this
+    // build emitted, and a body that cannot be read must not reach the runtime.
+    if (type.startsWith("text/plain")) {
+      let args: unknown;
+      try {
+        args = JSON.parse(await request.clone().text());
+      } catch {
+        return refuse(400, "The action arguments could not be read. Nothing was changed.");
+      }
+      if (!Array.isArray(args)) return refuse(400, "The action arguments are malformed. Nothing was changed.");
+      const strings: string[] = [];
+      collectStrings(args, strings);
+      if (strings.some((s) => stringTargetsOtherResource(s, pathname))) {
+        return refuse(400, "The bound arguments do not match this address. Nothing was changed.");
+      }
+      return NextResponse.next();
+    }
+    if (type.startsWith("multipart/form-data")) {
+      let form: FormData;
+      try {
+        form = await request.clone().formData();
+      } catch {
+        return refuse(400, "The form body could not be read. Nothing was changed.");
+      }
+      for (const v of form.values()) {
+        if (typeof v === "string" && fieldTargetsOtherResource(v, pathname)) {
+          return refuse(400, "The bound arguments do not match this address. Nothing was changed.");
+        }
+      }
+      return NextResponse.next();
+    }
+    return refuse(415, "This address accepts form submissions only. Nothing was changed.");
   }
   // A progressively enhanced form post carries the id as a field.
   if (!type.startsWith("multipart/form-data") && !type.startsWith("application/x-www-form-urlencoded")) {
@@ -128,7 +178,6 @@ export async function proxy(request: NextRequest) {
   } catch {
     return refuse(400, "The form body could not be read. Nothing was changed.");
   }
-  const pathname = request.nextUrl.pathname;
   let sawAction = false;
   for (const key of form.keys()) {
     const idMatch = key.match(ACTION_ID);
