@@ -1,3 +1,4 @@
+
 import Link from "next/link";
 
 export function PageHead({ eyebrow, title, lede, children }: { eyebrow?: string; title: string; lede?: string; children?: React.ReactNode }) {
@@ -65,11 +66,3 @@ export function fmtTime(iso?: string | null, labelScenario = true) {
   return t.toISOString().replace("T", " ").slice(0, 16) + " UTC" + (labelScenario && t.getTime() > Date.now() ? " (scenario)" : "");
 }
 
-export function PersonaRequired({ next }: { next: string }) {
-  return (
-    <Empty title="Choose a persona to continue">
-      <p>The prototype uses a persona switcher in place of sign-in. In the MVP this is passkeys, email codes and ORCID.</p>
-      <Link className="btn" href={`/persona?next=${encodeURIComponent(next)}`}>Choose a persona</Link>
-    </Empty>
-  );
-}

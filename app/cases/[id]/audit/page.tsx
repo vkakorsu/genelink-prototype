@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { forbidden, notFound, unauthorized } from "next/navigation";
+import { PermissionDenied } from "@/core/platform";
 import { getPlatform } from "@/core";
-import { PageHead, PersonaRequired, fmtTime } from "@/components/ui";
+import { PageHead, fmtTime } from "@/components/ui";
 import { getSession } from "@/lib/session";
 
 export default async function CaseAuditPage({ params }: { params: Promise<{ id: string }> }) {
@@ -10,9 +11,15 @@ export default async function CaseAuditPage({ params }: { params: Promise<{ id: 
   const c = platform.store.cases.get(id);
   if (!c) notFound();
   const session = await getSession();
-  if (session.kind === "anonymous") return <div className="container"><PersonaRequired next={`/cases/${id}/audit`} /></div>;
-  const related = new Set([id, ...platform.instrumentsFor(id).map((i) => i.id), ...platform.agreementsFor(id).map((a) => a.id), ...platform.documentsFor(id).map((d) => d.id), ...platform.escalationsFor(id).map((e) => e.id), ...platform.manualReviewsFor(id).map((m) => m.id)]);
-  const entries = platform.store.audit.list().filter((e) => related.has(e.subject.id));
+  if (session.kind === "anonymous") unauthorized();
+  // The trail names the participants' seats and organisations: same boundary as the case.
+  let entries;
+  try {
+    entries = platform.caseAudit(session.actor, id);
+  } catch (e) {
+    if (e instanceof PermissionDenied) forbidden();
+    throw e;
+  }
   const v = platform.verifyAudit();
   return (
     <div className="container">

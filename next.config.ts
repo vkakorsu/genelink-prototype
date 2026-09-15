@@ -9,6 +9,11 @@ const nextConfig: NextConfig = {
     "/**": ["./config/**/*"],
   },
   poweredByHeader: false,
+  experimental: {
+    // Forbidden (403) and unauthorized (401) interrupt APIs: denied views return the
+    // right status, not a polite 200, so scanners and WAF rules see them correctly.
+    authInterrupts: true,
+  },
   async headers() {
     return [
       {

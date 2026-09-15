@@ -420,3 +420,21 @@ describe("free text is checked for identifying content", () => {
     expect(r.text).toBe("a 2028 product line needing 3 natural preservatives at 40% concentration");
   });
 });
+
+describe("the case audit trail carries the case's confidentiality boundary", () => {
+  it("participants and administrators read it; a foreign seat is refused and the refusal is audited", () => {
+    const p = fresh();
+    const ke = p.store.cases.list().find((c) => c.providerCountry === "KE" && c.participants.some((x) => x.organisationId === "org_nordlicht"))!;
+    const ines = p.actorFor("seat_ines_nordlicht");
+    const camila = p.actorFor("seat_camila_ibp");
+    expect(p.caseAudit(ines, ke.id).length).toBeGreaterThan(0);
+    expect(p.caseAudit(ADMIN, ke.id).length).toBeGreaterThan(0);
+    const before = p.store.audit.list().length;
+    expect(() => p.caseAudit(camila, ke.id)).toThrow(PermissionDenied);
+    const last = p.store.audit.list().at(-1)!;
+    expect(p.store.audit.list().length).toBe(before + 1);
+    expect(last.action).toBe("access.denied");
+    expect((last.detail as { operation: string }).operation).toBe("case_audit.view");
+    expect(last.subject.id).toBe(ke.id);
+  });
+});
