@@ -63,7 +63,7 @@ export async function Shell({ children }: { children: React.ReactNode }) {
       <footer className="site">
         <div className="topbar-inner">
           <span>GENE-LINK MVP prototype, built for the Landscape Alliance RFP of 3 September 2026 by Vincent Kofi Akorsu. Configuration transcribed from Appendix B with its evidence markers.</span>
-          <span style={{ marginLeft: "auto" }}>Deployed in an EU region on purpose. No personal data is held. · build <code>{BUILD_COMMIT}</code></span>
+          <span style={{ marginLeft: "auto" }}>Deployed in an EU region on purpose. No personal data is held. · <a href="https://github.com/vkakorsu/genelink-prototype" target="_blank" rel="noopener">Source, runbooks and the Docker Compose file</a> · build <code>{BUILD_COMMIT}</code></span>
         </div>
       </footer>
     </div>
