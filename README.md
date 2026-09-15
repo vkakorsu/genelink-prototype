@@ -25,11 +25,11 @@ The RFP's appendices make claims that are easy to write and hard to fake. This p
 | **The sequence itself varies (A5.3).** The same pathway page renders Colombia's consultation-before-application and Kenya's documents-with-the-application from configuration alone. | Compare the Kenya and Colombia case pages |
 | **Person, organisation and membership are three entities.** Market functions belong to the organisation, permissions to the seat, the visit objective to the session. Amara Okoro holds seats in two organisations. Meridian Bridge is one broker with four functions. | `/persona`, `/organisations/org_meridian`, `/declare` |
 | **Path B onboarding runs end to end.** A stranger with no ORCID registers an organisation on `/persona`; it lands in the same verification queue as the seeded requests and an administrator verifies or declines with a recorded reason. A pending Path B organisation may already act: onboarding runs in parallel, it does not gate the spine. | `/persona` registration card, `/admin` verification queue |
-| **Confidentiality before a match.** Public and full projections. Identity, species and locality withheld until both sides signal interest. The reveal is a recorded, symmetric event. | `/explore`, any listing as an outsider then as a counterparty |
+| **Confidentiality before a match.** Public and full projections. Identity, species and locality withheld until both sides signal interest. The reveal is a recorded, symmetric event. A case's audit trail carries the same boundary as the case itself. | `/explore`, any listing as an outsider then as a counterparty |
 | **Compliance output is information, never advice or approval, and what the system told each user is recorded.** | The wording everywhere, and `/disclosures` |
 | **Hash-chained audit and integrity verification.** Every consequential action is an entry whose hash covers the previous entry. Tampering is detected. Any party can verify a document against the record. | `/verify`, `/cases/<id>/audit`, `/admin/audit` |
 | **Open decisions are open.** Every held-open item in Appendix A and every A7 question is rendered as an open state with a decision slot, not resolved by drawing. | `/open-decisions`, inline `?` markers |
-| **Production posture from the first commit.** Security headers (CSP, HSTS, frame denial), a non-root container, zero known dependency vulnerabilities, zero WCAG 2.2 AA violations under axe-core across every route, and a `/health` probe that verifies the audit chain and returns 503 if it is broken. | `next.config.ts`, `Dockerfile`, `/health` |
+| **Production posture from the first commit.** Security headers (CSP, HSTS, frame denial), a non-root container, zero known dependency vulnerabilities, zero WCAG 2.2 AA violations under axe-core across every route, and a `/health` probe that verifies the audit chain and returns 503 if it is broken. Denied views answer with real statuses — 401 anonymous, 403 wrong authority — so a refusal is visible to scanners and WAF rules, not only to a human reading the page. | `next.config.ts`, `Dockerfile`, `/health` |
 | **Out of scope is a stated position.** Non-commercial users reach a page that records the basis. No "already proven" exit exists anywhere. | `/out-of-scope`, case `case_5_co` |
 
 ## What it deliberately does not do
@@ -58,7 +58,7 @@ Requires Node 24 (the current LTS line; Node 26 enters LTS on 28 October 2026 an
 
 ```bash
 npm ci
-npm run test:ci        # 79 tests on the core: schema, lint, scope, pathway, state machines, instruments, audit, full journeys, dry run for every country, and a hardening suite replaying every defect found in live evaluation
+npm run test:ci        # 80 tests on the core: schema, lint, scope, pathway, state machines, instruments, audit, full journeys, dry run for every country, and a hardening suite replaying every defect found in live evaluation
 npm run dry-run -- BR  # walk Brazil end to end in the terminal. Try CO or KE too
 npm run lint:config    # validate every country file
 npm run deps:update    # updates dependencies to the newest versions published at least seven days ago (the supply-chain rule in the proposal, Part 4.4)
