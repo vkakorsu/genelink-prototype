@@ -54,7 +54,7 @@ export default async function ConfigPage({ params }: { params: Promise<{ code: s
           <p className="small soft">{cfg.scope.premise}</p>
           <table className="data compact">
             <thead><tr><th>Rule</th><th>When</th><th>Result</th><th>Basis</th></tr></thead>
-            <tbody>{cfg.scope.rules.map((r) => <tr key={r.id}><td className="mono small">{r.id}</td><td className="mono small">{r.when ? JSON.stringify(r.when) : "otherwise"}</td><td><strong>{r.result.replace("_", " ")}</strong></td><td><EvidenceChip reg={r.basis} short /></td></tr>)}</tbody>
+            <tbody>{cfg.scope.rules.map((r) => <tr key={r.id}><td className="mono small">{r.id}</td><td className="mono small">{r.when ? JSON.stringify(r.when) : "otherwise"}</td><td><strong>{r.result.replace("_", " ")}</strong></td><td><RegBlock reg={r.basis} compact /></td></tr>)}</tbody>
           </table>
         </section>
       </div>
