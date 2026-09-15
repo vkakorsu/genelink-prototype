@@ -197,10 +197,10 @@ export function seed(store: Store, countries: Map<string, CountryConfig>, baseDa
   // ----------------------------------------------------- Out-of-scope example
   platform.signalInterest(platform.actorFor("seat_kwame_asheokoro"), "lst_co_emulsifier");
   const { caseId: oosId } = platform.reciprocate(camila, "lst_co_emulsifier", "org_asheokoro");
-  platform.updateFacts(camila, oosId, {
+  platform.changeOfIntent(camila, oosId, {
     purpose: "non_commercial", activity: "listed_activity", provenance: "in_situ", applicantType: "foreign_legal", exchange: "no_movement",
     communityHeld: "no", tkInvolved: "no", flags: {},
-  });
+  }, "Purpose declared non-commercial: the enquiry leaves the access regime's scope");
   const oos = store.cases.get(oosId)!;
   oos.title = "Non-commercial enquiry (out of scope example)";
   store.cases.put(oos);

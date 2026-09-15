@@ -6,7 +6,7 @@ import { markStage, uploadDocument, decideManualReview } from "@/app/actions";
 import { fmtTime } from "@/components/ui";
 
 export function StageCard({
-  stage, c, documents, escalations, manualReviews, canEdit, canJudge, learning,
+  stage, c, documents, escalations, manualReviews, canEdit, canComplete, canJudge, learning,
 }: {
   stage: ResolvedStage;
   c: Case;
@@ -14,6 +14,7 @@ export function StageCard({
   escalations: EscalationRecord[];
   manualReviews: ManualReviewRecord[];
   canEdit: boolean;
+  canComplete: boolean;
   canJudge: boolean;
   learning: { id: string; title: string; status: string }[];
 }) {
@@ -143,10 +144,13 @@ export function StageCard({
             <form action={markHere} className="row" style={{ marginTop: 10 }}>
               <input type="hidden" name="stageId" value={stage.stage.id} />
               <span className="small mute">Progress is a human action:</span>
-              {(["not_started", "in_progress", "complete"] as const).filter((p) => p !== progress).map((p) => (
+              {(["not_started", "in_progress", "complete"] as const).filter((p) => p !== progress && (p !== "complete" || canComplete)).map((p) => (
                 <button key={p} className="btn ghost small" type="submit" name="progress" value={p}>Mark {p.replace("_", " ")}</button>
               ))}
             </form>
+          )}
+          {stage.status === "active" && canEdit && !canComplete && progress !== "complete" && (
+            <p className="small mute" style={{ marginTop: 6 }}>Your seat can record work in progress. Marking a stage complete is a claim the organisation stands behind, so it takes an authorised signatory or administrator seat.</p>
           )}
           {stage.status === "halted" && <p className="small mute" style={{ marginTop: 10 }}>This stage cannot be marked complete while it is halted. The engine refuses.</p>}
         </div>
