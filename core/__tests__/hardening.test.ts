@@ -283,6 +283,24 @@ describe("a denied attempt is written to the audit chain", () => {
   });
 });
 
+describe("a halted stage gates later completion", () => {
+  it("a later stage cannot be marked complete while an earlier stage on the pathway is halted", () => {
+    const p = fresh();
+    const ke = p.store.cases.list().find((c) => c.providerCountry === "KE" && c.participants.some((x) => x.organisationId === "org_nordlicht"))!;
+    const ines = p.actorFor("seat_ines_nordlicht");
+    const pathway = p.pathwayFor(ke);
+    const haltedIdx = pathway.stages.findIndex((s) => s.status === "halted");
+    const later = pathway.stages.find((s, i) => i > haltedIdx && s.status !== "halted");
+    expect(haltedIdx).toBeGreaterThan(-1);
+    expect(later).toBeDefined();
+    expect(() => p.markStage(ines, ke.id, later!.stage.id, "complete")).toThrow(/earlier stage is halted/);
+    // Preparation is still allowed: in_progress is not a claim that dependent work finished.
+    expect(() => p.markStage(ines, ke.id, later!.stage.id, "in_progress")).not.toThrow();
+    // The halted stage itself remains refused.
+    expect(() => p.markStage(ines, ke.id, pathway.stages[haltedIdx].stage.id, "complete")).toThrow(/halted/);
+  });
+});
+
 describe("clocks: resume restarts the clock, and a lapse can be forced for the demo", () => {
   it("after administrator_resumes the determination clock runs afresh and lapses again past its new deadline", () => {
     const p = fresh();

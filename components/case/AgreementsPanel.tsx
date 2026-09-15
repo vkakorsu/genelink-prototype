@@ -72,6 +72,9 @@ export function AgreementsPanel({ c, agreements, orgs, mySeat, canEdit, canSign,
               {canSign && a.status === "approved" && !myExecuted && (
                 <form action={executeHere}><input type="hidden" name="agreementId" value={a.id} /><button className="btn small" type="submit" title="Simple electronic signature: an authenticated signatory-level seat records assent to this document hash">Execute (click to sign v{latest.version})</button></form>
               )}
+              {canSign && a.status !== "approved" && a.status !== "executed" && (
+                <span className="small mute">Execution unlocks when both organisations have approved v{latest.version}.</span>
+              )}
               {canEdit && a.status !== "executed" && (
                 <details className="fold">
                   <summary className="small">Revise (on or off platform)</summary>

@@ -432,6 +432,10 @@ export class Platform {
     const stage = pathway.stages.find((s) => s.stage.id === stageId);
     if (!stage) throw new InvalidRequest("Stage not on this pathway");
     if (stage.status === "halted" && progress === "complete") throw new PermissionDenied("A halted stage cannot be completed. The open question must be answered through configuration review first.");
+    const haltedBefore = pathway.stages.slice(0, pathway.stages.indexOf(stage)).filter((s) => s.status === "halted");
+    if (progress === "complete" && haltedBefore.length) {
+      throw new PermissionDenied(`An earlier stage is halted: ${haltedBefore.map((s) => s.stage.title).join("; ")}. A later stage cannot be marked complete while the question it depends on is open.`);
+    }
     c.stageProgress[stageId] = progress;
     this.store.cases.put(c);
     this.audit(actor, "stage.progress", { type: "case", id: caseId }, { stageId, progress });
