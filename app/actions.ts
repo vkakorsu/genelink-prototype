@@ -92,23 +92,33 @@ async function auditDenied(operation: string, subject: { type: string; id: strin
 }
 
 function wrap<T extends unknown[]>(name: string, fn: (...a: T) => Promise<void> | void, path: (...a: T) => string, subject?: (...a: T) => { type: string; id: string }) {
+  // A malformed POST can decode the bound route argument as the FormData itself; never let
+  // "[object FormData]" leak into a redirect URL or an audit subject.
+  const safePath = (...a: T) => {
+    const p = path(...a);
+    return typeof p === "string" && p.startsWith("/") && !p.includes("[object") ? p : "/";
+  };
   return async (...a: T) => {
     try {
       await fn(...a);
     } catch (e) {
       if (isRedirect(e)) throw e;
       if (e instanceof PermissionDenied && !(e as { audited?: boolean }).audited) {
-        await auditDenied(name, subject ? subject(...a) : { type: "request", id: path(...a) }, e.message);
+        const s = subject ? subject(...a) : { type: "request", id: safePath(...a) };
+        await auditDenied(name, { type: s.type, id: typeof s.id === "string" ? s.id : "unknown" }, e.message);
       }
-      back(path(...a), describe(e));
+      back(safePath(...a), describe(e));
       return;
     }
-    back(path(...a));
+    back(safePath(...a));
   };
 }
 
 /** A form field that echoes a route id is refused outright when it disagrees with the bound argument. */
 function rejectStrayId(fd: FormData, name: string, bound: string) {
+  if (!(fd instanceof FormData) || typeof bound !== "string") {
+    throw new InvalidRequest("Malformed submission. Reload the page and try again.");
+  }
   const v = fd.get(name);
   if (typeof v === "string" && v.trim() && v.trim() !== bound) {
     throw new InvalidRequest(`The submitted ${name} does not match this address. Reload the page and try again.`);
@@ -133,7 +143,7 @@ export async function switchPersona(formData: FormData) {
   const seat = text(formData, "seat", 100);
   const jar = await cookies();
   if (!seat) jar.delete(SEAT_COOKIE);
-  else jar.set(SEAT_COOKIE, seat, { httpOnly: true, sameSite: "lax", path: "/" });
+  else jar.set(SEAT_COOKIE, seat, { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production" });
   const next = text(formData, "next", 300);
   revalidatePath("/", "layout");
   redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/");
@@ -144,7 +154,7 @@ export async function declareObjective(formData: FormData) {
   const { text: have, redactions } = redactIdentifiers(text(formData, "have", 200));
   const want = text(formData, "want", 40) || "learn";
   const jar = await cookies();
-  jar.set(OBJECTIVE_COOKIE, JSON.stringify({ have, want, redactions, declaredAt: new Date().toISOString() }), { httpOnly: true, sameSite: "lax", path: "/" });
+  jar.set(OBJECTIVE_COOKIE, JSON.stringify({ have, want, redactions, declaredAt: new Date().toISOString() }), { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production" });
   revalidatePath("/", "layout");
   redirect(want === "learn" ? "/learn" : want === "get_abs_compliant" ? "/cases" : "/explore");
 }
@@ -189,6 +199,7 @@ export const reciprocate = wrap(
 export const requestVerification = wrap(
   "requestVerification",
   async (organisationId: string, fd: FormData) => {
+    if (typeof organisationId !== "string" || !(fd instanceof FormData)) throw new InvalidRequest("Malformed submission. Reload the page and try again.");
     const actor = await requireSeat();
     getPlatform().requestVerification(actor, organisationId, text(fd, "method", 40) as "institutional_email" | "manual_vetting" | "vouching" | "orcid");
   },
@@ -199,6 +210,7 @@ export const requestVerification = wrap(
 export const decideVerification = wrap(
   "decideVerification",
   async (fd: FormData) => {
+    if (!(fd instanceof FormData)) throw new InvalidRequest("Malformed submission. Reload the page and try again.");
     const admin = await requireAdmin();
     getPlatform().decideVerification(admin, text(fd, "organisationId", 100), text(fd, "outcome", 20) as "verified" | "declined", text(fd, "reason") || "No reason given");
   },
@@ -226,7 +238,7 @@ export const registerOrganisation = wrap(
     if (!country) throw new InvalidRequest("Give the organisation's country.");
     const r = getPlatform().registerOrganisation({ personName, orgName, kind, country, method, functions: functions.length ? functions : ["providing"] });
     const jar = await cookies();
-    jar.set(SEAT_COOKIE, r.seatId, { httpOnly: true, sameSite: "lax", path: "/" });
+    jar.set(SEAT_COOKIE, r.seatId, { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production" });
     redirect(`/organisations/${r.organisationId}`);
   },
   () => "/persona",
