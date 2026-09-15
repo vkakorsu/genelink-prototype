@@ -69,6 +69,13 @@ async function requireAdmin() {
   return ADMIN;
 }
 
+/** The acting seat or admin, so the core can deny and audit a party's attempt rather than the interface pre-empting it. */
+async function requireActor() {
+  const s = await getSession();
+  if (s.kind === "anonymous") throw new PermissionDenied("Choose a persona first");
+  return s.actor;
+}
+
 function wrap<T extends unknown[]>(fn: (...a: T) => Promise<void> | void, path: (...a: T) => string) {
   return async (...a: T) => {
     try {
@@ -288,18 +295,18 @@ export const requestSupport = onCase(async (caseId, fd) => {
 
 /** R5. The reviewer seat is the administrator in the prototype. Bound to the case so the redirect can never point elsewhere. */
 export const decideManualReview = onCase(async (caseId, fd) => {
-  const admin = await requireAdmin();
+  const actor = await requireActor();
   const recordId = text(fd, "recordId", 150);
   const rec = getPlatform().store.manualReviews.get(recordId);
   if (rec && rec.caseId !== caseId) throw new PermissionDenied("Manual review does not belong to this case");
-  getPlatform().decideManualReview(admin, recordId, text(fd, "outcome", 500), text(fd, "reason", 1000));
+  getPlatform().decideManualReview(actor, recordId, text(fd, "outcome", 500), text(fd, "reason", 1000));
 });
 
 /** The same judgment recorded from the administrator console. */
 export const decideManualReviewFromConsole = wrap(
   async (fd: FormData) => {
-    const admin = await requireAdmin();
-    getPlatform().decideManualReview(admin, text(fd, "recordId", 150), text(fd, "outcome", 500), text(fd, "reason", 1000));
+    const actor = await requireActor();
+    getPlatform().decideManualReview(actor, text(fd, "recordId", 150), text(fd, "outcome", 500), text(fd, "reason", 1000));
   },
   () => `/admin`,
 );
