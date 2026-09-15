@@ -39,7 +39,7 @@ export function MachinePanel({ cfg, c, canAct, isAdmin }: { cfg: CountryConfig; 
                 <span>{k.label} · {k.days} {k.dayKind} days{k.extendableDays ? `, extendable by ${k.extendableDays}` : ""}</span>
                 <span>
                   {!st?.startedAt && "not started"}
-                  {st?.startedAt && !st.lapsed && (st.suspended ? "suspended" : c.machine.state === k.startsIn ? `deadline ${fmtTime(st.deadline)}` : `no longer running (state moved on before ${fmtTime(st.deadline)})`)}
+                  {st?.startedAt && !st.lapsed && (st.suspended ? "suspended" : c.machine.state === k.startsIn ? `deadline ${fmtTime(st.deadline, false)}` : `no longer running (state moved on before ${fmtTime(st.deadline, false)})`)}
                   {st?.lapsed && "lapsed · remedy against administrator"}
                 </span>
               </div>

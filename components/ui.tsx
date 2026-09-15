@@ -57,9 +57,12 @@ export function fmt(iso?: string | null) {
   return d.toISOString().slice(0, 10);
 }
 
-export function fmtTime(iso?: string | null) {
+export function fmtTime(iso?: string | null, labelScenario = true) {
   if (!iso) return "";
-  return new Date(iso).toISOString().replace("T", " ").slice(0, 16) + " UTC";
+  const t = new Date(iso);
+  // Seeded history is written in scenario time (dates ahead of the real clock);
+  // actions taken in a session carry real UTC timestamps. Label the difference.
+  return t.toISOString().replace("T", " ").slice(0, 16) + " UTC" + (labelScenario && t.getTime() > Date.now() ? " (scenario)" : "");
 }
 
 export function PersonaRequired({ next }: { next: string }) {
