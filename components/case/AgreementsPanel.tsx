@@ -23,7 +23,7 @@ export function AgreementsPanel({ c, agreements, orgs, mySeat, canEdit, canSign,
         <h3 style={{ margin: 0 }}>Agreement development and execution</h3>
         <span className="small mute">Templates, versions, approvals, then a hashed record</span>
       </div>
-      {agreements.length === 0 && <p className="small mute">No draft yet. Assemble one from model clauses below. Off-platform negotiation is supported: upload a revised draft as a new version and nothing is lost.</p>}
+      {agreements.length === 0 && <p className="small mute">No draft yet. {canEdit ? "Assemble one from model clauses below." : `Drafting begins with a member or higher seat in a participant organisation; your seat is ${seatPermission ?? "none"}.`} Off-platform negotiation is supported: upload a revised draft as a new version and nothing is lost.</p>}
 
       {agreements.map((a) => {
         const latest = a.versions[a.versions.length - 1];

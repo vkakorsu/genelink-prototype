@@ -71,6 +71,23 @@ export default async function CasePage({ params, searchParams }: { params: Promi
       </PageHead>
       <ErrorNotice error={sp.error} />
 
+      {(() => {
+        const done = pathway.stages.filter((s) => c.stageProgress[s.stage.id] === "complete").length;
+        const halted = pathway.haltedStageIds.length;
+        const next = pathway.stages.find((s) => s.status !== "informational" && c.stageProgress[s.stage.id] !== "complete");
+        const stateLabel = cfg.stateMachine.states[c.machine.state]?.label.split(".")[0] ?? c.machine.state;
+        return (
+          <div className="card flat" style={{ padding: "10px 14px", marginBottom: 14 }}>
+            <div className="row" style={{ gap: 20, flexWrap: "wrap" }}>
+              <span className="small"><strong>Regulator:</strong> {stateLabel}</span>
+              <span className="small"><strong>Pathway:</strong> {done} of {pathway.stages.length} stages complete{halted > 0 ? `, ${halted} halted` : ""}</span>
+              {next && <span className="small"><strong>Next:</strong> {next.stage.title}{next.status === "halted" ? " (halted, routed to its owner)" : ""}</span>}
+              {!next && <span className="small mute">All stages complete.</span>}
+            </div>
+          </div>
+        );
+      })()}
+
       {cfg.operativeInstrumentStatus.state === "unknown" && (
         <Notice kind="pending">
           <OpenMarker /> <strong>The operative instrument for {cfg.name} is not settled.</strong> {cfg.operativeInstrumentStatus.note} <EvidenceChip reg={cfg.operativeInstrumentStatus} short />
