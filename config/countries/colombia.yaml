@@ -101,8 +101,10 @@ scope:
           Res. 1348/2014 Art. 2 defines access through activities. Whether the material was bought, and
           whether its function was demonstrated before, tells you nothing about whether the downstream
           activity configures access. D391 Art. 6 applies where Colombia is the country of origin, a
-          condition routinely dropped when the article is quoted.
-        citation: Res. 1348/2014 Art. 2; D391 Art. 6
+          condition routinely dropped when the article is quoted. Crude extracts are inside the
+          producto derivado definition (D391 Art. 1), but the definition is not the trigger — there is
+          no crude-extract off-ramp and no automatic contract either; the Art. 2 activity test decides.
+        citation: Res. 1348/2014 Art. 2; D391 Arts. 1, 6
 
 eligibility:
   - id: country_of_origin
@@ -188,7 +190,7 @@ stages:
         reg: { state: "established", marker: "§", value: "Art. 35 intangible-component annex.", citation: "D391 Art. 35" }
       - id: annex_breach
         text: Breach of the annex is a causal de resolución y nulidad, a ground requiring a determination, not an automatic transition to a void state.
-        reg: { state: "established", marker: "§", value: "A ground requiring a determination." }
+        reg: { state: "established", marker: "§", value: "A causal de resolución y nulidad: a ground that requires a determination by the authority. Not an automatic void state.", citation: "D391 Art. 35" }
     consentParties:
       - id: tk_holders
         label: Holders of the associated traditional knowledge
