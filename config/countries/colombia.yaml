@@ -251,7 +251,7 @@ stages:
         reg: { state: "established", marker: "§", value: "The State is the counterparty. Accessory contracts with third parties hang off it and do not replace it.", citation: "D391 Art. 32" }
       - id: accessory_contracts
         text: Is an accessory contract needed? Whether a third party supplies land, the biological resource, ex-situ material or national support. The counterparty may be the owner, the possessor or the administrator, three roles, not one landholder. Ex-situ centres and other entities that carry out access activities are caught by the activity, not by their institutional form.
-        reg: { state: "established", marker: "§", value: "Accessory contracts carry a suspensive condition and take effect only on the access contract taking effect. Nullity cascades one way only. The Art. 37 trigger is the activity, not the institution.", citation: "D391 Arts. 37, 41, 42, 44" }
+        reg: { state: "established", marker: "§", value: "Accessory contracts carry a suspensive condition and take effect only on the access contract taking effect. Nullity cascades one way only: nullity of the access contract entails nullity of the accessory; in the other direction the authority may terminate, at its discretion, where an indispensable accessory contract fails. The Art. 37 trigger is the activity, not the institution.", citation: "D391 Arts. 37, 41, 42, 44" }
       - id: perfected_on_publication
         text: The contract is perfected on publication. The public register is declaratory.
         reg: { state: "established", marker: "§", value: "Arts. 38 and 21.", citation: "D391 Arts. 38, 21" }
