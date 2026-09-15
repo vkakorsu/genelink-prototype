@@ -77,7 +77,7 @@ export function MachinePanel({ cfg, c, canAct, isAdmin }: { cfg: CountryConfig; 
               </div>
               {mine.length === 0 && <p className="small mute">Your seat has no applicant act at this stage. The next events belong to the authority.</p>}
               {held > 0 && <p className="small mute">{held} authority or system event{held === 1 ? " is" : "s are"} not shown to your seat.</p>}
-              <p className="small mute">The platform records the regulator&apos;s acts. It does not perform them. Authority and system events are recorded by an administrator on the authority&apos;s behalf{isAdmin ? "" : " — your seat can record applicant events only, and a denied attempt is written to the audit chain"}.</p>
+              <p className="small mute">The platform records the regulator&apos;s acts. It does not perform them. Authority and system events are recorded by an administrator on the authority&apos;s behalf{isAdmin ? "" : ". Your seat can record applicant events only, and a denied attempt is written to the audit chain"}.</p>
             </form>
           );
         })()}

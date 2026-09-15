@@ -53,8 +53,8 @@ export default async function PersonaPage({ searchParams }: { searchParams: Prom
           );
         })}
         <div className="card tinted">
-          <h3>Register a new organisation — Path B</h3>
-          <p className="small soft">A stranger arrives with no ORCID and no institutional email. Path B onboards community custodians, IPLC holders and smaller institutions by manual vetting or vouching. The request enters the same administrator queue as the seeded ones — pending until a human decides, never pre-decided.</p>
+          <h3>Register a new organisation (Path B)</h3>
+          <p className="small soft">A stranger arrives with no ORCID and no institutional email. Path B onboards community custodians, IPLC holders and smaller institutions by manual vetting or vouching. The request enters the same administrator queue as the seeded ones: pending until a human decides, never pre-decided.</p>
           <form action={registerOrganisation} className="stack">
             <div className="field"><label htmlFor="personName">Your name</label><input id="personName" name="personName" type="text" placeholder="Fictional person" required /></div>
             <div className="field"><label htmlFor="orgName">Organisation</label><input id="orgName" name="orgName" type="text" placeholder="Fictional organisation" required /></div>

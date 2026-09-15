@@ -203,7 +203,7 @@ export default async function CasePage({ params, searchParams }: { params: Promi
             <p className="small soft">Escalation is optional and external. Where a step stops, it routes to the parties&apos; own counsel or to a paid or partner-provided adviser. There is no GENE-LINK review queue holding the journey open.</p>
             {canEdit && (
               <form action={requestSupportHere} className="stack">
-                <select name="kind"><option value="expert">Expert assistance — parties&apos; own adviser</option><option value="technical">Technical issue — GENE-LINK support</option></select>
+                <select name="kind"><option value="expert">Expert assistance: parties&apos; own adviser</option><option value="technical">Technical issue: GENE-LINK support</option></select>
                 <textarea name="note" placeholder="What do you need?" />
                 <button className="btn small secondary" type="submit">Request</button>
               </form>
