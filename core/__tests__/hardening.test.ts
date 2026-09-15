@@ -242,6 +242,47 @@ describe("the regulator's acts belong to the authority, recorded by an administr
   });
 });
 
+describe("a denied attempt is written to the audit chain", () => {
+  it("recordDenied attributes the seat, keeps the chain valid, and marks a call with no session", () => {
+    const p = fresh();
+    const ines = p.actorFor("seat_ines_nordlicht");
+    const ke = p.store.cases.list().find((c) => c.providerCountry === "KE")!;
+    p.recordDenied(ines, "tickClocks", { type: "case", id: ke.id }, "Administrator sign-in required");
+    p.recordDenied(null, "decideVerification", { type: "request", id: "/admin" }, "Administrator sign-in required");
+    const entries = p.store.audit.list().filter((e) => e.action === "access.denied");
+    expect(entries).toHaveLength(2);
+    expect(entries[0].actor).toMatchObject({ seatId: "seat_ines_nordlicht", organisationId: "org_nordlicht" });
+    expect(entries[0].detail).toMatchObject({ operation: "tickClocks", reason: "Administrator sign-in required" });
+    expect(entries[1].actor.role).toBe("system");
+    expect(entries[1].detail).toMatchObject({ session: "none" });
+    expect(verifyChain(p.store.audit.list()).ok).toBe(true);
+  });
+
+  it("domain denials arrive already audited so the boundary does not double-log; rank failures arrive unmarked so it does", () => {
+    const p = fresh();
+    const br = p.store.cases.list().find((c) => c.providerCountry === "BR")!;
+    const [review] = p.manualReviewsFor(br.id);
+    const luana = p.actorFor("seat_luana_iam");
+    try {
+      p.decideManualReview(luana, review.id, "yes", "we say so");
+      expect.unreachable();
+    } catch (e) {
+      expect(e).toBeInstanceOf(PermissionDenied);
+      expect((e as { audited?: boolean }).audited).toBe(true);
+    }
+    const c = grantedKenyaCase(p);
+    const tobias = p.actorFor("seat_tobias_nordlicht");
+    const a = p.createAgreement(p.actorFor("seat_otieno_lbnpi"), c.id, "MAT", [{ id: "c1", title: "t", text: "x", source: "illustrative" }]);
+    try {
+      p.approveAgreement(tobias, c.id, a.id);
+      expect.unreachable();
+    } catch (e) {
+      expect(e).toBeInstanceOf(PermissionDenied);
+      expect((e as { audited?: boolean }).audited).toBeUndefined();
+    }
+  });
+});
+
 describe("clocks: resume restarts the clock, and a lapse can be forced for the demo", () => {
   it("after administrator_resumes the determination clock runs afresh and lapses again past its new deadline", () => {
     const p = fresh();
