@@ -1,5 +1,5 @@
 import { getPlatform } from "@/core";
-import { switchPersona } from "@/app/actions";
+import { registerOrganisation, switchPersona } from "@/app/actions";
 import { PageHead, Notice } from "@/components/ui";
 import { getSession } from "@/lib/session";
 
@@ -52,6 +52,39 @@ export default async function PersonaPage({ searchParams }: { searchParams: Prom
             </div>
           );
         })}
+        <div className="card tinted">
+          <h3>Register a new organisation — Path B</h3>
+          <p className="small soft">A stranger arrives with no ORCID and no institutional email. Path B onboards community custodians, IPLC holders and smaller institutions by manual vetting or vouching. The request enters the same administrator queue as the seeded ones — pending until a human decides, never pre-decided.</p>
+          <form action={registerOrganisation} className="stack">
+            <div className="field"><label htmlFor="personName">Your name</label><input id="personName" name="personName" type="text" placeholder="Fictional person" required /></div>
+            <div className="field"><label htmlFor="orgName">Organisation</label><input id="orgName" name="orgName" type="text" placeholder="Fictional organisation" required /></div>
+            <div className="row" style={{ alignItems: "flex-start" }}>
+              <div className="field"><label htmlFor="kind">Kind</label>
+                <select id="kind" name="kind">
+                  <option value="community_custodian">Community custodian</option>
+                  <option value="research_institution">Research institution</option>
+                  <option value="company">Company</option>
+                  <option value="broker">Broker</option>
+                  <option value="adviser">Adviser</option>
+                </select>
+              </div>
+              <div className="field"><label htmlFor="country">Country</label><input id="country" name="country" type="text" placeholder="KE" maxLength={2} style={{ width: 70 }} required /></div>
+              <div className="field"><label htmlFor="method">Vetting</label>
+                <select id="method" name="method">
+                  <option value="vouching">Vouching by a trusted party</option>
+                  <option value="manual_vetting">Manual vetting</option>
+                </select>
+              </div>
+            </div>
+            <div className="radio-list">
+              {["providing", "seeking", "custodian", "advising", "brokering", "learning"].map((f) => (
+                <label key={f}><input type="checkbox" name="function" value={f} defaultChecked={f === "providing" || f === "custodian"} style={{ width: "auto" }} /> {f}</label>
+              ))}
+            </div>
+            <button className="btn small" type="submit">Register and continue as the founding seat</button>
+            <p className="small mute">Creates a person, an organisation and an administrator seat, then files the verification request. You land in the seat; the administrator sees the request in the queue.</p>
+          </form>
+        </div>
         <div className="card tinted">
           <h3>Administrator (separate console)</h3>
           <p className="small soft">In the MVP the administration console runs on a separate origin with mandatory multi-factor authentication and its own audit stream. Support interventions are recorded actions with a reason.</p>

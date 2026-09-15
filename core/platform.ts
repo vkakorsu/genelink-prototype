@@ -4,7 +4,7 @@ import type { CaseFacts, CountryConfig, RegValue } from "./config/schema";
 import { FROZEN_STATUSES, amendInstrument, awaitingInstrument, issueInstruments, sha256 } from "./domain/instruments";
 import { fullProjection, publicProjection, type FullListing, type PublicListing } from "./domain/listings";
 import type {
-  Agreement, AgreementVersion, Case, CaseDocument, EscalationRecord, Instrument, Listing, ManualReviewRecord, Membership, Organisation, Permission, Person,
+  Agreement, AgreementVersion, Case, CaseDocument, EscalationRecord, Instrument, Listing, ManualReviewRecord, MarketFunction, Membership, Organisation, Permission, Person,
 } from "./domain/types";
 import { attachedDuties, buildPathway, type Pathway } from "./engine/pathway";
 import { applyLapse, fire, initialSnapshot, isGranted, tick } from "./engine/stateMachine";
@@ -174,6 +174,37 @@ export class Platform {
     org.verification = { ...org.verification, status: outcome, decidedBy: admin.admin.name, decidedAt: this.now().toISOString(), reason };
     this.store.organisations.put(org);
     this.audit(admin, "organisation.verification_decided", { type: "organisation", id: organisationId }, { outcome, reason });
+  }
+
+  /**
+   * A stranger arrives. Path B exists because community custodians, IPLC holders and
+   * smaller institutions do not hold ORCID iDs or institutional email domains, and a
+   * platform that required one would exclude exactly the providers it exists for.
+   * This creates the person, the organisation and the founding administrator seat in
+   * one act, then files the verification request like any other: pending, into the
+   * queue, nothing pre-decided. The new seat can already explore and signal while the
+   * request is pending — onboarding runs in parallel, it does not gate the spine.
+   */
+  registerOrganisation(input: {
+    personName: string;
+    orgName: string;
+    kind: Organisation["kind"];
+    country: string;
+    method: "manual_vetting" | "vouching";
+    functions: MarketFunction[];
+  }): { personId: string; seatId: string; organisationId: string } {
+    const n = this.store.persons.list().length + 1;
+    const personId = `p_new_${n}`;
+    const organisationId = `org_new_${this.store.organisations.list().length + 1}`;
+    const person: Person = { id: personId, name: input.personName, email: "not held in this demo", country: input.country, onboardingPath: "B", badges: [] };
+    const org: Organisation = { id: organisationId, name: input.orgName, kind: input.kind, country: input.country, functions: input.functions, verification: { status: "unverified" }, credentials: [], description: "Registered in this demo session." };
+    this.store.persons.put(person);
+    this.store.organisations.put(org);
+    const seat = this.inviteSeat({ system: true }, organisationId, person, "administrator");
+    const actor = this.actorFor(seat.id);
+    this.audit(actor, "organisation.registered", { type: "organisation", id: organisationId }, { kind: org.kind, country: org.country, path: "B" });
+    this.requestVerification(actor, organisationId, input.method);
+    return { personId, seatId: seat.id, organisationId };
   }
 
   // ---------------------------------------------------------- discovery
