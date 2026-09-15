@@ -30,6 +30,8 @@ export function InstrumentsPanel({ cfg, c, instruments, canSign, isAdmin, seatPe
       </div>
       <p className="small soft">This country&apos;s journey ends in: {cfg.outputs.map((o) => `${o.label} (${o.issuer})`).join(" and ")}. Amendment policy: <strong>{cfg.outputs[0].amendmentPolicy.replace("_", " ")}</strong>.{cfg.outputs.length > 1 && <> The applicant holds nothing usable until <strong>all {cfg.outputs.length}</strong> are externally recorded, each from its own issuer. Recording one never satisfies the other.</>}</p>
 
+      {!probe.allowed && <p className="small soft"><strong>Term and renewal:</strong> {probe.reason}</p>}
+
       {instruments.length === 0 && <p className="small mute">No instrument recorded yet. When the regulator state machine reaches a granted state the instruments this regime issues appear here as awaiting record. The platform holds no copy until an authorised signatory records the document the State issued. It never creates one.</p>}
       {awaiting.length > 0 && (
         <div className="halt-box" role="status">
@@ -115,7 +117,8 @@ export function InstrumentsPanel({ cfg, c, instruments, canSign, isAdmin, seatPe
         </details>
       )}
       {gate && <p className="small mute" style={{ marginTop: 8 }}>{gate}</p>}
-      <p className="small mute" style={{ marginTop: 8 }}>EU side for {cfg.name}: <EvidenceChip reg={cfg.euSide} short /> {cfg.euSide.value ?? cfg.euSide.note}</p>
+      <p className="small mute" style={{ marginTop: 8 }}><EvidenceChip reg={cfg.nagoyaParty} short /> {cfg.nagoyaParty.value} <span className="mono mute">{cfg.nagoyaParty.citation}</span></p>
+      <p className="small mute">EU side for {cfg.name}: <EvidenceChip reg={cfg.euSide} short /> {cfg.euSide.value ?? cfg.euSide.note}</p>
     </section>
   );
 }
