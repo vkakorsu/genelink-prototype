@@ -154,27 +154,35 @@ function text(fd: FormData, name: string, max = 2000): string {
 }
 
 // ------------------------------------------------------------- persona (demo)
-export async function switchPersona(formData: FormData) {
-  await requireOrigin();
-  const seat = text(formData, "seat", 100);
-  const jar = await cookies();
-  if (!seat) jar.delete(SEAT_COOKIE);
-  else jar.set(SEAT_COOKIE, seat, { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production" });
-  const next = text(formData, "next", 300);
-  revalidatePath("/", "layout");
-  redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/");
-}
+export const switchPersona = wrap(
+  "switchPersona",
+  async (formData: FormData) => {
+    if (!(formData instanceof FormData)) throw new InvalidRequest("Malformed submission. Reload the page and try again.");
+    const seat = text(formData, "seat", 100);
+    const jar = await cookies();
+    if (!seat) jar.delete(SEAT_COOKIE);
+    else jar.set(SEAT_COOKIE, seat, { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production" });
+    const next = text(formData, "next", 300);
+    revalidatePath("/", "layout");
+    redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/");
+  },
+  () => "/",
+);
 
-export async function declareObjective(formData: FormData) {
-  await requireOrigin();
-  // Free text is checked for identifying content before it is stored or shown anywhere, including back to its author.
-  const { text: have, redactions } = redactIdentifiers(text(formData, "have", 200));
-  const want = text(formData, "want", 40) || "learn";
-  const jar = await cookies();
-  jar.set(OBJECTIVE_COOKIE, JSON.stringify({ have, want, redactions, declaredAt: new Date().toISOString() }), { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production" });
-  revalidatePath("/", "layout");
-  redirect(want === "learn" ? "/learn" : want === "get_abs_compliant" ? "/cases" : "/explore");
-}
+export const declareObjective = wrap(
+  "declareObjective",
+  async (formData: FormData) => {
+    if (!(formData instanceof FormData)) throw new InvalidRequest("Malformed submission. Reload the page and try again.");
+    // Free text is checked for identifying content before it is stored or shown anywhere, including back to its author.
+    const { text: have, redactions } = redactIdentifiers(text(formData, "have", 200));
+    const want = text(formData, "want", 40) || "learn";
+    const jar = await cookies();
+    jar.set(OBJECTIVE_COOKIE, JSON.stringify({ have, want, redactions, declaredAt: new Date().toISOString() }), { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production" });
+    revalidatePath("/", "layout");
+    redirect(want === "learn" ? "/learn" : want === "get_abs_compliant" ? "/cases" : "/explore");
+  },
+  () => "/declare",
+);
 
 export const resetDemo = wrap(
   "resetDemo",

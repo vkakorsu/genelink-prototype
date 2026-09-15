@@ -1,11 +1,12 @@
-import Link from "next/link";
+import { forbidden, unauthorized } from "next/navigation";
 import { getPlatform } from "@/core";
-import { Notice, PageHead, fmtTime } from "@/components/ui";
+import { PageHead, fmtTime } from "@/components/ui";
 import { getSession } from "@/lib/session";
 
 export default async function AdminAuditPage() {
   const session = await getSession();
-  if (session.kind !== "admin") return <div className="container"><Notice kind="halt">Administrator sign-in required. <Link href="/persona?seat=admin&next=/admin/audit">Act as administrator</Link>.</Notice></div>;
+  if (session.kind === "anonymous") unauthorized();
+  if (session.kind !== "admin") forbidden();
   const platform = getPlatform();
   const entries = platform.store.audit.list().slice().reverse();
   const v = platform.verifyAudit();

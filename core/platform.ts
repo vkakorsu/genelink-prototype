@@ -326,6 +326,24 @@ export class Platform {
     return this.store.cases.list().filter((c) => c.participants.some((p) => p.organisationId === organisationId));
   }
 
+  /**
+   * Case-scoped audit reads carry the same boundary as the case body: the trail names
+   * the participants' seats and organisations, and entry details can carry facts.
+   * A refused read is itself a consequential event and goes on the chain.
+   */
+  caseAudit(actor: Actor, caseId: string) {
+    const c = this.store.cases.get(caseId);
+    if (!c) throw new InvalidRequest("Unknown case");
+    try {
+      this.requireParticipant(actor, c);
+    } catch (e) {
+      if (e instanceof PermissionDenied) this.recordDenied(actor, "case_audit.view", { type: "case", id: caseId }, "Not a participant in this case");
+      throw e;
+    }
+    const related = new Set([caseId, ...this.instrumentsFor(caseId).map((i) => i.id), ...this.agreementsFor(caseId).map((a) => a.id), ...this.documentsFor(caseId).map((d) => d.id), ...this.escalationsFor(caseId).map((e) => e.id), ...this.manualReviewsFor(caseId).map((m) => m.id)]);
+    return this.store.audit.list().filter((e) => related.has(e.subject.id));
+  }
+
   pathwayFor(c: Case): Pathway {
     return buildPathway(this.country(c.providerCountry), c.facts);
   }

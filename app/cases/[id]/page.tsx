@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { forbidden, notFound, unauthorized } from "next/navigation";
 import { getPlatform } from "@/core";
 import { adminIntervene, requestSupport } from "@/app/actions";
 import { EvidenceChip, EvidenceLegend, RegBlock } from "@/components/Evidence";
-import { ErrorNotice, InformationNotAdvice, Notice, OpenMarker, PageHead, PersonaRequired, fmtTime } from "@/components/ui";
+import { ErrorNotice, InformationNotAdvice, Notice, OpenMarker, PageHead, fmtTime } from "@/components/ui";
 import { FactsForm } from "@/components/case/FactsForm";
 import { StageCard } from "@/components/case/StageCard";
 import { MachinePanel } from "@/components/case/MachinePanel";
@@ -18,7 +18,7 @@ export default async function CasePage({ params, searchParams }: { params: Promi
   const c = platform.store.cases.get(id);
   if (!c) notFound();
   const session = await getSession();
-  if (session.kind === "anonymous") return <div className="container"><PersonaRequired next={`/cases/${id}`} /></div>;
+  if (session.kind === "anonymous") unauthorized();
 
   const isAdmin = session.kind === "admin";
   const seat = session.kind === "seat" ? session.actor.seat : null;
@@ -31,11 +31,7 @@ export default async function CasePage({ params, searchParams }: { params: Promi
       const alreadyLogged = last?.action === "access.denied" && last.subject.id === id && last.actor.seatId === session.actor.seat.id && (last.detail as { operation?: string }).operation === "case.view";
       if (!alreadyLogged) platform.recordDenied(session.actor, "case.view", { type: "case", id }, "Your seat's organisation is not a participant in this case");
     }
-    return (
-      <div className="container">
-        <Notice kind="halt"><strong>Permission boundary.</strong> Your seat&apos;s organisation is not a participant in this case. Case content is visible to the two organisations, their invited advisers, and administrators acting through recorded interventions.</Notice>
-      </div>
-    );
+    forbidden();
   }
 
   const cfg = platform.country(c.providerCountry);

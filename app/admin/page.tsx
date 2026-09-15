@@ -1,15 +1,15 @@
 import Link from "next/link";
+import { forbidden, unauthorized } from "next/navigation";
 import { getPlatform } from "@/core";
 import { decideManualReviewFromConsole, decideVerification } from "@/app/actions";
-import { ErrorNotice, Notice, PageHead, fmtTime } from "@/components/ui";
+import { ErrorNotice, PageHead, fmtTime } from "@/components/ui";
 import { getSession } from "@/lib/session";
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
   const session = await getSession();
-  if (session.kind !== "admin") {
-    return <div className="container"><Notice kind="halt"><strong>Administrator console.</strong> In the MVP this runs on a separate origin with mandatory multi-factor authentication and its own audit stream. <Link href="/persona?seat=admin&next=/admin">Act as administrator</Link> to continue.</Notice></div>;
-  }
+  if (session.kind === "anonymous") unauthorized();
+  if (session.kind !== "admin") forbidden();
   const platform = getPlatform();
   const orgs = platform.store.organisations.list();
   const pending = orgs.filter((o) => o.verification.status === "pending");

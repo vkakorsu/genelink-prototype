@@ -1,11 +1,12 @@
 import Link from "next/link";
+import { unauthorized } from "next/navigation";
 import { getPlatform } from "@/core";
-import { Empty, PageHead, PersonaRequired, fmt } from "@/components/ui";
+import { Empty, PageHead, fmt } from "@/components/ui";
 import { getSession } from "@/lib/session";
 
 export default async function CasesPage() {
   const session = await getSession();
-  if (session.kind === "anonymous") return <div className="container"><PersonaRequired next="/cases" /></div>;
+  if (session.kind === "anonymous") unauthorized();
   const platform = getPlatform();
   const cases = session.kind === "admin" ? platform.store.cases.list() : platform.casesFor(session.actor.organisation.id);
 

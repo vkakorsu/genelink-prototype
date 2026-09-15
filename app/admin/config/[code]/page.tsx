@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { notFound } from "next/navigation";
+import { forbidden, notFound, unauthorized } from "next/navigation";
 import { getPlatform } from "@/core";
 import { EvidenceChip, EvidenceLegend, RegBlock } from "@/components/Evidence";
 import { Notice, PageHead } from "@/components/ui";
@@ -19,7 +18,8 @@ const A5_LABEL: Record<string, string> = {
 export default async function ConfigPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
   const session = await getSession();
-  if (session.kind !== "admin") return <div className="container"><Notice kind="halt">Administrator sign-in required. <Link href={`/persona?seat=admin&next=/admin/config/${code}`}>Act as administrator</Link>.</Notice></div>;
+  if (session.kind === "anonymous") unauthorized();
+  if (session.kind !== "admin") forbidden();
   const platform = getPlatform();
   const cfg = platform.countries.get(code.toUpperCase());
   if (!cfg) notFound();

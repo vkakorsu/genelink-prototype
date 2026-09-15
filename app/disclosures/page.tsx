@@ -2,12 +2,14 @@ import Link from "next/link";
 import { getPlatform } from "@/core";
 import { INFORMATION_NOT_ADVICE } from "@/core/audit/disclosure";
 import { EvidenceChip } from "@/components/Evidence";
-import { Empty, PageHead, PersonaRequired, fmtTime } from "@/components/ui";
+import { unauthorized, forbidden } from "next/navigation";
+import { Empty, PageHead, fmtTime } from "@/components/ui";
 import { getSession } from "@/lib/session";
 
 export default async function DisclosuresPage() {
   const session = await getSession();
-  if (session.kind !== "seat") return <div className="container"><PersonaRequired next="/disclosures" /></div>;
+  if (session.kind === "anonymous") unauthorized();
+  if (session.kind !== "seat") forbidden();
   const platform = getPlatform();
   const items = platform.disclosuresFor(session.actor.person.id);
   return (
