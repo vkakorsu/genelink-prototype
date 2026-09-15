@@ -16,7 +16,7 @@ export function MachinePanel({ cfg, c, canAct, isAdmin }: { cfg: CountryConfig; 
         <h3 style={{ margin: 0 }}>Regulator processing</h3>
         <span className="small mute">A state machine declared in configuration, not one arrow</span>
       </div>
-      <p className="small soft">Current state: <span className={`state current ${current.kind === "halted" ? "halted" : ""}`}>{current.label}</span></p>
+      <p className="small soft" style={{ marginTop: 12 }}>Current state: <span className={`state current ${current.kind === "halted" ? "halted" : ""}`}>{current.label}</span></p>
       {current.reg && <p className="small"><EvidenceChip reg={current.reg} short /> {current.reg.value} <span className="mono mute">{current.reg.citation}</span></p>}
       {current.outcome === "lapsed" && (
         <div className="halt-box"><strong>Lapsed clock, no permit.</strong> A missed statutory deadline gives the applicant a remedy against the administrator. It never grants (R8). The authority may resume.</div>
