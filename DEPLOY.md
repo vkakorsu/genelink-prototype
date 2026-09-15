@@ -1,11 +1,11 @@
 # Deploying the prototype
 
-The prototype is deployed as a Docker web service on **Render**, in the **Frankfurt** region, on the free plan.
+The prototype is deployed as a Docker web service on **Render**, in the **Frankfurt** region, on the Starter plan (always on, no idle spin-down).
 
 - Live URL: https://genelink-prototype.onrender.com
 - Source: https://github.com/vkakorsu/genelink-prototype (public, `main` branch)
 
-The demo holds no personal data and uses fictional parties, so a free tier is appropriate. It is still deployed in the EU on purpose: the platform will hold personal data of EU users in production, and the proposal says EU-resident hosting from day one. The demo should not contradict that.
+The demo holds no personal data and uses fictional parties, so a small instance is appropriate. It is still deployed in the EU on purpose: the platform will hold personal data of EU users in production, and the proposal says EU-resident hosting from day one. The demo should not contradict that.
 
 ## How it was deployed
 
@@ -23,7 +23,7 @@ render services create `
   --branch main `
   --runtime docker `
   --region frankfurt `
-  --plan free `
+  --plan starter `
   --health-check-path / `
   --env-var NODE_ENV=production `
   --env-var NEXT_TELEMETRY_DISABLED=1 `
@@ -32,9 +32,9 @@ render services create `
 
 Render builds the `Dockerfile` at the repository root. The Dockerfile runs `npm run test:ci` inside the image build, so a failing test fails the deploy. The container listens on port 3000; Render routes public traffic to it automatically.
 
-## Keeping the free instance awake
+## If the service is ever moved back to the free plan
 
-Render's free plan spins a service down after 15 minutes without traffic and it takes up to a minute to wake. For the evaluation period this is masked with a free [UptimeRobot](https://uptimerobot.com) monitor:
+Render's free plan spins a service down after 15 minutes without traffic and takes up to a minute to wake. If the service is downgraded, mask this with a free UptimeRobot monitor:
 
 1. Create an UptimeRobot account (free, no card).
 2. Add an **HTTP(s)** monitor for `https://genelink-prototype.onrender.com` with a 5-minute interval.

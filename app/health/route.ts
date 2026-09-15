@@ -1,4 +1,5 @@
 import { getPlatform } from "@/core";
+import { BUILD_COMMIT } from "@/lib/build";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ export function GET() {
   const body = {
     ok: chain.ok,
     store: platform.store.kind,
+    commit: BUILD_COMMIT,
     countries: Array.from(platform.countries.keys()).sort(),
     auditEntries: platform.store.audit.list().length,
     auditChain: chain.ok ? "verified" : "broken",
