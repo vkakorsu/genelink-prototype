@@ -225,8 +225,7 @@ export const fireEvent = onCase(async (caseId, fd) => {
 });
 
 export const tickClocks = onCase(async (caseId, fd) => {
-  const s = await getSession();
-  if (s.kind === "anonymous") throw new PermissionDenied("Choose a persona first");
+  await requireAdmin();
   const p = getPlatform();
   const mode = text(fd, "days", 10);
   if (mode === "lapse") {

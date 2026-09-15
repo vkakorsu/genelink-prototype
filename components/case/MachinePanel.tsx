@@ -46,9 +46,9 @@ export function MachinePanel({ cfg, c, canAct, isAdmin }: { cfg: CountryConfig; 
             );
           })}
           <p className="small mute">On lapse: <EvidenceChip reg={clocks[0].onLapse.reg} short /> {clocks[0].onLapse.reg.value}</p>
-          {canAct && (
+          {isAdmin && (
             <form action={tickClocks.bind(null, c.id)} className="row">
-              <span className="small mute">Demo control: re-check clocks at a chosen time. Nothing else in the demo moves.</span>
+              <span className="small mute">Demo control, administrator only: re-check clocks at a chosen time. Nothing else in the demo moves.</span>
               <button className="btn ghost small" type="submit" name="days" value="0">Check now</button>
               <button className="btn ghost small" type="submit" name="days" value="45">Check at +45 days</button>
               <button className="btn ghost small" type="submit" name="days" value="90">Check at +90 days</button>
