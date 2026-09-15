@@ -54,9 +54,11 @@ export async function Shell({ children }: { children: React.ReactNode }) {
           </span>
           {objective && <span className="mute">This visit: I have {objective.have ? `"${objective.have}"` : "…"} and I want to {WANT_LABEL[objective.want]?.toLowerCase() ?? objective.want}.{objective.redactions ? ` ${objective.redactions} identifying item${objective.redactions === 1 ? "" : "s"} removed from the free text.` : ""} <Link href="/declare">Change</Link></span>}
           {!objective && <Link href="/declare">Declare your journey for this visit</Link>}
-          <form action={resetDemo} style={{ marginLeft: "auto" }}>
-            <button className="btn ghost small" type="submit" title="Re-seed the demo data">Reset demo data</button>
-          </form>
+          {session.kind === "admin" && (
+            <form action={resetDemo} style={{ marginLeft: "auto" }}>
+              <button className="btn ghost small" type="submit" title="Re-seed the demo data">Reset demo data</button>
+            </form>
+          )}
         </div>
       </div>
       <main id="main">{children}</main>

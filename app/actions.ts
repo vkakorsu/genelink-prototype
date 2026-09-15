@@ -149,11 +149,16 @@ export async function declareObjective(formData: FormData) {
   redirect(want === "learn" ? "/learn" : want === "get_abs_compliant" ? "/cases" : "/explore");
 }
 
-export async function resetDemo() {
-  resetPlatform();
-  revalidatePath("/", "layout");
-  redirect("/?reset=1");
-}
+export const resetDemo = wrap(
+  "resetDemo",
+  async () => {
+    await requireAdmin();
+    resetPlatform();
+    revalidatePath("/", "layout");
+    redirect("/?reset=1");
+  },
+  () => "/",
+);
 
 // -------------------------------------------------------------- discovery
 export const signalInterest = wrap(
