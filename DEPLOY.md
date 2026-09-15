@@ -55,7 +55,7 @@ Find the service id with `render services list`. To get automatic deploys on eve
 - **Northflank free sandbox.** Advertised as always-on in EU regions, but the EU regions are pay-as-you-go at sign-up and a card is required. Rejected.
 - **Koyeb free, Frankfurt.** Requires a card, defaults new sign-ups to a paid plan, and the free instance still scales to zero after an hour idle. Rejected.
 - **Oracle Cloud Always Free VM, Frankfurt.** The most robust free option (a real VM that never sleeps) but requires a card for identity verification and manual VM setup: Ubuntu 24.04, open ports 80/443, install Docker, `docker build -t genelink-prototype .`, `docker run -d -p 80:3000 --restart unless-stopped genelink-prototype`.
-- **Hetzner CX22** (Falkenstein or Nuremberg), a few euros a month, same `docker run` command. Paid fallback if the free tier changes terms.
+- **Hetzner CX22** (Falkenstein or Nuremberg), a few euros a month, same `docker run` command. Fallback if Render changes terms or the service needs more than one instance.
 
 ## Moving hosts: the Compose route
 
