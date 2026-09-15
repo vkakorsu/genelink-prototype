@@ -18,7 +18,7 @@ services:
       NODE_ENV: production
       # Read by the MVP persistence adapter. The prototype ignores it and runs in memory.
       DATABASE_URL: postgres://genelink:${POSTGRES_PASSWORD:-change-me}@postgres:5432/genelink
-      # Read by the MVP object-storage adapter. S3-compatible, so any EU provider or MinIO works.
+      # Read by the MVP object-storage adapter. S3-compatible, so any EU provider's object storage works.
       OBJECT_STORAGE_ENDPOINT: http://storage:9000
       OBJECT_STORAGE_BUCKET: genelink-documents
     healthcheck:
@@ -48,8 +48,8 @@ services:
 
   storage:
     # S3-compatible object storage for evidence documents and rendered agreements.
-    # In production this is the EU provider's object storage; MinIO stands in locally.
-    image: minio/minio:latest
+    # In production this is the EU provider's object storage. Locally, Silo (the community-maintained MinIO fork, pgsty/silo) stands in: MinIO archived its community edition in late 2025 and its images no longer receive fixes. Silo runs as a separate service and is not a code dependency of the platform.
+    image: pgsty/silo:RELEASE.2026-09-03T13-18-01Z
     restart: unless-stopped
     command: server /data
     environment:

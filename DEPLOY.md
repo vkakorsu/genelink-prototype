@@ -59,7 +59,7 @@ Find the service id with `render services list`. To get automatic deploys on eve
 
 ## Moving hosts: the Compose route
 
-`docker-compose.yml` defines the whole stack (application, PostgreSQL 17, S3-compatible object storage) so that moving to another EU provider or to Landscape Alliance's own infrastructure is the same three steps everywhere:
+`docker-compose.yml` defines the whole stack (application, PostgreSQL 18, S3-compatible object storage) so that moving to another EU provider or to Landscape Alliance's own infrastructure is the same three steps everywhere:
 
 1. Provision a Linux host with Docker in the EU region of choice (Hetzner, IONOS, Scaleway, OVH, or an internal VM).
 2. Clone the repository, set `POSTGRES_PASSWORD` and `MINIO_ROOT_PASSWORD` in a `.env` file, run `docker compose up -d`.
