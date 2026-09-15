@@ -309,7 +309,7 @@ stages:
         reg: { state: "established", marker: "§", value: "The text says include. It does not say signed.", citation: "reg. 11(4)(c)" }
       - id: mta_application
         label: Material transfer agreement (application document, unqualified on the commercial route)
-        reg: { state: "established", marker: "§", value: "Required with no qualification even where nothing leaves Kenya. It is not itself a transfer and does not authorise one.", citation: "reg. 11(4)(d)" }
+        reg: { state: "established", marker: "§", value: "Required with no qualification even where nothing leaves Kenya. It is not itself a transfer and does not authorise one. The non-commercial reg. 11(2)(d) qualifies it with 'where applicable'; the commercial route does not.", citation: "reg. 11(4)(d); reg. 11(2)(d)" }
   - id: submission
     title: Submission and determination
     subject: government

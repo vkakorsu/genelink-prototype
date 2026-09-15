@@ -105,7 +105,7 @@ export function StageCard({
                     return (
                       <tr key={d.id}>
                         <td>{d.label}</td>
-                        <td><EvidenceChip reg={d.reg} short /> <span className="mono small">{d.reg.citation}</span></td>
+                        <td><RegBlock reg={d.reg} compact /></td>
                         <td>
                           {onFile.length === 0 && <span className="mute">Missing</span>}
                           {onFile.map((f) => <div key={f.id} className="small"><strong>{f.fileName}</strong> <span className="mono mute">{f.sha256.slice(0, 12)}…</span><div className="mute">present, {fmtTime(f.uploadedAt)}. Presence and type checked, never sufficiency.</div></div>)}
