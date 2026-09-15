@@ -24,6 +24,13 @@ export default async function CasePage({ params, searchParams }: { params: Promi
   const seat = session.kind === "seat" ? session.actor.seat : null;
   const participant = isAdmin || c.participants.some((p) => p.organisationId === seat!.organisationId);
   if (!participant) {
+    // A refused view is a denied attempt too: the interface promises they are written to the chain.
+    // Guarded so a repeat render of this page does not write the same entry twice.
+    if (session.kind === "seat") {
+      const last = platform.store.audit.list().at(-1);
+      const alreadyLogged = last?.action === "access.denied" && last.subject.id === id && last.actor.seatId === session.actor.seat.id && (last.detail as { operation?: string }).operation === "case.view";
+      if (!alreadyLogged) platform.recordDenied(session.actor, "case.view", { type: "case", id }, "Your seat's organisation is not a participant in this case");
+    }
     return (
       <div className="container">
         <Notice kind="halt"><strong>Permission boundary.</strong> Your seat&apos;s organisation is not a participant in this case. Case content is visible to the two organisations, their invited advisers, and administrators acting through recorded interventions.</Notice>
