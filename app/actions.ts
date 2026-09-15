@@ -76,12 +76,29 @@ async function requireActor() {
   return s.actor;
 }
 
-function wrap<T extends unknown[]>(fn: (...a: T) => Promise<void> | void, path: (...a: T) => string) {
+/**
+ * The interface promises that a denied attempt lands on the audit chain. Domain denials
+ * audit themselves in the core and arrive marked; every other refusal is recorded here
+ * with the operation name. Auditing must never break the refusal itself.
+ */
+async function auditDenied(operation: string, subject: { type: string; id: string }, reason: string) {
+  try {
+    const s = await getSession();
+    getPlatform().recordDenied(s.kind === "anonymous" ? null : s.actor, operation, subject, reason);
+  } catch {
+    /* the denial stands whether or not the audit write succeeded */
+  }
+}
+
+function wrap<T extends unknown[]>(name: string, fn: (...a: T) => Promise<void> | void, path: (...a: T) => string, subject?: (...a: T) => { type: string; id: string }) {
   return async (...a: T) => {
     try {
       await fn(...a);
     } catch (e) {
       if (isRedirect(e)) throw e;
+      if (e instanceof PermissionDenied && !(e as { audited?: boolean }).audited) {
+        await auditDenied(name, subject ? subject(...a) : { type: "request", id: path(...a) }, e.message);
+      }
       back(path(...a), describe(e));
       return;
     }
@@ -98,11 +115,11 @@ function rejectStrayId(fd: FormData, name: string, bound: string) {
 }
 
 /** A case-scoped action. The first argument is bound by the page; the form supplies the rest. */
-function onCase(fn: (caseId: string, fd: FormData) => Promise<void> | void) {
-  return wrap(async (caseId: string, fd: FormData) => {
+function onCase(name: string, fn: (caseId: string, fd: FormData) => Promise<void> | void) {
+  return wrap(name, async (caseId: string, fd: FormData) => {
     rejectStrayId(fd, "caseId", caseId);
     await fn(caseId, fd);
-  }, (caseId) => `/cases/${encodeURIComponent(caseId)}`);
+  }, (caseId) => `/cases/${encodeURIComponent(caseId)}`, (caseId) => ({ type: "case", id: caseId }));
 }
 
 function text(fd: FormData, name: string, max = 2000): string {
@@ -139,6 +156,7 @@ export async function resetDemo() {
 
 // -------------------------------------------------------------- discovery
 export const signalInterest = wrap(
+  "signalInterest",
   async (listingId: string, fd: FormData) => {
     rejectStrayId(fd, "listingId", listingId);
     const actor = await requireSeat();
@@ -146,9 +164,11 @@ export const signalInterest = wrap(
     if (r.mutual && r.caseId) redirect(`/cases/${r.caseId}`);
   },
   (listingId) => `/listings/${encodeURIComponent(listingId)}`,
+  (listingId) => ({ type: "listing", id: listingId }),
 );
 
 export const reciprocate = wrap(
+  "reciprocate",
   async (listingId: string, fd: FormData) => {
     rejectStrayId(fd, "listingId", listingId);
     const actor = await requireSeat();
@@ -156,23 +176,28 @@ export const reciprocate = wrap(
     redirect(`/cases/${r.caseId}`);
   },
   (listingId) => `/listings/${encodeURIComponent(listingId)}`,
+  (listingId) => ({ type: "listing", id: listingId }),
 );
 
 // -------------------------------------------------------------- verification
 export const requestVerification = wrap(
+  "requestVerification",
   async (organisationId: string, fd: FormData) => {
     const actor = await requireSeat();
     getPlatform().requestVerification(actor, organisationId, text(fd, "method", 40) as "institutional_email" | "manual_vetting" | "vouching" | "orcid");
   },
   (organisationId) => `/organisations/${encodeURIComponent(organisationId)}`,
+  (organisationId) => ({ type: "organisation", id: organisationId }),
 );
 
 export const decideVerification = wrap(
+  "decideVerification",
   async (fd: FormData) => {
     const admin = await requireAdmin();
     getPlatform().decideVerification(admin, text(fd, "organisationId", 100), text(fd, "outcome", 20) as "verified" | "declined", text(fd, "reason") || "No reason given");
   },
   () => `/admin`,
+  (fd) => ({ type: "organisation", id: text(fd, "organisationId", 100) || "unknown" }),
 );
 
 // ------------------------------------------------------------------ cases
@@ -195,36 +220,36 @@ function parseFacts(fd: FormData): CaseFacts {
   });
 }
 
-export const updateFacts = onCase(async (caseId, fd) => {
+export const updateFacts = onCase("updateFacts", async (caseId, fd) => {
   const actor = await requireSeat();
   getPlatform().updateFacts(actor, caseId, parseFacts(fd));
 });
 
-export const changeOfIntent = onCase(async (caseId, fd) => {
+export const changeOfIntent = onCase("changeOfIntent", async (caseId, fd) => {
   const actor = await requireSeat();
   const description = text(fd, "description", 300);
   if (!description) throw new InvalidRequest("Say what changed. The description is the change-of-intent record.");
   getPlatform().changeOfIntent(actor, caseId, parseFacts(fd), description);
 });
 
-export const uploadDocument = onCase(async (caseId, fd) => {
+export const uploadDocument = onCase("uploadDocument", async (caseId, fd) => {
   const actor = await requireSeat();
   const content = typeof fd.get("content") === "string" ? (fd.get("content") as string) : "";
   getPlatform().uploadDocument(actor, caseId, text(fd, "requirementId", 100), text(fd, "label", 200), text(fd, "fileName", 200) || "document.txt", content);
 });
 
-export const markStage = onCase(async (caseId, fd) => {
+export const markStage = onCase("markStage", async (caseId, fd) => {
   const actor = await requireSeat();
   getPlatform().markStage(actor, caseId, text(fd, "stageId", 100), text(fd, "progress", 20) as "not_started" | "in_progress" | "complete");
 });
 
-export const fireEvent = onCase(async (caseId, fd) => {
+export const fireEvent = onCase("fireEvent", async (caseId, fd) => {
   const s = await getSession();
   if (s.kind === "anonymous") throw new PermissionDenied("Choose a persona first");
   getPlatform().fireEvent(s.actor, caseId, text(fd, "event", 60), text(fd, "note", 500) || undefined);
 });
 
-export const tickClocks = onCase(async (caseId, fd) => {
+export const tickClocks = onCase("tickClocks", async (caseId, fd) => {
   await requireAdmin();
   const p = getPlatform();
   const mode = text(fd, "days", 10);
@@ -238,24 +263,24 @@ export const tickClocks = onCase(async (caseId, fd) => {
   p.tickClocks(caseId, new Date(Date.now() + days * 86_400_000));
 });
 
-export const recordInstrument = onCase(async (caseId, fd) => {
+export const recordInstrument = onCase("recordInstrument", async (caseId, fd) => {
   const actor = await requireSeat();
   const content = typeof fd.get("content") === "string" ? (fd.get("content") as string) : "";
   getPlatform().recordExternalInstrument(actor, caseId, text(fd, "outputId", 100), text(fd, "fileName", 200) || "instrument.pdf", content);
 });
 
-export const amendInstrument = onCase(async (caseId, fd) => {
+export const amendInstrument = onCase("amendInstrument", async (caseId, fd) => {
   const actor = await requireSeat();
   getPlatform().amendInstrument(actor, caseId, text(fd, "instrumentId", 150), text(fd, "summary", 500));
 });
 
-export const setInstrumentStatus = onCase(async (caseId, fd) => {
+export const setInstrumentStatus = onCase("setInstrumentStatus", async (caseId, fd) => {
   const s = await getSession();
   if (s.kind === "anonymous") throw new PermissionDenied("Choose a persona first");
   getPlatform().setInstrumentStatus(s.actor, caseId, text(fd, "instrumentId", 150), text(fd, "status", 30) as "verified" | "correction_required" | "cancelled" | "issued", text(fd, "note", 300));
 });
 
-export const createAgreement = onCase(async (caseId, fd) => {
+export const createAgreement = onCase("createAgreement", async (caseId, fd) => {
   const actor = await requireSeat();
   const title = text(fd, "title", 200) || "Draft agreement";
   const selected = fd.getAll("clause").map(String);
@@ -263,7 +288,7 @@ export const createAgreement = onCase(async (caseId, fd) => {
   getPlatform().createAgreement(actor, caseId, title, clauses);
 });
 
-export const reviseAgreement = onCase(async (caseId, fd) => {
+export const reviseAgreement = onCase("reviseAgreement", async (caseId, fd) => {
   const actor = await requireSeat();
   const p = getPlatform();
   const agreementId = text(fd, "agreementId", 150);
@@ -277,23 +302,23 @@ export const reviseAgreement = onCase(async (caseId, fd) => {
   p.reviseAgreement(actor, caseId, agreementId, text(fd, "summary", 300), clauses, fd.get("offPlatform") ? "uploaded_off_platform" : "platform");
 });
 
-export const approveAgreement = onCase(async (caseId, fd) => {
+export const approveAgreement = onCase("approveAgreement", async (caseId, fd) => {
   const actor = await requireSeat();
   getPlatform().approveAgreement(actor, caseId, text(fd, "agreementId", 150));
 });
 
-export const executeAgreement = onCase(async (caseId, fd) => {
+export const executeAgreement = onCase("executeAgreement", async (caseId, fd) => {
   const actor = await requireSeat();
   getPlatform().executeAgreement(actor, caseId, text(fd, "agreementId", 150));
 });
 
-export const requestSupport = onCase(async (caseId, fd) => {
+export const requestSupport = onCase("requestSupport", async (caseId, fd) => {
   const actor = await requireSeat();
   getPlatform().requestSupport(actor, caseId, text(fd, "kind", 20) as "technical" | "expert", text(fd, "note", 1000));
 });
 
 /** R5. The reviewer seat is the administrator in the prototype. Bound to the case so the redirect can never point elsewhere. */
-export const decideManualReview = onCase(async (caseId, fd) => {
+export const decideManualReview = onCase("decideManualReview", async (caseId, fd) => {
   const actor = await requireActor();
   const recordId = text(fd, "recordId", 150);
   const rec = getPlatform().store.manualReviews.get(recordId);
@@ -303,14 +328,16 @@ export const decideManualReview = onCase(async (caseId, fd) => {
 
 /** The same judgment recorded from the administrator console. */
 export const decideManualReviewFromConsole = wrap(
+  "decideManualReviewFromConsole",
   async (fd: FormData) => {
     const actor = await requireActor();
     getPlatform().decideManualReview(actor, text(fd, "recordId", 150), text(fd, "outcome", 500), text(fd, "reason", 1000));
   },
   () => `/admin`,
+  (fd) => ({ type: "manual_review", id: text(fd, "recordId", 150) || "unknown" }),
 );
 
-export const adminIntervene = onCase(async (caseId, fd) => {
+export const adminIntervene = onCase("adminIntervene", async (caseId, fd) => {
   const admin = await requireAdmin();
   getPlatform().adminIntervene(admin, caseId, text(fd, "action", 500), text(fd, "reason", 1000));
 });

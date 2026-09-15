@@ -74,6 +74,24 @@ export class Platform {
     return verifyChain(this.store.audit.list());
   }
 
+  /** A denial that already wrote its own audit record. Marked so the interface layer does not log it twice. */
+  private denied(message: string): PermissionDenied {
+    const e = new PermissionDenied(message);
+    (e as PermissionDenied & { audited?: boolean }).audited = true;
+    return e;
+  }
+
+  /**
+   * A denied attempt belongs on the chain; the interface promises it. Domain denials write
+   * their own context at the throw site (regulator.event_denied, manual_review.decision_denied).
+   * This records every refusal that reaches the boundary without one, including calls with no session.
+   */
+  recordDenied(actor: Actor | null, operation: string, subject: { type: string; id: string }, reason: string) {
+    const detail: Record<string, unknown> = { operation, reason };
+    if (!actor) detail.session = "none";
+    this.audit(actor ?? { system: true }, "access.denied", subject, detail);
+  }
+
   private require(actor: Actor, minimum: Permission, organisationId?: string) {
     if ("system" in actor || "admin" in actor) return;
     if (organisationId && actor.seat.organisationId !== organisationId) throw new PermissionDenied("Seat belongs to a different organisation");
@@ -372,7 +390,7 @@ export class Platform {
     if ("system" in actor) throw new PermissionDenied("Manual review judgments cannot be made by the system");
     if (!("admin" in actor)) {
       this.audit(actor, "manual_review.decision_denied", { type: "manual_review", id: recordId }, { reason: "a party seat attempted to record a manual-review judgment" });
-      throw new PermissionDenied("A manual-review judgment is recorded by the reviewer seat, not by a party to the case. Recording it yourself would be self-declaration. This attempt has been recorded.");
+      throw this.denied("A manual-review judgment is recorded by the reviewer seat, not by a party to the case. Recording it yourself would be self-declaration. This attempt has been recorded.");
     }
     if (!outcome.trim() || !reason.trim()) throw new InvalidRequest("A judgment needs both an outcome and a reason. Both go into the audit chain.");
     const rec = this.must(this.store.manualReviews.get(recordId), "Manual review", recordId);
@@ -432,7 +450,7 @@ export class Platform {
     // audited rather than silently ignored.
     if (effectiveActor !== "applicant" && !("admin" in actor) && !("system" in actor)) {
       this.audit(actor, "regulator.event_denied", { type: "case", id: caseId }, { event, reason: "authority events are recorded by an administrator on the authority's behalf" });
-      throw new PermissionDenied("That event belongs to the authority. An administrator records it on the authority's behalf; your seat can record applicant events only.");
+      throw this.denied("That event belongs to the authority. An administrator records it on the authority's behalf; your seat can record applicant events only.");
     }
     const wasGranted = isGranted(cfg, c.machine);
     c.machine = fire(cfg, c.machine, event, effectiveActor, this.now(), note);
