@@ -173,8 +173,10 @@ export const declareObjective = wrap(
   "declareObjective",
   async (formData: FormData) => {
     if (!(formData instanceof FormData)) throw new InvalidRequest("Malformed submission. Reload the page and try again.");
-    // Free text is checked for identifying content before it is stored or shown anywhere, including back to its author.
-    const { text: have, redactions } = redactIdentifiers(text(formData, "have", 200));
+    // Redact before truncating: a cut can split an address mid-string and store a
+    // fragment the counter then under-reports. Identify on the full text, store 200 chars.
+    const { text: redacted, redactions } = redactIdentifiers(text(formData, "have", 2000));
+    const have = redacted.slice(0, 200);
     const want = text(formData, "want", 40) || "learn";
     const jar = await cookies();
     jar.set(OBJECTIVE_COOKIE, JSON.stringify({ have, want, redactions, declaredAt: new Date().toISOString() }), { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production" });

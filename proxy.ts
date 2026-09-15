@@ -159,6 +159,27 @@ export async function proxy(request: NextRequest) {
       } catch {
         return refuse(400, "The form body could not be read. Nothing was changed.");
       }
+      // A fetch action call always carries its argument list in field "0" as a JSON
+      // array, with the submitted fields under "_<n>_" names. A multipart body without
+      // one is not a call this build emitted; passed on it would surface as a 500.
+      const root = form.get("0");
+      if (typeof root !== "string" || !root) {
+        return refuse(400, "The submission's action fields are incomplete or malformed. Reload the page and try again. Nothing was changed.");
+      }
+      let rootArgs: unknown;
+      try {
+        rootArgs = JSON.parse(root);
+      } catch {
+        return refuse(400, "The submission's action fields are incomplete or malformed. Reload the page and try again. Nothing was changed.");
+      }
+      if (!Array.isArray(rootArgs)) {
+        return refuse(400, "The submission's action fields are incomplete or malformed. Reload the page and try again. Nothing was changed.");
+      }
+      const rootStrings: string[] = [];
+      collectStrings(rootArgs, rootStrings);
+      if (rootStrings.some((s) => stringTargetsOtherResource(s, pathname))) {
+        return refuse(400, "The bound arguments do not match this address. Nothing was changed.");
+      }
       for (const v of form.values()) {
         if (typeof v === "string" && fieldTargetsOtherResource(v, pathname)) {
           return refuse(400, "The bound arguments do not match this address. Nothing was changed.");
