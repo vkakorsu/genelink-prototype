@@ -11,7 +11,7 @@ export default async function AdminAuditPage() {
   const v = platform.verifyAudit();
   return (
     <div className="container">
-      <PageHead eyebrow="Audit review" title="Full audit chain" lede="Append-only, hash-chained. Newest first.">
+      <PageHead eyebrow="Audit review" title="Full audit chain" lede="Append-only, hash-chained. Newest first. Entries marked (scenario) are seeded history written in scenario time; unmarked entries are live actions at real UTC.">
         {v.ok ? <span className="status-pill complete">Verified · {v.length} entries</span> : <span className="status-pill halted">Broken at {v.brokenAt}: {v.reason}</span>}
       </PageHead>
       <table className="data compact">

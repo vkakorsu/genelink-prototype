@@ -16,7 +16,7 @@ export default async function CaseAuditPage({ params }: { params: Promise<{ id: 
   const v = platform.verifyAudit();
   return (
     <div className="container">
-      <PageHead eyebrow="Audit" title={`Audit trail · ${c.title}`} lede="Every legally or commercially consequential action, in order, with the acting seat and a hash that covers the entry and the one before it. Shown here filtered to this case. Chain integrity is checked across the whole log.">
+      <PageHead eyebrow="Audit" title={`Audit trail · ${c.title}`} lede="Every legally or commercially consequential action, in order, with the acting seat and a hash that covers the entry and the one before it. Shown here filtered to this case. Entries marked (scenario) are seeded history; unmarked entries are live actions at real UTC. Chain integrity is checked across the whole log.">
         <p className="small">{v.ok ? <span className="status-pill complete">Chain verified · {v.length} entries</span> : <span className="status-pill halted">Chain broken at {v.brokenAt}</span>} <Link href={`/cases/${id}`}>Back to case</Link></p>
       </PageHead>
       <table className="data compact">

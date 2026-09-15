@@ -16,7 +16,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
 
   return (
     <div className="container">
-      {sp.reset && <Notice kind="ok">Demo data re-seeded.</Notice>}
+      {sp.reset && <Notice kind="ok"><strong>Demo data re-seeded.</strong> Seeded cases, personas and configuration are restored; anything created in this session has been removed.</Notice>}
       <section className="hero" style={{ marginBottom: 20 }}>
         <div className="eyebrow">Value first. Results and content before commitment.</div>
         <h1>From discovery to an ABS-compliant draft agreement, across countries whose rules do not agree.</h1>
