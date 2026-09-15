@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BUILD_COMMIT } from "@/lib/build";
 import { getObjective, getSession } from "@/lib/session";
 import { getPlatform } from "@/core";
 import { resetDemo } from "@/app/actions";
@@ -49,7 +50,7 @@ export async function Shell({ children }: { children: React.ReactNode }) {
         <div className="topbar-inner">
           <span>
             <strong>Prototype with fictional parties.</strong> Compliance output here is information, never advice or approval.
-            {" "}Store: <code>{storeKind}</code>, state resets when the free instance restarts.
+            {" "}Store: <code>{storeKind}</code>, state resets when the instance restarts.
           </span>
           {objective && <span className="mute">This visit: I have {objective.have ? `"${objective.have}"` : "…"} and I want to {WANT_LABEL[objective.want]?.toLowerCase() ?? objective.want}.{objective.redactions ? ` ${objective.redactions} identifying item${objective.redactions === 1 ? "" : "s"} removed from the free text.` : ""} <Link href="/declare">Change</Link></span>}
           {!objective && <Link href="/declare">Declare your journey for this visit</Link>}
@@ -62,7 +63,7 @@ export async function Shell({ children }: { children: React.ReactNode }) {
       <footer className="site">
         <div className="topbar-inner">
           <span>GENE-LINK MVP prototype, built for the Landscape Alliance RFP of 3 September 2026 by Vincent Kofi Akorsu. Configuration transcribed from Appendix B with its evidence markers.</span>
-          <span style={{ marginLeft: "auto" }}>Deployed in an EU region on purpose. No personal data is held.</span>
+          <span style={{ marginLeft: "auto" }}>Deployed in an EU region on purpose. No personal data is held. · build <code>{BUILD_COMMIT}</code></span>
         </div>
       </footer>
     </div>

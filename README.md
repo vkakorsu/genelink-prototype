@@ -2,7 +2,7 @@
 
 A working implementation of the GENE-LINK partnership journey, built for the Landscape Alliance (CIFOR and ICRAF) Request for Proposals of 3 September 2026 by Vincent Kofi Akorsu, independent technical consultant, Ho, Ghana.
 
-Live demo: [genelink-prototype.onrender.com](https://genelink-prototype.onrender.com) (free Render instance, Frankfurt, fictional parties, state resets on redeploy; an UptimeRobot monitor keeps the free tier awake during the evaluation)
+Live demo: [genelink-prototype.onrender.com](https://genelink-prototype.onrender.com) (Render Starter instance, Frankfurt, always on, fictional parties, state resets on redeploy)
 
 This is not a mock-up. It is the seed of the MVP codebase: the stack the proposal recommends for production, structured as the production system will be structured. On contract award it becomes the MVP.
 
@@ -140,4 +140,4 @@ Nordlicht Biotics GmbH (Hamburg, seeking), Lake Basin Natural Products Institute
 
 ## Licence and ownership
 
-Built pre-contract for the GENE-LINK MVP proposal. Assigned to Landscape Alliance on contract signature at no cost, as stated in the proposal's intellectual property statement. Until then, all rights reserved by the author. Third-party dependencies are MIT licensed.
+Built pre-contract for the GENE-LINK MVP proposal. Assigned to Landscape Alliance on contract signature at no cost, as stated in the proposal's intellectual property statement. Until then, all rights reserved by the author. Third-party runtime dependencies carry permissive licences (MIT, Apache 2.0, ISC, BSD, 0BSD). The one exception is the platform-specific `sharp` image binary that Next.js pulls in, which bundles LGPL-licensed libvips and is not exercised by the prototype. `npx license-checker-rseidelsohn --production --summary` reproduces the list.
