@@ -20,7 +20,8 @@ operativeInstrumentStatus:
     approved on 29 July 2025 subject to a corrigendum that has not been found. A Senate tracker gives
     15 July 2025 and different wording. LN 19 of 2025 is textually identical on every provision used
     here, so the substance holds even if the instrument number moves. Put it to NEMA before any of
-    this drives a build.
+    this drives a build. A drafting defect compounds it: LN 68 reg. 29 revokes an instrument by the
+    wrong title, so even the revocation clause is uncertain.
   owner: NEMA question, routed to the Kenya escalation owner
   drives: false
 
@@ -249,8 +250,11 @@ stages:
         text: The authorised-user agreement must contain all twelve listed terms, among them royalties, exclusivity, intellectual property sharing, publication control and moral rights.
         reg: { state: "established", marker: "§", value: "Twelve mandatory terms. A template that omits one produces an agreement the Act does not recognise.", citation: "TK Act s.34" }
       - id: filing_sequence
-        text: Before signing, inform the Cabinet Secretary and supply the proposed agreement for comment. After signing, file the executed agreement within 30 days.
-        reg: { state: "established", marker: "§", value: "s.36 filing sequence runs around the signature.", citation: "TK Act s.36" }
+        text: Before signing, inform the Cabinet Secretary and supply the proposed agreement for comment. After signing, file the executed agreement within 30 days. A user may also obtain consent directly from the holders without first applying to the Cabinet Secretary; the filing duties still run.
+        reg: { state: "established", marker: "§", value: "s.36 filing sequence runs around the signature, and the direct-from-holders consent route does not remove the filing duties.", citation: "TK Act s.36" }
+      - id: register_architecture
+        text: Registration is not one register. Counties keep traditional-knowledge registers (ss.7(2), 8(1)) and a national TK Digital Repository exists under s.8(3); the s.36 filing duties to the Cabinet Secretary run alongside them, not instead.
+        reg: { state: "established", marker: "§", value: "Dual register architecture: county registers and the national repository coexist with the Cabinet Secretary filing duties.", citation: "TK Act ss.7(2), 8(1), 8(3), 36" }
       - id: registration_procedure
         text: Agreements not registered by the Cabinet Secretary are null and void, but no implementing regulations were located.
         reg:
