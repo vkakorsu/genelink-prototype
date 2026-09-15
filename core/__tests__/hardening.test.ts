@@ -283,6 +283,25 @@ describe("a denied attempt is written to the audit chain", () => {
   });
 });
 
+describe("Path B: a stranger registers and lands in the verification queue", () => {
+  it("creates person, organisation and founding seat; pending until an administrator decides; onboarded acts run in parallel", () => {
+    const p = fresh();
+    const r = p.registerOrganisation({ personName: "New Custodian", orgName: "Test Seed Bank", kind: "community_custodian", country: "KE", method: "vouching", functions: ["custodian", "providing"] });
+    const org = p.store.organisations.get(r.organisationId)!;
+    expect(org.verification).toMatchObject({ status: "pending", method: "vouching" });
+    expect(p.store.memberships.get(r.seatId)!.permission).toBe("administrator");
+    expect(p.store.persons.get(r.personId)!.onboardingPath).toBe("B");
+    // A pending Path B organisation may already act — onboarding runs in parallel, it does not gate the spine.
+    expect(() => p.signalInterest(p.actorFor(r.seatId), "lst_ke_antiinfl")).not.toThrow();
+    p.decideVerification(ADMIN, r.organisationId, "verified", "Vouched by a known institution (fictional)");
+    expect(p.store.organisations.get(r.organisationId)!.verification.status).toBe("verified");
+    const actions = p.store.audit.list().map((e) => e.action);
+    expect(actions).toContain("organisation.registered");
+    expect(actions).toContain("organisation.verification_requested");
+    expect(verifyChain(p.store.audit.list()).ok).toBe(true);
+  });
+});
+
 describe("a halted stage gates later completion", () => {
   it("a later stage cannot be marked complete while an earlier stage on the pathway is halted", () => {
     const p = fresh();

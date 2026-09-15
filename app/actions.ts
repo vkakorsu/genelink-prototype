@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { ZodError } from "zod";
 import { getPlatform, resetPlatform } from "@/core";
 import { CaseFacts } from "@/core/config/schema";
+import type { MarketFunction } from "@/core/domain/types";
 import { InvalidRequest, NotFound, PermissionDenied } from "@/core/platform";
 import { TransitionError } from "@/core/engine/stateMachine";
 import { ADMIN } from "@/core/seed/seed";
@@ -198,6 +199,32 @@ export const decideVerification = wrap(
   },
   () => `/admin`,
   (fd) => ({ type: "organisation", id: text(fd, "organisationId", 100) || "unknown" }),
+);
+
+/**
+ * Path B self-registration: a stranger with no ORCID or institutional email creates the
+ * person, the organisation and the founding seat, and the request lands in the same
+ * administrator queue as the seeded ones. No session required — that is the point.
+ * The visitor is signed straight into the founding seat so the journey continues unbroken.
+ */
+export const registerOrganisation = wrap(
+  "registerOrganisation",
+  async (fd: FormData) => {
+    const personName = text(fd, "personName", 100);
+    const orgName = text(fd, "orgName", 150);
+    if (!personName || !orgName) throw new InvalidRequest("Give your name and the organisation's name.");
+    const kind = (["community_custodian", "research_institution", "company", "broker", "adviser"] as const).find((k) => k === text(fd, "kind", 40)) ?? "community_custodian";
+    const method = (["vouching", "manual_vetting"] as const).find((m) => m === text(fd, "method", 30)) ?? "vouching";
+    const allowed: MarketFunction[] = ["seeking", "providing", "advising", "brokering", "custodian", "learning"];
+    const functions = fd.getAll("function").map(String).filter((f): f is MarketFunction => allowed.includes(f as MarketFunction));
+    const country = text(fd, "country", 3).toUpperCase();
+    if (!country) throw new InvalidRequest("Give the organisation's country.");
+    const r = getPlatform().registerOrganisation({ personName, orgName, kind, country, method, functions: functions.length ? functions : ["providing"] });
+    const jar = await cookies();
+    jar.set(SEAT_COOKIE, r.seatId, { httpOnly: true, sameSite: "lax", path: "/" });
+    redirect(`/organisations/${r.organisationId}`);
+  },
+  () => "/persona",
 );
 
 // ------------------------------------------------------------------ cases
