@@ -50,6 +50,7 @@ export function StageCard({
                   Routed to <strong>{e.owner}</strong>{e.ownerName ? ` (${e.ownerName})` : " · name pending Landscape Alliance"}.
                   {rec && <> Raised {fmtTime(rec.raisedAt)}. Status: {rec.status}.</>}
                   {" "}The answer is a configuration change with legal review, never an in-case override. Silently applying either possible answer would be a defect.
+                  {" "}Next step: the named owner answers; this stage resumes when the configuration records it. Nothing else unblocks it.
                 </div>
               </div>
             );
