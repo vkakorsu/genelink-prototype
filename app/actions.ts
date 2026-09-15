@@ -96,7 +96,13 @@ function wrap<T extends unknown[]>(name: string, fn: (...a: T) => Promise<void> 
   // "[object FormData]" leak into a redirect URL or an audit subject.
   const safePath = (...a: T) => {
     const p = path(...a);
-    return typeof p === "string" && p.startsWith("/") && !p.includes("[object") ? p : "/";
+    if (typeof p !== "string" || !p.startsWith("/")) return "/";
+    try {
+      if (decodeURIComponent(p).includes("[object")) return "/";
+    } catch {
+      return "/";
+    }
+    return p;
   };
   return async (...a: T) => {
     try {
