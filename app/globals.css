@@ -208,6 +208,7 @@ hr.rule { border: 0; border-top: 1px solid var(--rule); margin: 18px 0; }
 .btn.danger { background: var(--ev-unknown); border-color: var(--ev-unknown); }
 .btn.small { padding: 5px 10px; font-size: 0.78rem; }
 .btn[disabled], .btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+.btn:not(.secondary):not(.ghost) .mute { color: rgba(255, 255, 255, 0.72); }
 .btn.block { width: 100%; justify-content: center; }
 label { display: block; font-size: var(--step--1); font-weight: 600; color: var(--ink-soft); margin-bottom: 4px; text-wrap: balance; }
 input[type="text"], input[type="search"], input[type="email"], input[type="number"], input[type="date"], select, textarea {
