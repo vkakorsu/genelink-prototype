@@ -24,6 +24,7 @@ The RFP's appendices make claims that are easy to write and hard to fake. This p
 | **A compliance module distinct from intake (R10).** The nine obligation classes are recorded on the instrument for phase two. They are not run. The renewal probe reads configuration: never for Brazil. | "What attaches to the instrument" panel |
 | **The sequence itself varies (A5.3).** The same pathway page renders Colombia's consultation-before-application and Kenya's documents-with-the-application from configuration alone. | Compare the Kenya and Colombia case pages |
 | **Person, organisation and membership are three entities.** Market functions belong to the organisation, permissions to the seat, the visit objective to the session. Amara Okoro holds seats in two organisations. Meridian Bridge is one broker with four functions. | `/persona`, `/organisations/org_meridian`, `/declare` |
+| **Path B onboarding runs end to end.** A stranger with no ORCID registers an organisation on `/persona`; it lands in the same verification queue as the seeded requests and an administrator verifies or declines with a recorded reason. A pending Path B organisation may already act — onboarding runs in parallel, it does not gate the spine. | `/persona` registration card, `/admin` verification queue |
 | **Confidentiality before a match.** Public and full projections. Identity, species and locality withheld until both sides signal interest. The reveal is a recorded, symmetric event. | `/explore`, any listing as an outsider then as a counterparty |
 | **Compliance output is information, never advice or approval, and what the system told each user is recorded.** | The wording everywhere, and `/disclosures` |
 | **Hash-chained audit and integrity verification.** Every consequential action is an entry whose hash covers the previous entry. Tampering is detected. Any party can verify a document against the record. | `/verify`, `/cases/<id>/audit`, `/admin/audit` |
@@ -57,7 +58,7 @@ Requires Node 24 (the current LTS line; Node 26 enters LTS on 28 October 2026 an
 
 ```bash
 npm ci
-npm run test:ci        # 76 tests on the core: schema, lint, scope, pathway, state machines, instruments, audit, full journeys, dry run for every country, and a hardening suite replaying every defect found in live evaluation
+npm run test:ci        # 77 tests on the core: schema, lint, scope, pathway, state machines, instruments, audit, full journeys, dry run for every country, and a hardening suite replaying every defect found in live evaluation
 npm run dry-run -- BR  # walk Brazil end to end in the terminal. Try CO or KE too
 npm run lint:config    # validate every country file
 npm run deps:update    # updates dependencies to the newest versions published at least seven days ago (the supply-chain rule in the proposal, Part 4.4)
