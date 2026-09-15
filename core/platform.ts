@@ -7,6 +7,7 @@ import type {
   Agreement, AgreementVersion, Case, CaseDocument, EscalationRecord, Instrument, Listing, ManualReviewRecord, MarketFunction, Membership, Organisation, Permission, Person,
 } from "./domain/types";
 import { attachedDuties, buildPathway, type Pathway } from "./engine/pathway";
+import { evaluateScope } from "./engine/scope";
 import { applyLapse, fire, initialSnapshot, isGranted, tick } from "./engine/stateMachine";
 import type { Store } from "./store/Store";
 
@@ -341,6 +342,12 @@ export class Platform {
     const c = this.caseFor(caseId);
     this.requireParticipant(actor, c);
     this.require(actor, "member");
+    const cfg = this.country(c.providerCountry);
+    const before = evaluateScope(cfg, c.facts).kind;
+    const after = evaluateScope(cfg, facts).kind;
+    if (before !== after) {
+      throw new InvalidRequest(`That edit changes the scope answer from ${before.replaceAll("_", " ")} to ${after.replaceAll("_", " ")}. A scope change is a declared change of intent with the country's consequence policy on the record. Use the change-of-intent form, not a facts edit.`);
+    }
     c.facts = facts;
     this.store.cases.put(c);
     this.audit(actor, "case.facts_updated", { type: "case", id: caseId }, { facts });
@@ -459,6 +466,11 @@ export class Platform {
     this.requireParticipant(actor, c);
     this.require(actor, "member");
     if (!["not_started", "in_progress", "complete"].includes(progress)) throw new InvalidRequest(`Unknown progress value ${progress}`);
+    // A member prepares the work. Marking a stage complete is a claim the organisation
+    // stands behind, so it needs the same authority as recording an instrument.
+    if (progress === "complete" && "seat" in actor && rank[actor.seat.permission] < rank.authorised_signatory) {
+      throw new PermissionDenied("Marking a stage complete is a claim the organisation stands behind: it needs an authorised signatory or administrator seat. Your seat can record work in progress.");
+    }
     const pathway = this.pathwayFor(c);
     const stage = pathway.stages.find((s) => s.stage.id === stageId);
     if (!stage) throw new InvalidRequest("Stage not on this pathway");

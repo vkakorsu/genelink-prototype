@@ -150,6 +150,7 @@ export default async function CasePage({ params, searchParams }: { params: Promi
                   escalations={escalations}
                   manualReviews={manualReviews}
                   canEdit={canEdit}
+                  canComplete={canSign || isAdmin}
                   canJudge={canJudge}
                   learning={learning.filter((l) => l.stageIds.includes(s.stage.id) && (l.countryCodes.includes("*") || l.countryCodes.includes(cfg.code)))}
                 />

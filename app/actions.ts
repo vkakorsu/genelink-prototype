@@ -1,6 +1,6 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { ZodError } from "zod";
@@ -58,6 +58,12 @@ function friendlyField(f: string) {
   return FIELD_NAMES[f] ?? f;
 }
 
+/** Browsers always send Origin on a POST. A submission without one is refused: it did not come from a page this site rendered. */
+async function requireOrigin() {
+  const origin = (await headers()).get("origin");
+  if (!origin || origin === "null") throw new PermissionDenied("This action only accepts submissions sent from this site. The request carried no Origin header, so it was refused.");
+}
+
 async function requireSeat() {
   const s = await getSession();
   if (s.kind !== "seat") throw new PermissionDenied("Choose a persona with a seat first");
@@ -106,6 +112,9 @@ function wrap<T extends unknown[]>(name: string, fn: (...a: T) => Promise<void> 
   };
   return async (...a: T) => {
     try {
+      // Mismatched origins are refused by the framework before this runs; a
+      // missing one is refused here, and the refusal is audited.
+      await requireOrigin();
       await fn(...a);
     } catch (e) {
       if (isRedirect(e)) throw e;
@@ -146,6 +155,7 @@ function text(fd: FormData, name: string, max = 2000): string {
 
 // ------------------------------------------------------------- persona (demo)
 export async function switchPersona(formData: FormData) {
+  await requireOrigin();
   const seat = text(formData, "seat", 100);
   const jar = await cookies();
   if (!seat) jar.delete(SEAT_COOKIE);
@@ -156,6 +166,7 @@ export async function switchPersona(formData: FormData) {
 }
 
 export async function declareObjective(formData: FormData) {
+  await requireOrigin();
   // Free text is checked for identifying content before it is stored or shown anywhere, including back to its author.
   const { text: have, redactions } = redactIdentifiers(text(formData, "have", 200));
   const want = text(formData, "want", 40) || "learn";

@@ -320,6 +320,40 @@ describe("a halted stage gates later completion", () => {
   });
 });
 
+describe("stage completion is a commitment, not preparation", () => {
+  it("a member records work in progress; only a signatory or administrator marks a stage complete", () => {
+    const p = fresh();
+    const ke = p.store.cases.list().find((c) => c.providerCountry === "KE" && c.participants.some((x) => x.organisationId === "org_nordlicht"))!;
+    const tobias = p.actorFor("seat_tobias_nordlicht"); // member
+    const ines = p.actorFor("seat_ines_nordlicht"); // authorised_signatory
+    const first = p.pathwayFor(ke).stages[0];
+    expect(() => p.markStage(tobias, ke.id, first.stage.id, "complete")).toThrow(PermissionDenied);
+    expect(() => p.markStage(tobias, ke.id, first.stage.id, "in_progress")).not.toThrow();
+    expect(() => p.markStage(ines, ke.id, first.stage.id, "complete")).not.toThrow();
+  });
+});
+
+describe("a facts edit cannot quietly change the scope answer", () => {
+  it("flipping a case across the scope boundary must go through a declared change of intent", () => {
+    const p = fresh();
+    const ke = p.store.cases.list().find((c) => c.providerCountry === "KE" && c.participants.some((x) => x.organisationId === "org_nordlicht"))!;
+    const ines = p.actorFor("seat_ines_nordlicht");
+    // In scope -> out of scope is refused as a plain facts edit.
+    expect(() => p.updateFacts(ines, ke.id, { ...ke.facts, purpose: "non_commercial" })).toThrow(/change of intent|scope answer/);
+    // Out of scope -> in scope is refused the same way.
+    const ooc = p.store.cases.list().find((c) => p.pathwayFor(c).scope.kind === "out_of_scope")!;
+    const kwame = p.actorFor("seat_kwame_asheokoro");
+    const flipped: CaseFacts = { ...ooc.facts, purpose: "commercial" };
+    expect(() => p.updateFacts(kwame, ooc.id, flipped)).toThrow(/change of intent|scope answer/);
+    // An edit that keeps the scope answer still works.
+    expect(() => p.updateFacts(kwame, ooc.id, { ...ooc.facts, localities: 3 })).not.toThrow();
+    // The declared route exists and carries the consequence policy onto the record.
+    expect(() => p.changeOfIntent(kwame, ooc.id, flipped, "Purpose changed to commercial use")).not.toThrow();
+    expect(p.store.cases.get(ooc.id)!.changeOfIntent.at(-1)!.description).toBe("Purpose changed to commercial use");
+    expect(verifyChain(p.store.audit.list()).ok).toBe(true);
+  });
+});
+
 describe("clocks: resume restarts the clock, and a lapse can be forced for the demo", () => {
   it("after administrator_resumes the determination clock runs afresh and lapses again past its new deadline", () => {
     const p = fresh();
