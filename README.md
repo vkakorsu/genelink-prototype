@@ -53,13 +53,14 @@ The RFP's appendices make claims that are easy to write and hard to fake. This p
 
 ## Run it
 
-Requires Node 22.
+Requires Node 24 (the current LTS line; Node 26 enters LTS on 28 October 2026 and the MVP build targets it).
 
 ```bash
 npm ci
 npm run test:ci        # 73 tests on the core: schema, lint, scope, pathway, state machines, instruments, audit, full journeys, dry run for every country, and a hardening suite replaying every defect found in live evaluation
 npm run dry-run -- BR  # walk Brazil end to end in the terminal. Try CO or KE too
 npm run lint:config    # validate every country file
+npm run deps:update    # updates dependencies to the newest versions published at least seven days ago (the supply-chain rule in the proposal, Part 4.4)
 npm run dev            # http://localhost:3000
 ```
 
@@ -76,7 +77,7 @@ Or the whole stack, which is how the MVP is delivered and how it moves between h
 docker compose up
 ```
 
-`docker-compose.yml` starts the application, PostgreSQL 17 and S3-compatible object storage. The prototype runs in memory and ignores the database and storage services. They are there so that the MVP's `PostgresStore` and object-storage adapter have their targets from the first day of the build, and so that the move-hosting runbook is one file on any provider.
+`docker-compose.yml` starts the application, PostgreSQL 18 and S3-compatible object storage. The prototype runs in memory and ignores the database and storage services. They are there so that the MVP's `PostgresStore` and object-storage adapter have their targets from the first day of the build, and so that the move-hosting runbook is one file on any provider.
 
 ## Repository structure
 
