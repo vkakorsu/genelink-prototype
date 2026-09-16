@@ -63,7 +63,7 @@ const learning: LearningResource[] = [
   { id: "lr_4", title: "Reading a country pathway: established, our reading, open question", stageIds: ["intake"], countryCodes: ["*"], status: "pending_landscape_alliance_content" },
 ];
 
-export function seed(store: Store, countries: Map<string, CountryConfig>, baseDate = new Date("2026-09-01T09:00:00Z")): Platform {
+export function seed(store: Store, countries: Map<string, CountryConfig>, baseDate = new Date("2026-04-01T09:00:00Z")): Platform {
   let t = baseDate.getTime();
   const platform = new Platform(store, countries, () => new Date(t));
   const step = (minutes = 30) => (t += minutes * 60_000);

@@ -126,7 +126,7 @@ eligibility:
   - id: art27_areas
     text: Where the material is in the border strip, oceanic islands, jurisdictional waters, the continental shelf or the EEZ and a foreign nexus exists, prior assent from the Conselho de Defesa Nacional or the Comando da Marinha is required and the cadastro moves to awaiting assent.
     when: { applicantType: [foreign_legal, foreign_natural] }
-    reg: { state: "established", marker: "§", value: "Filling in the SisGen form is the request. SisGen notifies within 5 days, the authority has 60 days, suspended while information is outstanding. Assent is revocable and a change of ownership must be reported within 30 days.", citation: "Decreto Arts. 27, 28, 29", note: "The Appendix B flow diagram prints 90 days here; Decreto Art. 28 says sessenta dias, and the appendix text agrees. The statute governs." }
+    reg: { state: "established", marker: "§", value: "Filling in the SisGen form is the request. SisGen notifies within 5 days, the authority has 60 days, suspended while information is outstanding. Assent is revocable and a change of ownership must be reported within 30 days.", citation: "Decreto Arts. 27, 28, 29", note: "Decreto Art. 28 gives sixty days (sessenta dias) and the Appendix B text agrees. The confidential country flow diagram is supplied to shortlisted bidders; if it differs, the configuration review reconciles it and the statute governs." }
 
 consentOrder:
   state: established

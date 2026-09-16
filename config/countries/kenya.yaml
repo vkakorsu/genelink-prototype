@@ -20,8 +20,9 @@ operativeInstrumentStatus:
     approved on 29 July 2025 subject to a corrigendum that has not been found. A Senate tracker gives
     15 July 2025 and different wording. LN 19 of 2025 is textually identical on every provision used
     here, so the substance holds even if the instrument number moves. Put it to NEMA before any of
-    this drives a build. A drafting defect compounds it: LN 68 reg. 29 revokes an instrument by the
-    wrong title, so even the revocation clause is uncertain.
+    this drives a build. A drafting defect sits on the face of the instrument: LN 68 reg. 29 misstates
+    the title of the instrument it revokes while identifying the correct Legal Notice number (L.N. 19
+    of 2025). Appendix B reads it as a footnote that does not by itself invalidate the revocation.
   owner: NEMA question, routed to the Kenya escalation owner
   drives: false
 
