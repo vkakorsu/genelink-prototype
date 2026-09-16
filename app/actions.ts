@@ -248,7 +248,7 @@ export const decideVerification = wrap(
 /**
  * Path B self-registration: a stranger with no ORCID or institutional email creates the
  * person, the organisation and the founding seat, and the request lands in the same
- * administrator queue as the seeded ones. No session required — that is the point.
+ * administrator queue as the seeded ones. No session required; that is the point.
  * The visitor is signed straight into the founding seat so the journey continues unbroken.
  */
 export const registerOrganisation = wrap(

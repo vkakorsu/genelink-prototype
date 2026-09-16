@@ -1,6 +1,6 @@
 # Deploying the prototype
 
-The prototype is deployed as a Docker web service on **Render**, in the **Frankfurt** region, on a paid always-on instance (0.5 vCPU / 512 MB, roughly USD 7/month — no idle spin-down).
+The prototype is deployed as a Docker web service on **Render**, in the **Frankfurt** region, on a paid always-on instance (0.5 vCPU / 512 MB, roughly USD 7/month, no idle spin-down).
 
 - Live URL: https://genelink-prototype.onrender.com
 - Source: https://github.com/vkakorsu/genelink-prototype (public, `main` branch)

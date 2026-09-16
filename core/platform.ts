@@ -184,7 +184,7 @@ export class Platform {
    * This creates the person, the organisation and the founding administrator seat in
    * one act, then files the verification request like any other: pending, into the
    * queue, nothing pre-decided. The new seat can already explore and signal while the
-   * request is pending — onboarding runs in parallel, it does not gate the spine.
+   * request is pending: onboarding runs in parallel, it does not gate the spine.
    */
   registerOrganisation(input: {
     personName: string;
@@ -210,9 +210,9 @@ export class Platform {
 
   // ---------------------------------------------------------- discovery
   /**
-   * Search runs on the full record server-side — species can match a query, locality
-   * deliberately cannot, so search cannot be used to enumerate withheld values —
-   * but only the public projection leaves this method. Searchable is not the same as shown.
+   * Search runs on the full record server-side: species can match a query, locality
+   * deliberately cannot, so search cannot be used to enumerate withheld values.
+   * Only the public projection leaves this method. Searchable is not the same as shown.
    */
   searchPublicListings(query: string, country: string, side: string): PublicListing[] {
     const q = query.trim().toLowerCase();
@@ -591,8 +591,8 @@ export class Platform {
 
   /**
    * The machine reached a state in which the configuration says instruments issue. Two cases:
-   *  automatic (Brazil's SisGen receipt) — the regime issues it on the act itself, so the record is made now;
-   *  everything else (Kenya's two instruments from two issuers, Colombia's contract) — an authority holds
+   *  automatic (Brazil's SisGen receipt): the regime issues it on the act itself, so the record is made now;
+   *  everything else (Kenya's two instruments from two issuers, Colombia's contract): an authority holds
    *  the document and the platform holds nothing until a signatory records it. The instrument appears as
    *  awaiting record. It never gets a fabricated hash. Kenya's applicant holds nothing until both are recorded.
    */
