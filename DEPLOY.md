@@ -9,7 +9,7 @@ The demo holds no personal data and uses fictional parties, so a small instance 
 
 ## How it was deployed
 
-The repository is public on GitHub under `vkakorsu/genelink-prototype`, with GitHub Actions (`.github/workflows/ci.yml`) running the configuration linter, the type check, the 52 tests and the production build on every push.
+The repository is public on GitHub under `vkakorsu/genelink-prototype`, with GitHub Actions (`.github/workflows/ci.yml`) running the configuration linter, the type check, the 82 tests and the production build on every push.
 
 The Render service was created with the official Render CLI (`render` v2.28.0), authenticated via device authorization:
 
