@@ -77,7 +77,7 @@ export default async function ExplorePage({ searchParams }: { searchParams: Prom
               <dt>Scale</dt><dd>{l.indicativeScale}</dd>
               <dt>Organisation</dt><dd><span className="redacted">Withheld until match</span> · {l.organisationKind.replace("_", " ")}{l.organisationVerified ? ", verified" : ", verification pending"}</dd>
               <dt>Species, locality</dt><dd><span className="redacted">Withheld until mutual interest</span></dd>
-              <dt>DSI exposure</dt><dd>{l.dsiExposure} <span className="small mute">(flags and informs, never asserts an obligation)</span></dd>
+              <dt>DSI exposure</dt><dd>{l.dsiExposure}{l.dsiExposure !== "none" && <> <span className="small mute">(flags and informs, never asserts an obligation)</span></>}</dd>
             </dl>
             <div className="row" style={{ marginTop: 6 }}>
               <Link className="btn secondary small" href={`/listings/${l.id}`}>Open</Link>
