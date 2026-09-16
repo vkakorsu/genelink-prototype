@@ -27,7 +27,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         </p>
         <form action="/explore" method="get" className="search-bar" role="search" style={{ marginTop: 18 }}>
           <label htmlFor="q" className="sr-only">Search by function or species</label>
-          <input id="q" name="q" type="search" placeholder="Search by function (anti-inflammatory, emulsifier) or by species, before signing up" />
+          <input id="q" name="q" type="search" placeholder="Search by function (anti-inflammatory, emulsifier), species or country — before signing up" />
           <button className="btn" type="submit">Search</button>
         </form>
         <div className="row" style={{ marginTop: 14, gap: 8 }}>

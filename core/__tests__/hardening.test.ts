@@ -452,3 +452,16 @@ describe("the verification gate holds between mutual interest and the pathway", 
     expect(p.store.cases.list().every((c) => !c.participants.some((x) => x.organisationId === "org_olkalou"))).toBe(true);
   });
 });
+
+describe("discovery search can match what the projection withholds, without revealing it", () => {
+  it("a species query matches, the result still carries only the public shape", () => {
+    const p = fresh();
+    const hits = p.searchPublicListings("lamiaceae", "", "");
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits.every((h) => h.projection === "public")).toBe(true);
+    expect(JSON.stringify(hits)).not.toMatch(/Lamiaceae|Nyando|Kisumu|Streptomyces/);
+    // Locality is not searchable: withheld means withheld, and search is no oracle into it.
+    expect(p.searchPublicListings("nyando", "", "")).toHaveLength(0);
+    expect(p.searchPublicListings("kisumu", "", "")).toHaveLength(0);
+  });
+});
