@@ -209,6 +209,23 @@ export class Platform {
   }
 
   // ---------------------------------------------------------- discovery
+  /**
+   * Search runs on the full record server-side — species and locality can match a query —
+   * but only the public projection leaves this method. Searchable is not the same as shown.
+   */
+  searchPublicListings(query: string, country: string, side: string): PublicListing[] {
+    const q = query.trim().toLowerCase();
+    return this.store.listings.list()
+      .filter((l) => {
+        if (country && l.provenanceCountry !== country) return false;
+        if (side && l.side !== side) return false;
+        if (!q) return true;
+        const hay = [l.publicSummary, l.resourceClass, l.speciesDetail, ...l.functionCodes, l.provenanceCountry].join(" ").toLowerCase();
+        return hay.includes(q);
+      })
+      .map((l) => publicProjection(l, this.must(this.store.organisations.get(l.organisationId), "Organisation", l.organisationId)));
+  }
+
   publicListings(): PublicListing[] {
     return this.store.listings.list().map((l) => publicProjection(l, this.store.organisations.get(l.organisationId)!));
   }

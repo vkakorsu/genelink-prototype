@@ -11,13 +11,7 @@ export default async function ExplorePage({ searchParams }: { searchParams: Prom
   const platform = getPlatform();
   const session = await getSession();
   const all = platform.publicListings();
-  const listings = all.filter((l) => {
-    if (country && l.provenanceCountry !== country) return false;
-    if (side && l.side !== side) return false;
-    if (!q) return true;
-    const hay = [l.publicSummary, l.resourceClass, ...l.functionCodes, l.provenanceCountry].join(" ").toLowerCase();
-    return hay.includes(q);
-  });
+  const listings = platform.searchPublicListings(q, country, side);
   const countries = Array.from(new Set(all.map((l) => l.provenanceCountry)));
   const fnCodes = Array.from(new Set(all.flatMap((l) => l.functionCodes))).sort();
 
