@@ -210,7 +210,8 @@ export class Platform {
 
   // ---------------------------------------------------------- discovery
   /**
-   * Search runs on the full record server-side — species and locality can match a query —
+   * Search runs on the full record server-side — species can match a query, locality
+   * deliberately cannot, so search cannot be used to enumerate withheld values —
    * but only the public projection leaves this method. Searchable is not the same as shown.
    */
   searchPublicListings(query: string, country: string, side: string): PublicListing[] {
