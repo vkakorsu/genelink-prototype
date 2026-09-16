@@ -82,7 +82,7 @@ export default async function CasePage({ params, searchParams }: { params: Promi
               {!next && <span className="small mute">All stages complete.</span>}
             </div>
             {(machineKind === "terminal" || machineKind === "halted") && done < pathway.stages.length && (
-              <p className="small mute" style={{ marginTop: 6, marginBottom: 0 }}>Two tracks, deliberately separate. The regulator line is the authority&apos;s own legal record — it ran its course on the proceeding events. The pathway tracks GENE-LINK-side work and still carries an open question; a proceeding outcome never silently completes platform work.</p>
+              <p className="small mute" style={{ marginTop: 6, marginBottom: 0 }}>Two tracks, deliberately separate. The regulator line is the authority&apos;s own legal record: it ran its course on the proceeding events. The pathway tracks GENE-LINK-side work and still carries an open question; a proceeding outcome never silently completes platform work.</p>
             )}
           </div>
         );

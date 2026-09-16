@@ -293,7 +293,7 @@ describe("Path B: a stranger registers and lands in the verification queue", () 
     expect(org.verification).toMatchObject({ status: "pending", method: "vouching" });
     expect(p.store.memberships.get(r.seatId)!.permission).toBe("administrator");
     expect(p.store.persons.get(r.personId)!.onboardingPath).toBe("B");
-    // A pending Path B organisation may already act — onboarding runs in parallel, it does not gate the spine.
+    // A pending Path B organisation may already act: onboarding runs in parallel, it does not gate the spine.
     expect(() => p.signalInterest(p.actorFor(r.seatId), "lst_ke_antiinfl")).not.toThrow();
     p.decideVerification(ADMIN, r.organisationId, "verified", "Vouched by a known institution (fictional)");
     expect(p.store.organisations.get(r.organisationId)!.verification.status).toBe("verified");
