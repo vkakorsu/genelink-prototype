@@ -294,6 +294,13 @@ export class Platform {
     if (existing) return existing;
     const owner = this.must(this.store.organisations.get(listing.organisationId), "Organisation", listing.organisationId);
     const counterparty = this.must(this.store.organisations.get(other), "Organisation", other);
+    // The verification gate sits between mutual interest and the pathway. Interest is recorded at the
+    // gate; a case opens only when both organisations are verified.
+    for (const org of [owner, counterparty]) {
+      if (org.verification.status !== "verified") {
+        throw new PermissionDenied(`${org.name} is ${org.verification.status === "pending" ? "still in verification" : "verification-declined"}. Mutual interest is recorded, but a case opens only once both organisations are verified.`);
+      }
+    }
     // On an offer the owner supplies. On a need the owner is the demand side and the counterparty supplies.
     const [demand, supplier] = listing.side === "offer" ? [counterparty, owner] : [owner, counterparty];
     const cfg = this.country(this.providerCountryFor(listing, counterparty));

@@ -126,6 +126,8 @@ describe("need listings: a match runs under the supplying organisation's country
     const ines = p.actorFor("seat_ines_nordlicht");
     const r = p.signalInterest(nyokabi, "lst_need_preservative");
     expect(r.mutual).toBe(false);
+    // The gate holds while Ol Kalou is pending; the administrator's verify decision clears it.
+    p.decideVerification(ADMIN, "org_olkalou", "verified", "Vouching by LBNPI accepted for the test.");
     const { caseId } = p.reciprocate(ines, "lst_need_preservative", "org_olkalou");
     const c = p.store.cases.get(caseId)!;
     expect(c.providerCountry).toBe("KE");
@@ -436,5 +438,17 @@ describe("the case audit trail carries the case's confidentiality boundary", () 
     expect(last.action).toBe("access.denied");
     expect((last.detail as { operation: string }).operation).toBe("case_audit.view");
     expect(last.subject.id).toBe(ke.id);
+  });
+});
+
+describe("the verification gate holds between mutual interest and the pathway", () => {
+  it("a pending-verification organisation can signal but a case never opens for it", () => {
+    const p = fresh();
+    const ines = p.actorFor("seat_ines_nordlicht");
+    // Seed: Ol Kalou (pending Path B) has already signalled Nordlicht's need listing.
+    expect(() => p.reciprocate(ines, "lst_need_preservative", "org_olkalou")).toThrow(PermissionDenied);
+    // The interest still sits recorded at the gate; no case was created for the pair.
+    expect(p.interestsOn("lst_need_preservative").some((i) => i.fromOrganisationId === "org_olkalou")).toBe(true);
+    expect(p.store.cases.list().every((c) => !c.participants.some((x) => x.organisationId === "org_olkalou"))).toBe(true);
   });
 });
