@@ -237,6 +237,13 @@ legend { font-size: var(--step--1); font-weight: 600; color: var(--ink-soft); pa
 .ev.unknown { color: var(--ev-unknown); background: var(--ev-unknown-bg); border-color: #e9b1a6; border-style: dotted; border-width: 2px; }
 .ev.notexec { color: var(--ev-notexec); background: var(--ev-notexec-bg); border-color: #c8cfd4; text-decoration: line-through; }
 .ev.gl { color: var(--ev-gl); background: var(--ev-gl-bg); border-color: #b9c9e6; border-style: dashed; }
+/* Block-level callout in the unknown colourway — for sentences, where .ev's nowrap pill would overflow */
+.ev-note {
+  display: block; font-size: 0.78rem; font-weight: 600; line-height: 1.45;
+  padding: 6px 10px; border-radius: var(--radius);
+  color: var(--ev-unknown); background: var(--ev-unknown-bg); border: 2px dotted #e9b1a6;
+}
+.ev-note .m { font-family: var(--font-serif); font-weight: 700; margin-right: 4px; }
 
 .reg { border-left: 3px solid var(--rule); padding: 8px 12px; margin: 8px 0; background: var(--paper); border-radius: 0 var(--radius) var(--radius) 0; }
 .reg.established { border-left-color: var(--ev-established); }
