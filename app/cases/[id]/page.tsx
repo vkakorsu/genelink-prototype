@@ -111,7 +111,7 @@ export default async function CasePage({ params, searchParams }: { params: Promi
           {/* Scope answer */}
           <section className={`card ${pathway.scope.kind === "out_of_scope" ? "warn" : pathway.scope.kind === "escalate" ? "warn" : "tinted"}`}>
             <div className="row between">
-              <h3 style={{ margin: 0 }}>Scope on the facts entered: {pathway.scope.kind.replace("_", " ")}</h3>
+              <h3 style={{ margin: 0 }}>Scope on the facts entered: {pathway.scope.kind.replaceAll("_", " ")}</h3>
               <EvidenceChip reg={pathway.scope.basis} />
             </div>
             <p className="small soft" style={{ margin: "6px 0" }}>{cfg.scope.premise}</p>
@@ -141,7 +141,7 @@ export default async function CasePage({ params, searchParams }: { params: Promi
                 <EvidenceLegend />
               </div>
               <p className="small soft">Order of consent and application here: <EvidenceChip reg={cfg.consentOrder} short /> {cfg.consentOrder.value}</p>
-              {pathway.stages.map((s) => (
+              {pathway.stages.map((s, i) => (
                 <StageCard
                   key={s.stage.id}
                   stage={s}
@@ -152,6 +152,7 @@ export default async function CasePage({ params, searchParams }: { params: Promi
                   canEdit={canEdit}
                   canComplete={canSign || isAdmin}
                   canJudge={canJudge}
+                  upstreamHalted={pathway.stages.slice(0, i).some((earlier) => earlier.status === "halted")}
                   learning={learning.filter((l) => l.stageIds.includes(s.stage.id) && (l.countryCodes.includes("*") || l.countryCodes.includes(cfg.code)))}
                 />
               ))}

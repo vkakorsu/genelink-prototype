@@ -41,7 +41,7 @@
 - id: r5_judgment_seat
   source: Appendix B, R5
   question: Who holds the seat that may record the three manual-review judgments (South Africa stakeholders cannot be identified, Brazil genuine scientific collaboration, Malaysia adequate home-jurisdiction ABS measures).
-  workingPosition: An authorised signatory of a party or a Landscape Alliance administrator, with a recorded reason. Never the system.
+  workingPosition: In the prototype, only a Landscape Alliance administrator can move the state, with a recorded reason. A party cannot record it — that would be self-declaration under another name. Which named seat holds the reviewer role in production is the decision still open. Never the system.
   decidedBy: Landscape Alliance
   affects: Manual review states
 - id: signing_level

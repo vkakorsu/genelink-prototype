@@ -630,9 +630,14 @@ export class Platform {
     const cfg = this.country(c.providerCountry);
     const out = cfg.outputs.find((o) => o.id === outputId);
     if (!out) throw new InvalidRequest(`Unknown output ${outputId} for ${cfg.name}. This regime's outputs are ${cfg.outputs.map((o) => o.id).join(", ")}.`);
+    const st = cfg.stateMachine.states[c.machine.state];
+    const existing = this.store.instruments.get(`inst_${caseId}_${outputId}`);
+    const awaitingThis = existing?.status === "awaiting_record";
+    if (!isGranted(cfg, c.machine) && !awaitingThis) {
+      throw new PermissionDenied(`No ${out.label} exists to record. This case is in "${st?.label ?? c.machine.state}". A missed clock is a remedy against the administrator, not a grant, and the platform will not take a paste in place of one.`);
+    }
     if (!content.trim()) throw new InvalidRequest("The instrument is empty. Paste the text so the platform can hash it.");
     if (Buffer.byteLength(content, "utf8") > MAX_DOCUMENT_BYTES) throw new InvalidRequest(`The instrument exceeds the prototype's ${MAX_DOCUMENT_BYTES / 1024} KB paste limit.`);
-    const existing = this.store.instruments.get(`inst_${caseId}_${outputId}`);
     if (existing && existing.versions.length > 0) throw new InvalidRequest(`${existing.label} is already recorded on this case (v${existing.versions.length}). A change is a new version under its amendment policy, not a second original.`);
     const [inst] = issueInstruments(cfg, caseId, [outputId], this.now(), actor.seat.id, "recorded_external");
     inst.versions[0].sha256 = sha256(content);

@@ -19,7 +19,7 @@ The RFP's appendices make claims that are easy to write and hard to fake. This p
 | **Manual-review states for judgments no system can make (R5).** Brazil's "genuine scientific collaboration" is a state only a human with a recorded reason can move. Never a checkbox. | Brazil case, stage "Who holds the registration" |
 | **Live data layers (R6).** Modelled in the schema (`liveLayers`); Kenya's species status list carries clearly-marked demonstration entries pending a maintained source. | `/admin/config/KE` |
 | **One contract, versioned by addendum (R7).** The Colombian access contract is one record with an otrosí history. Kenya's change of intent requires a new application instead. | Colombia case, "What the applicant holds" |
-| **A lapsed clock never grants (R8).** The second Kenya case sits in `deadline_lapsed` with a remedy against the administrator and no permit. The linter refuses any clock whose lapse target is a granted state. | Case `case_3_ke`, `core/config/lint.ts` |
+| **A lapsed clock never grants (R8).** The second Kenya case sits in `deadline_lapsed` with a remedy against the administrator and no permit. The linter refuses any clock whose lapse target is a granted state. Recording an external instrument is refused unless the machine is in a granted state or an awaiting-record slot already exists. | Case `case_3_ke`, `core/config/lint.ts`, `core/platform.ts` |
 | **Full state machines with unhappy paths (R9).** Returned incomplete, information requested, resubmitted, refused, appealed, withdrawn, correction required, cancelled, all declared per country and walkable. | "Regulator processing" panel on any case |
 | **A compliance module distinct from intake (R10).** The nine obligation classes are recorded on the instrument for phase two. They are not run. The renewal probe reads configuration: never for Brazil. | "What attaches to the instrument" panel |
 | **The sequence itself varies (A5.3).** The same pathway page renders Colombia's consultation-before-application and Kenya's documents-with-the-application from configuration alone. | Compare the Kenya and Colombia case pages |
@@ -28,7 +28,7 @@ The RFP's appendices make claims that are easy to write and hard to fake. This p
 | **Confidentiality before a match.** Public and full projections. Identity, species and locality withheld until both sides signal interest. The reveal is a recorded, symmetric event. A case's audit trail carries the same boundary as the case itself. | `/explore`, any listing as an outsider then as a counterparty |
 | **Compliance output is information, never advice or approval, and what the system told each user is recorded.** | The wording everywhere, and `/disclosures` |
 | **Hash-chained audit and integrity verification.** Every consequential action is an entry whose hash covers the previous entry. Tampering is detected. Any party can verify a document against the record. | `/verify`, `/cases/<id>/audit`, `/admin/audit` |
-| **Open decisions are open.** Every held-open item in Appendix A and every A7 question is rendered as an open state with a decision slot, not resolved by drawing. | `/open-decisions`, inline `?` markers |
+| **Open decisions are open.** Every held-open item in Appendix A, and every A7 question that applies to the three configured countries, is rendered as an open state with a decision slot, not resolved by drawing. | `/open-decisions`, inline `?` markers |
 | **Production posture from the first commit.** Security headers (CSP, HSTS, frame denial), a non-root container, zero known dependency vulnerabilities, zero WCAG 2.2 AA violations under axe-core across every route, and a `/health` probe that verifies the audit chain and returns 503 if it is broken. Denied views answer with real statuses (401 anonymous, 403 wrong authority) so a refusal is visible to scanners and WAF rules, not only to a human reading the page. | `next.config.ts`, `Dockerfile`, `/health` |
 | **Out of scope is a stated position.** Non-commercial users reach a page that records the basis. No "already proven" exit exists anywhere. | `/out-of-scope`, case `case_5_co` |
 
@@ -58,7 +58,7 @@ Requires Node 24 (the current LTS line; Node 26 enters LTS on 28 October 2026 an
 
 ```bash
 npm ci
-npm run test:ci        # 82 tests on the core: schema, lint, scope, pathway, state machines, instruments, audit, full journeys, dry run for every country, and a hardening suite replaying every defect found in live evaluation
+npm run test:ci        # 83 tests on the core: schema, lint, scope, pathway, state machines, instruments, audit, full journeys, dry run for every country, and a hardening suite replaying every defect found in live evaluation
 npm run dry-run -- BR  # walk Brazil end to end in the terminal. Try CO or KE too
 npm run lint:config    # validate every country file
 npm run deps:update    # updates dependencies to the newest versions published at least seven days ago (the supply-chain rule in the proposal, Part 4.4)

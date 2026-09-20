@@ -1,6 +1,7 @@
 import type { CountryConfig } from "@/core/config/schema";
 import type { Case, Instrument } from "@/core/domain/types";
 import { FROZEN_STATUSES, renewalProbeAllowed } from "@/core/domain/instruments";
+import { isGranted } from "@/core/engine/stateMachine";
 import { amendInstrument, recordInstrument, setInstrumentStatus } from "@/app/actions";
 import { EvidenceChip, RegBlock } from "@/components/Evidence";
 import { fmtTime } from "@/components/ui";
@@ -21,6 +22,7 @@ export function InstrumentsPanel({ cfg, c, instruments, canSign, isAdmin, seatPe
   const recorded = instruments.filter((i) => i.versions.length > 0);
   const caseState = cfg.stateMachine.states[c.machine.state];
   const caseEnded = caseState?.kind === "terminal" && caseState.outcome !== "granted";
+  const canRecord = isGranted(cfg, c.machine) || awaiting.length > 0;
   const gate = canSign ? null : isAdmin ? "Administrators watch and intervene. Recording an instrument is the applicant organisation's act." : `Requires an authorised signatory or administrator seat in a participant organisation. Your seat is ${seatPermission ?? "none"}.`;
   return (
     <section className="card">
@@ -96,7 +98,7 @@ export function InstrumentsPanel({ cfg, c, instruments, canSign, isAdmin, seatPe
         <p className="small" style={{ marginTop: 8 }}><strong>Renewal probe:</strong> {probe.reason}</p>
       </details>
 
-      {canSign && !caseEnded && (
+      {canSign && !caseEnded && canRecord && (
         <details className="fold" style={{ marginTop: 8 }} open={awaiting.length > 0}>
           <summary>Record an instrument the State issued (upload and hash)</summary>
           <form action={recordHere} className="stack">
@@ -115,6 +117,9 @@ export function InstrumentsPanel({ cfg, c, instruments, canSign, isAdmin, seatPe
             <p className="small mute">Recorded, not created: the platform preserves an authoritative record of a document it did not issue.</p>
           </form>
         </details>
+      )}
+      {canSign && !caseEnded && !canRecord && (
+        <p className="small mute" style={{ marginTop: 8 }}>Nothing to record. The platform accepts a hash only when the regulator machine is in a granted state, or when it already holds an awaiting-record placeholder. A lapsed clock is not a grant.</p>
       )}
       {gate && <p className="small mute" style={{ marginTop: 8 }}>{gate}</p>}
       <p className="small mute" style={{ marginTop: 8 }}><EvidenceChip reg={cfg.nagoyaParty} short /> {cfg.nagoyaParty.value} <span className="mono mute">{cfg.nagoyaParty.citation}</span></p>

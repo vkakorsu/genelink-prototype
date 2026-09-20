@@ -304,6 +304,17 @@ describe("Path B: a stranger registers and lands in the verification queue", () 
   });
 });
 
+describe("R8: a lapsed clock never produces an instrument", () => {
+  it("recording a permit on the lapsed Kenya case is refused", () => {
+    const p = fresh();
+    const lapsed = p.store.cases.list().find((c) => c.id === "case_3_ke")!;
+    expect(p.country("KE").stateMachine.states[lapsed.machine.state]?.outcome).not.toBe("granted");
+    const amara = p.actorFor("seat_amara_meridian");
+    expect(() => p.recordExternalInstrument(amara, lapsed.id, "nema_access_permit", "NEMA-permit-lapsed-forgery.pdf", "forged permit text")).toThrow(/No NEMA access permit exists to record|lapsed|not a grant/i);
+    expect(p.instrumentsFor(lapsed.id).filter((i) => i.versions.length > 0)).toHaveLength(0);
+  });
+});
+
 describe("a halted stage gates later completion", () => {
   it("a later stage cannot be marked complete while an earlier stage on the pathway is halted", () => {
     const p = fresh();

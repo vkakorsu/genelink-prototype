@@ -621,7 +621,7 @@ obligationClasses:
       processing_clock: { state: "established", marker: "§", value: "30 working days from receipt, with publication and comment contemplated before determination" }
       revocation: { state: "unknown", marker: "?", note: "Not researched.", owner: "Kenya escalation owner" }
       what_must_be_surrendered: { state: "unknown", marker: "?", note: "Not researched.", owner: "Kenya escalation owner" }
-      agreement_nullity: { state: "unknown", marker: "?", note: "TK Act s.35(2) makes unregistered agreements null and void, but no implementing regulations were located on Kenya Law as of 13 Aug 2026, so the registration validity depends on has no published procedure.", citation: "TK Act s.35(2)", owner: "Kenya escalation owner", drives: true }
+      agreement_nullity: { state: "unknown", marker: "?", note: "TK Act s.35(2) makes unregistered agreements null and void, but no implementing regulations were located on Kenya Law as of 13 Aug 2026, so the registration on which validity depends has no published procedure.", citation: "TK Act s.35(2)", owner: "Kenya escalation owner", drives: true }
   - number: 9
     name: Standing attribution
     fields:

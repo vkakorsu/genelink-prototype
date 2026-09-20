@@ -44,7 +44,7 @@ export default async function OpenDecisionsPage() {
             {c.openQuestions.map((q) => (
               <div key={q.id} className="grid cols-2" style={{ alignItems: "start", marginBottom: 6 }}>
                 <RegBlock reg={q.reg} text={q.question} compact />
-                <div className="small soft" style={{ paddingTop: 10 }}><strong>Affects:</strong> {q.affects}{q.reg.drives ? <div className="ev unknown" style={{ marginTop: 6 }}><span className="m">?</span>halts a dependent step</div> : <div className="small mute" style={{ marginTop: 6 }}>shown, does not halt</div>}</div>
+                <div className="small soft" style={{ paddingTop: 10 }}><strong>Affects:</strong> {q.affects}{q.reg.drives ? <div className="ev unknown" style={{ marginTop: 6 }}><span className="m">?</span>must not default: a dependent step stops rather than guess. If that step is a future module (for example renewal), the unknown is surfaced now and will halt the module when it runs.</div> : <div className="small mute" style={{ marginTop: 6 }}>shown, does not stop a step</div>}</div>
               </div>
             ))}
           </div>

@@ -32,7 +32,13 @@ export default async function ListingPage({ params, searchParams }: { params: Pr
         <div className="row">
           <span className={`tag ${projection.projection === "full" ? "" : ""}`}>Projection: <strong>{projection.projection}</strong></span>
           {projection.projection === "public" && <span className="small mute">Identity, species and locality are withheld until both sides signal interest.</span>}
-          {projection.projection === "full" && <span className="small mute">Revealed to you because you own this listing or mutual interest was recorded.</span>}
+          {projection.projection === "full" && (
+            <span className="small mute">
+              {session.kind === "admin"
+                ? "Full projection is shown to administrators so they can watch cases. They do not signal interest."
+                : "Revealed to you because you own this listing or mutual interest was recorded."}
+            </span>
+          )}
           <OpenMarker title="What is visible before a match is a held-open decision (Appendix A). Working position rendered here." />
         </div>
       </PageHead>
