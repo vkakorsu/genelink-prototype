@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Notice, PageHead } from "@/components/ui";
 
 export default function Forbidden() {
@@ -6,11 +7,15 @@ export default function Forbidden() {
       <PageHead
         eyebrow="Not authorised"
         title="Permission boundary"
-        lede="This content is visible to the organisations taking part in it, their invited advisers, and administrators acting through recorded interventions."
+        lede="Your current seat cannot see this page. Cases belong to the organisations taking part in them and to invited advisers. The administration console is a separate origin in the MVP."
       />
       <Notice kind="halt">
-        In the MVP the administration console runs on a separate origin with mandatory multi-factor authentication. Consequential refusals are written to the audit chain.
+        Consequential refusals are written to the audit chain.
       </Notice>
+      <div className="row" style={{ marginTop: 14 }}>
+        <Link className="btn" href="/cases">Cases you can see</Link>
+        <Link className="btn secondary" href="/persona">Choose another seat</Link>
+      </div>
     </div>
   );
 }

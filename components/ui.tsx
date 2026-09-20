@@ -52,6 +52,21 @@ export function InformationNotAdvice() {
   );
 }
 
+export function humanize(s: string) {
+  return s.replaceAll("_", " ");
+}
+
+/** First sentence of a regulator-state label, without splitting on abbreviations such as "Art. 26". */
+export function stateHeadline(label: string) {
+  const cut = label.search(/\.\s+[A-Z]/);
+  return cut === -1 ? label : label.slice(0, cut);
+}
+
+export function clip(s: string, n = 80) {
+  const t = s.replace(/\s+/g, " ").trim();
+  return t.length > n ? `${t.slice(0, n - 1)}…` : t;
+}
+
 export function fmt(iso?: string | null) {
   if (!iso) return "";
   const d = new Date(iso);

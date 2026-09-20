@@ -3,7 +3,7 @@ import type { Case } from "@/core/domain/types";
 import { availableEvents } from "@/core/engine/stateMachine";
 import { fireEvent, tickClocks } from "@/app/actions";
 import { EvidenceChip } from "@/components/Evidence";
-import { fmtTime } from "@/components/ui";
+import { fmtTime, stateHeadline } from "@/components/ui";
 
 export function MachinePanel({ cfg, c, canAct, isAdmin }: { cfg: CountryConfig; c: Case; canAct: boolean; isAdmin: boolean }) {
   const sm = cfg.stateMachine;
@@ -25,7 +25,7 @@ export function MachinePanel({ cfg, c, canAct, isAdmin }: { cfg: CountryConfig; 
       <h4 style={{ marginTop: 12 }}>All declared states</h4>
       <div className="machine">
         {Object.entries(sm.states).map(([id, s]) => (
-          <span key={id} className={`state ${id === c.machine.state ? "current" : ""} ${s.kind === "terminal" ? "terminal" : ""} ${s.kind === "halted" ? "halted" : ""}`} title={s.kind}>{s.label.split(".")[0]}</span>
+          <span key={id} className={`state ${id === c.machine.state ? "current" : ""} ${s.kind === "terminal" ? "terminal" : ""} ${s.kind === "halted" ? "halted" : ""}`} title={s.kind}>{stateHeadline(s.label)}</span>
         ))}
       </div>
 
@@ -88,7 +88,7 @@ export function MachinePanel({ cfg, c, canAct, isAdmin }: { cfg: CountryConfig; 
           <summary>History ({c.machine.history.length})</summary>
           <ol className="timeline">
             {c.machine.history.map((h, i) => (
-              <li key={i}><time>{fmtTime(h.at)}</time> <strong>{h.event.replace(/_/g, " ")}</strong> · {sm.states[h.from]?.label.split(".")[0]} → {sm.states[h.to]?.label.split(".")[0]} <span className="mute">({h.actor})</span>{h.note && <div className="mute">{h.note}</div>}</li>
+              <li key={i}><time>{fmtTime(h.at)}</time> <strong>{h.event.replace(/_/g, " ")}</strong> · {stateHeadline(sm.states[h.from]?.label ?? h.from)} → {stateHeadline(sm.states[h.to]?.label ?? h.to)} <span className="mute">({h.actor})</span>{h.note && <div className="mute">{h.note}</div>}</li>
             ))}
           </ol>
         </details>

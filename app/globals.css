@@ -346,8 +346,8 @@ table.data.compact td, table.data.compact th { padding: 5px 8px; }
 .hero { background: var(--paper); border-radius: var(--radius-lg); padding: 36px 32px; border: 1px solid var(--rule-soft); box-shadow: var(--shadow); }
 .hero h1 { font-size: var(--step-5); max-width: 22ch; }
 @media (max-width: 640px) { .hero { padding: 24px 18px; } .hero h1 { font-size: var(--step-4); } }
-.search-bar { display: flex; gap: 8px; max-width: 88ch; }
-.search-bar input { flex: 1; }
+.search-bar { display: flex; gap: 8px; max-width: 88ch; min-width: 0; width: 100%; }
+.search-bar input { flex: 1; min-width: 0; }
 
 details.fold summary { cursor: pointer; font-weight: 600; color: var(--forest); padding: 6px 0; }
 details.fold[open] summary { margin-bottom: 8px; }

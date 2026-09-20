@@ -672,7 +672,10 @@ export class Platform {
     this.mustBelong(caseId, inst, "Instrument");
     const c = this.caseFor(inst.caseId);
     this.requireParticipant(actor, c);
-    if ("seat" in actor) this.require(actor, "authorised_signatory");
+    // CGen's outcome is an authority act. A party recording it would be self-declaration under another name (R5).
+    if (!("admin" in actor) && !("system" in actor)) {
+      throw new PermissionDenied("CGen verification is recorded by the reviewer seat, never by a party to the case.");
+    }
     const allowed: Instrument["status"][] = ["verified", "correction_required", "cancelled", "issued"];
     if (!allowed.includes(status)) throw new InvalidRequest(`Status ${status} cannot be set here`);
     if (inst.status === "awaiting_record") throw new InvalidRequest(`${inst.label} has not been recorded yet. Record it before recording a verification outcome on it.`);

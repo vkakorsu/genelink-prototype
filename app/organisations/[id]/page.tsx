@@ -42,7 +42,7 @@ export default async function OrganisationPage({ params, searchParams }: { param
             <h3>Trust signals</h3>
             <p className="small soft">Credentials are shown as facts with their verification status. No score is computed. Section 6 of the RFP asks to avoid opaque or unjustified automated reputation scoring.</p>
             {org.credentials.length === 0 && <p className="small mute">None recorded.</p>}
-            <ul className="small" style={{ paddingLeft: 18 }}>{org.credentials.map((c, i) => <li key={i}><strong>{c.title}</strong> · {c.issuer} · <span className={`tag ${c.reg === "verified" ? "" : ""}`}>{c.reg ?? "self declared"}</span></li>)}</ul>
+            <ul className="small" style={{ paddingLeft: 18 }}>{org.credentials.map((c, i) => <li key={i}><strong>{c.title}</strong> · {c.issuer} · <span className="tag">{(c.reg ?? "self declared").replaceAll("_", " ")}</span></li>)}</ul>
             {platform.store.cases.list().filter((c) => c.participants.some((p) => p.organisationId === id) && platform.agreementsFor(c.id).some((a) => a.status === "executed")).length > 0 && (
               <p className="small">Recorded prior activity: {platform.store.cases.list().filter((c) => c.participants.some((p) => p.organisationId === id) && platform.agreementsFor(c.id).some((a) => a.status === "executed")).length} executed agreement(s) on the platform. A fact, not a score.</p>
             )}

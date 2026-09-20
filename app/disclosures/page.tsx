@@ -28,7 +28,7 @@ export default async function DisclosuresPage() {
             {items.map((d) => (
               <tr key={d.id}>
                 <td className="mono small">{fmtTime(d.at)}</td>
-                <td className="small">{d.caseId ? <Link href={`/cases/${d.caseId}`}>{d.caseId}</Link> : "none"} {d.countryCode && <span className="mute">· {d.countryCode}</span>}</td>
+                <td className="small">{d.caseId ? <Link href={`/cases/${d.caseId}`}>{platform.store.cases.get(d.caseId)?.title ?? d.caseId}</Link> : "none"} {d.countryCode && <span className="mute">· {d.countryCode}</span>}</td>
                 <td className="small mute">{d.context}</td>
                 <td className="small">{d.statement}</td>
                 <td><EvidenceChip reg={d.reg} short />{d.reg.citation && <div className="mono small mute">{d.reg.citation}</div>}</td>

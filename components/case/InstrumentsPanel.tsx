@@ -4,7 +4,7 @@ import { FROZEN_STATUSES, renewalProbeAllowed } from "@/core/domain/instruments"
 import { isGranted } from "@/core/engine/stateMachine";
 import { amendInstrument, recordInstrument, setInstrumentStatus } from "@/app/actions";
 import { EvidenceChip, RegBlock } from "@/components/Evidence";
-import { fmtTime } from "@/components/ui";
+import { fmtTime, stateHeadline } from "@/components/ui";
 
 export function InstrumentsPanel({ cfg, c, instruments, canSign, isAdmin, seatPermission }: {
   cfg: CountryConfig;
@@ -22,7 +22,11 @@ export function InstrumentsPanel({ cfg, c, instruments, canSign, isAdmin, seatPe
   const recorded = instruments.filter((i) => i.versions.length > 0);
   const caseState = cfg.stateMachine.states[c.machine.state];
   const caseEnded = caseState?.kind === "terminal" && caseState.outcome !== "granted";
-  const canRecord = isGranted(cfg, c.machine) || awaiting.length > 0;
+  const stillNeed = cfg.outputs.some((o) => {
+    const have = instruments.find((i) => i.outputId === o.id);
+    return !have || have.versions.length === 0;
+  });
+  const canRecord = stillNeed && (isGranted(cfg, c.machine) || awaiting.length > 0);
   const gate = canSign ? null : isAdmin ? "Administrators watch and intervene. Recording an instrument is the applicant organisation's act." : `Requires an authorised signatory or administrator seat in a participant organisation. Your seat is ${seatPermission ?? "none"}.`;
   return (
     <section className="card">
@@ -69,16 +73,19 @@ export function InstrumentsPanel({ cfg, c, instruments, canSign, isAdmin, seatPe
                 <input name="summary" type="text" placeholder={inst.amendmentPolicy === "addendum" ? "Otrosí summary" : "Describe the modification"} required style={{ minWidth: 240 }} />
                 <button className="btn small secondary" type="submit">{inst.amendmentPolicy === "addendum" ? "Record addendum" : "Attempt modification"}</button>
               </form>
-              {(cfg.outputs.find((o) => o.id === inst.outputId)?.verificationOpenAfterIssue) && (
-                <form action={statusHere} className="row">
-                  <input type="hidden" name="instrumentId" value={inst.id} />
-                  <input type="hidden" name="note" value="Verification outcome recorded on the authority's behalf" />
-                  <button className="btn small ghost" type="submit" name="status" value="verified">CGen: verified</button>
-                  <button className="btn small ghost" type="submit" name="status" value="correction_required">CGen: correction required</button>
-                  <button className="btn small ghost" type="submit" name="status" value="cancelled">CGen: cancelled</button>
-                </form>
-              )}
             </div>
+          )}
+          {isAdmin && (cfg.outputs.find((o) => o.id === inst.outputId)?.verificationOpenAfterIssue) && inst.versions.length > 0 && (
+            <form action={statusHere} className="row" style={{ marginTop: 8 }}>
+              <input type="hidden" name="instrumentId" value={inst.id} />
+              <input type="hidden" name="note" value="Verification outcome recorded on the authority's behalf" />
+              <button className="btn small ghost" type="submit" name="status" value="verified">CGen: verified</button>
+              <button className="btn small ghost" type="submit" name="status" value="correction_required">CGen: correction required</button>
+              <button className="btn small ghost" type="submit" name="status" value="cancelled">CGen: cancelled</button>
+            </form>
+          )}
+          {!isAdmin && canSign && (cfg.outputs.find((o) => o.id === inst.outputId)?.verificationOpenAfterIssue) && (
+            <p className="small mute" style={{ marginTop: 8 }}>CGen verification is recorded by the reviewer seat, never by a party to the case.</p>
           )}
         </div>
       ))}
@@ -87,7 +94,7 @@ export function InstrumentsPanel({ cfg, c, instruments, canSign, isAdmin, seatPe
         <summary>Configured outputs for {cfg.name}: term, renewal, fee</summary>
         {cfg.outputs.map((o) => (
           <div key={o.id} className="card flat" style={{ marginTop: 8 }}>
-            <strong>{o.label}</strong> <span className="small mute">· {o.issuer} · issues in state &ldquo;{cfg.stateMachine.states[o.issuedInState]?.label.split(".")[0]}&rdquo;{o.automatic ? " automatically, recorded on the act itself" : ", recorded by a signatory when received"}</span>
+            <strong>{o.label}</strong> <span className="small mute">· {o.issuer} · issues in state &ldquo;{stateHeadline(cfg.stateMachine.states[o.issuedInState]?.label ?? o.issuedInState)}&rdquo;{o.automatic ? " automatically, recorded on the act itself" : ", recorded by a signatory when received"}</span>
             <RegBlock reg={o.term} text="Term" compact />
             <RegBlock reg={o.renewalsCapped} text="Renewals capped?" compact />
             <RegBlock reg={o.fee} text="Fee" compact />
@@ -118,7 +125,7 @@ export function InstrumentsPanel({ cfg, c, instruments, canSign, isAdmin, seatPe
           </form>
         </details>
       )}
-      {canSign && !caseEnded && !canRecord && (
+      {canSign && !caseEnded && !canRecord && stillNeed && (
         <p className="small mute" style={{ marginTop: 8 }}>Nothing to record. The platform accepts a hash only when the regulator machine is in a granted state, or when it already holds an awaiting-record placeholder. A lapsed clock is not a grant.</p>
       )}
       {gate && <p className="small mute" style={{ marginTop: 8 }}>{gate}</p>}

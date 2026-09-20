@@ -1,7 +1,7 @@
 import { forbidden, notFound, unauthorized } from "next/navigation";
 import { getPlatform } from "@/core";
 import { EvidenceChip, EvidenceLegend, RegBlock } from "@/components/Evidence";
-import { Notice, PageHead } from "@/components/ui";
+import { Notice, PageHead, stateHeadline } from "@/components/ui";
 import { getSession } from "@/lib/session";
 
 const A5_LABEL: Record<string, string> = {
@@ -75,7 +75,7 @@ export default async function ConfigPage({ params }: { params: Promise<{ code: s
       <div className="grid cols-2" style={{ marginTop: 14 }}>
         <section className="card">
           <h3>State machine (R9)</h3>
-          <div className="machine">{Object.entries(cfg.stateMachine.states).map(([id, s]) => <span key={id} className={`state ${s.kind === "terminal" ? "terminal" : ""} ${s.kind === "halted" ? "halted" : ""}`} title={`${s.kind}${s.outcome !== "none" ? ` · ${s.outcome}` : ""}`}>{s.label.split(".")[0]}</span>)}</div>
+          <div className="machine">{Object.entries(cfg.stateMachine.states).map(([id, s]) => <span key={id} className={`state ${s.kind === "terminal" ? "terminal" : ""} ${s.kind === "halted" ? "halted" : ""}`} title={`${s.kind}${s.outcome !== "none" ? ` · ${s.outcome}` : ""}`}>{stateHeadline(s.label)}</span>)}</div>
           <p className="small mute" style={{ marginTop: 8 }}>{cfg.stateMachine.transitions.length} declared transitions. {cfg.stateMachine.clocks.length} clock{cfg.stateMachine.clocks.length === 1 ? "" : "s"}, each with an on-lapse rule that never grants (R8).</p>
           {cfg.stateMachine.clocks.map((k) => <RegBlock key={k.id} reg={k.onLapse.reg} text={`${k.label}: ${k.days} ${k.dayKind} days${k.extendableDays ? `, extendable by ${k.extendableDays}` : ""}, starts in ${k.startsIn}, lapses to ${k.onLapse.to}`} compact />)}
         </section>

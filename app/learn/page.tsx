@@ -8,6 +8,12 @@ export default async function LearnPage() {
   const session = await getSession();
   const resources = platform.store.learning.list();
   const person = session.kind === "seat" ? session.actor.person : null;
+  const stageTitles = new Map<string, string>();
+  for (const c of platform.countries.values()) {
+    for (const s of c.stages) {
+      if (!stageTitles.has(s.id)) stageTitles.set(s.id, s.title);
+    }
+  }
   return (
     <div className="container">
       <PageHead
@@ -24,7 +30,7 @@ export default async function LearnPage() {
               {resources.map((r) => (
                 <tr key={r.id}>
                   <td><strong>{r.title}</strong></td>
-                  <td className="small">{r.stageIds.join(", ")}</td>
+                  <td className="small">{r.stageIds.map((id) => stageTitles.get(id) ?? id.replaceAll("_", " ")).join(", ")}</td>
                   <td className="small">{r.countryCodes.join(", ").replace("*", "all")}</td>
                   <td>{r.status === "available" && r.url ? <a href={r.url}>Open</a> : <DecisionSlot>Content pending Landscape Alliance</DecisionSlot>}</td>
                 </tr>

@@ -35,6 +35,20 @@ function grantedKenyaCase(p: Platform) {
   return p.store.cases.get(c0.id)!;
 }
 
+describe("CGen verification is not a party's self-declaration", () => {
+  it("a case party cannot record CGen's outcome; the reviewer seat can", () => {
+    const p = fresh();
+    const br = p.store.cases.list().find((c) => c.providerCountry === "BR")!;
+    const inst = p.instrumentsFor(br.id)[0];
+    expect(inst).toBeDefined();
+    const luana = p.actorFor("seat_luana_iam");
+    expect(() => p.setInstrumentStatus(luana, br.id, inst.id, "verified", "we say so")).toThrow(PermissionDenied);
+    expect(p.store.instruments.get(inst.id)!.status).not.toBe("verified");
+    p.setInstrumentStatus(ADMIN, br.id, inst.id, "verified", "CGen outcome recorded on the authority's behalf");
+    expect(p.store.instruments.get(inst.id)!.status).toBe("verified");
+  });
+});
+
 describe("R5: a manual-review judgment is never a party's self-declaration", () => {
   it("a case party with a signatory seat cannot record it; the reviewer seat can, once", () => {
     const p = fresh();

@@ -9,6 +9,7 @@ export function FactsForm({ cfg, caseId, facts, mode, canEdit }: { cfg: CountryC
   const q = cfg.scope.questions[0];
   return (
     <form action={action} className="stack">
+      <fieldset disabled={!canEdit} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
       <fieldset>
         <legend>Purpose (decides the route before any {cfg.name} rule applies)</legend>
         <div className="radio-list">
@@ -102,6 +103,7 @@ export function FactsForm({ cfg, caseId, facts, mode, canEdit }: { cfg: CountryC
           <div className="hint">Change of intent is a first-class event. It re-runs scope and applies this country&apos;s consequence: <strong>{cfg.changeOfIntent.policy.replace("_", " ")}</strong>. <EvidenceChip reg={cfg.changeOfIntent.consequence} short /> {cfg.changeOfIntent.consequence.value}</div>
         </div>
       )}
+      </fieldset>
       <div className="row">
         <button className="btn" type="submit" disabled={!canEdit}>{mode === "intake" ? "Save facts and regenerate pathway" : "Record change of intent"}</button>
         {!canEdit && <span className="small mute">Your seat cannot edit this case (member or above required).</span>}

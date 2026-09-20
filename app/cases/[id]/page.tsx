@@ -3,7 +3,7 @@ import { forbidden, notFound, unauthorized } from "next/navigation";
 import { getPlatform } from "@/core";
 import { adminIntervene, requestSupport } from "@/app/actions";
 import { EvidenceChip, EvidenceLegend, RegBlock } from "@/components/Evidence";
-import { ErrorNotice, InformationNotAdvice, Notice, OpenMarker, PageHead, fmtTime } from "@/components/ui";
+import { ErrorNotice, InformationNotAdvice, Notice, OpenMarker, PageHead, fmtTime, stateHeadline } from "@/components/ui";
 import { FactsForm } from "@/components/case/FactsForm";
 import { StageCard } from "@/components/case/StageCard";
 import { MachinePanel } from "@/components/case/MachinePanel";
@@ -71,15 +71,20 @@ export default async function CasePage({ params, searchParams }: { params: Promi
         const done = pathway.stages.filter((s) => c.stageProgress[s.stage.id] === "complete").length;
         const halted = pathway.haltedStageIds.length;
         const next = pathway.stages.find((s) => s.status !== "informational" && c.stageProgress[s.stage.id] !== "complete");
-        const stateLabel = cfg.stateMachine.states[c.machine.state]?.label.split(".")[0] ?? c.machine.state;
+        const stateLabel = stateHeadline(cfg.stateMachine.states[c.machine.state]?.label ?? c.machine.state);
         const machineKind = cfg.stateMachine.states[c.machine.state]?.kind;
+        const outOfScope = pathway.scope.kind === "out_of_scope";
         return (
           <div className="card flat" style={{ padding: "10px 14px", marginBottom: 14 }}>
             <div className="row" style={{ gap: 20, flexWrap: "wrap" }}>
               <span className="small"><strong>Regulator:</strong> {stateLabel}</span>
-              <span className="small"><strong>Pathway:</strong> {done} of {pathway.stages.length} stages complete{halted > 0 ? `, ${halted} halted` : ""}</span>
-              {next && <span className="small"><strong>Next:</strong> {next.stage.title}{next.status === "halted" ? " (halted, routed to its owner)" : ""}</span>}
-              {!next && <span className="small mute">All stages complete.</span>}
+              {outOfScope ? (
+                <span className="small"><strong>Pathway:</strong> none while out of scope</span>
+              ) : (
+                <span className="small"><strong>Pathway:</strong> {done} of {pathway.stages.length} stages complete{halted > 0 ? `, ${halted} halted` : ""}</span>
+              )}
+              {!outOfScope && next && <span className="small"><strong>Next:</strong> {(machineKind === "terminal" || machineKind === "halted") ? "GENE-LINK-side · " : ""}{next.stage.title}{next.status === "halted" ? " (halted, routed to its owner)" : ""}</span>}
+              {!outOfScope && !next && pathway.stages.length > 0 && <span className="small mute">All stages complete.</span>}
             </div>
             {(machineKind === "terminal" || machineKind === "halted") && done < pathway.stages.length && (
               <p className="small mute" style={{ marginTop: 6, marginBottom: 0 }}>Two tracks, deliberately separate. The regulator line is the authority&apos;s own legal record: it ran its course on the proceeding events. The pathway tracks GENE-LINK-side work and still carries an open question; a proceeding outcome never silently completes platform work.</p>

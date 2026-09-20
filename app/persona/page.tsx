@@ -41,10 +41,10 @@ export default async function PersonaPage({ searchParams }: { searchParams: Prom
                       <input type="hidden" name="seat" value={seat.id} />
                       <input type="hidden" name="next" value={next} />
                       <div>
-                        <div><strong>{org.name}</strong> <span className="small mute">({org.kind.replace("_", " ")}, {org.country})</span></div>
-                        <div className="small">Seat: <strong>{seat.permission.replace("_", " ")}</strong> · Functions: {org.functions.join(", ")}</div>
+                        <div><strong>{org.name}</strong> <span className="small mute">({org.kind.replaceAll("_", " ")}, {org.country})</span></div>
+                        <div className="small">Seat: <strong>{seat.permission.replaceAll("_", " ")}</strong> · Functions: {org.functions.map((f) => f.replaceAll("_", " ")).join(", ")}</div>
                       </div>
-                      <button className={`btn small ${current ? "" : "secondary"}`} type="submit" aria-current={current ? "true" : undefined}>{current ? "Acting as this seat" : "Act as this seat"}</button>
+                      <button className={`btn small ${current ? "" : "secondary"}`} type="submit" aria-current={current ? "true" : undefined}>{current ? `Acting as ${org.name}` : `Act as ${org.name}`} <span className="mute">({seat.permission.replaceAll("_", " ")})</span></button>
                     </form>
                   );
                 })}
@@ -78,7 +78,7 @@ export default async function PersonaPage({ searchParams }: { searchParams: Prom
             </div>
             <div className="radio-list">
               {["providing", "seeking", "custodian", "advising", "brokering", "learning"].map((f) => (
-                <label key={f}><input type="checkbox" name="function" value={f} defaultChecked={f === "providing" || f === "custodian"} style={{ width: "auto" }} /> {f}</label>
+                <label key={f}><input type="checkbox" name="function" value={f} defaultChecked={f === "providing" || f === "custodian"} style={{ width: "auto" }} /> {f.replaceAll("_", " ")}</label>
               ))}
             </div>
             <button className="btn small" type="submit">Register and continue as the founding seat</button>

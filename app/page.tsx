@@ -63,7 +63,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
       <div className="grid cols-2">
         <section className="card">
           <h2>Every rule carries its evidence class</h2>
-          <p className="soft">Roughly a third of the values in the six-country dataset are unresolved. The interface says so, everywhere a rule drives a decision.</p>
+          <p className="soft">Roughly a third of the values in Appendix B&apos;s six-country dataset are unresolved. This prototype configures the three countries with enough researched values to run a journey. The interface says so, everywhere a rule drives a decision.</p>
           <EvidenceLegend />
           <p className="small mute" style={{ marginTop: 10 }}>An unknown that drives a step halts that step. An unknown that does not is shown but does not halt. Neither ever resolves to a default.</p>
         </section>

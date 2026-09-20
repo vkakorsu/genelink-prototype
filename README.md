@@ -58,7 +58,7 @@ Requires Node 24 (the current LTS line; Node 26 enters LTS on 28 October 2026 an
 
 ```bash
 npm ci
-npm run test:ci        # 83 tests on the core: schema, lint, scope, pathway, state machines, instruments, audit, full journeys, dry run for every country, and a hardening suite replaying every defect found in live evaluation
+npm run test:ci        # 84 tests on the core: schema, lint, scope, pathway, state machines, instruments, audit, full journeys, dry run for every country, and a hardening suite replaying every defect found in live evaluation
 npm run dry-run -- BR  # walk Brazil end to end in the terminal. Try CO or KE too
 npm run lint:config    # validate every country file
 npm run deps:update    # updates dependencies to the newest versions published at least seven days ago (the supply-chain rule in the proposal, Part 4.4)

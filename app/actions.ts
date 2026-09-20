@@ -181,7 +181,9 @@ export const declareObjective = wrap(
     const jar = await cookies();
     jar.set(OBJECTIVE_COOKIE, JSON.stringify({ have, want, redactions, declaredAt: new Date().toISOString() }), { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production" });
     revalidatePath("/", "layout");
-    redirect(want === "learn" ? "/learn" : want === "get_abs_compliant" ? "/cases" : "/explore");
+    const session = await getSession();
+    const absNext = session.kind === "anonymous" ? "/persona?next=/cases" : "/cases";
+    redirect(want === "learn" ? "/learn" : want === "get_abs_compliant" ? absNext : "/explore");
   },
   () => "/declare",
 );
@@ -346,9 +348,8 @@ export const amendInstrument = onCase("amendInstrument", async (caseId, fd) => {
 });
 
 export const setInstrumentStatus = onCase("setInstrumentStatus", async (caseId, fd) => {
-  const s = await getSession();
-  if (s.kind === "anonymous") throw new PermissionDenied("Choose a persona first");
-  getPlatform().setInstrumentStatus(s.actor, caseId, text(fd, "instrumentId", 150), text(fd, "status", 30) as "verified" | "correction_required" | "cancelled" | "issued", text(fd, "note", 300));
+  const actor = await requireAdmin();
+  getPlatform().setInstrumentStatus(actor, caseId, text(fd, "instrumentId", 150), text(fd, "status", 30) as "verified" | "correction_required" | "cancelled" | "issued", text(fd, "note", 300));
 });
 
 export const createAgreement = onCase("createAgreement", async (caseId, fd) => {
