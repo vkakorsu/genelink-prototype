@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { loadCountries } from "../config/load";
 import { InMemoryStore } from "../store/memory";
 import { seed, ADMIN } from "../seed/seed";
-import { Platform, PermissionDenied } from "../platform";
+import { PermissionDenied } from "../platform";
 import { verifyChain } from "../audit/chain";
 import { activityQuestion, type CaseFacts } from "../config/schema";
 

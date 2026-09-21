@@ -9,6 +9,7 @@
     "test": "vitest",
     "test:ci": "vitest run",
     "dry-run": "tsx scripts/dry-run.ts",
+    "lint": "eslint",
     "lint:config": "tsx scripts/lint-config.ts",
     "typecheck": "tsc --noEmit",
     "deps:update": "node -e \"const d=new Date(Date.now()-7*864e5).toISOString().slice(0,10);require('child_process').execSync('npm update --before='+d,{stdio:'inherit'})\""
@@ -24,6 +25,8 @@
     "@types/node": "^24.13.3",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.5",
     "tsx": "^4.23.13",
     "typescript": "^6.0.3",
     "vitest": "^5.0.0"
