@@ -417,7 +417,7 @@ export const decideManualReview = onCase("decideManualReview", async (caseId, fd
 export const decideManualReviewFromConsole = wrap(
   "decideManualReviewFromConsole",
   async (fd: FormData) => {
-    const actor = await requireActor();
+    const actor = await requireAdmin();
     getPlatform().decideManualReview(actor, text(fd, "recordId", 150), text(fd, "outcome", 500), text(fd, "reason", 1000));
   },
   () => `/admin`,

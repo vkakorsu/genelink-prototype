@@ -29,7 +29,7 @@ The RFP's appendices make claims that are easy to write and hard to fake. This p
 | **Compliance output is information, never advice or approval, and what the system told each user is recorded.** | The wording everywhere, and `/disclosures` |
 | **Hash-chained audit and integrity verification.** Every consequential action is an entry whose hash covers the previous entry. Tampering is detected. Any party can verify a document against the record. | `/verify`, `/cases/<id>/audit`, `/admin/audit` |
 | **Open decisions are open.** Every held-open item in Appendix A, and every A7 question that applies to the three configured countries, is rendered as an open state with a decision slot, not resolved by drawing. | `/open-decisions`, inline `?` markers |
-| **Production posture from the first commit.** Security headers (CSP, HSTS, frame denial), a non-root container, zero known dependency vulnerabilities, zero WCAG 2.2 AA violations under axe-core across every route, and a `/health` probe that verifies the audit chain and returns 503 if it is broken. Denied views answer with real statuses (401 anonymous, 403 wrong authority) so a refusal is visible to scanners and WAF rules, not only to a human reading the page. | `next.config.ts`, `Dockerfile`, `/health` |
+| **Production posture from the first commit.** Security headers (CSP, HSTS, frame denial), a non-root container, zero known dependency vulnerabilities, zero WCAG 2.2 AA violations under axe-core across every route (`npm run a11y` replays the sweep against any running instance), and a `/health` probe that verifies the audit chain and returns 503 if it is broken. Denied views answer with real statuses (401 anonymous, 403 wrong authority) so a refusal is visible to scanners and WAF rules, not only to a human reading the page. | `next.config.ts`, `Dockerfile`, `scripts/a11y-sweep.mjs`, `/health` |
 | **Out of scope is a stated position.** Non-commercial users reach a page that records the basis. No "already proven" exit exists anywhere. | `/out-of-scope`, case `case_5_co` |
 
 ## What it deliberately does not do
@@ -61,6 +61,7 @@ npm ci
 npm run test:ci        # 90 tests on the core: schema, lint, scope, pathway, state machines, instruments, audit, full journeys, dry run for every country, and a hardening suite replaying every defect found in live evaluation
 npm run dry-run -- BR  # walk Brazil end to end in the terminal. Try CO or KE too
 npm run lint           # ESLint (Next.js core-web-vitals + TypeScript) across the codebase
+npm run a11y           # axe-core WCAG 2.2 AA sweep over every route, anonymous and under each seat kind
 npm run lint:config    # validate every country file
 npm run deps:update    # updates dependencies to the newest versions published at least seven days ago (the supply-chain rule in the proposal, Part 4.4)
 npm run dev            # http://localhost:3000
