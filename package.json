@@ -14,9 +14,9 @@
     "deps:update": "node -e \"const d=new Date(Date.now()-7*864e5).toISOString().slice(0,10);require('child_process').execSync('npm update --before='+d,{stdio:'inherit'})\""
   },
   "dependencies": {
-    "next": "16.3.4",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
+    "next": "16.3.5",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
     "yaml": "^2.9.0",
     "zod": "^4.5.4"
   },
