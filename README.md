@@ -2,7 +2,7 @@
 
 A working implementation of the GENE-LINK partnership journey, built for the Landscape Alliance (CIFOR and ICRAF) Request for Proposals of 3 September 2026 by Vincent Kofi Akorsu, independent technical consultant, Ho, Ghana.
 
-Live demo: [genelink-prototype.onrender.com](https://genelink-prototype.onrender.com) (Render Starter instance, Frankfurt, always on, fictional parties, state resets on redeploy)
+Live demo: [genelink-prototype.onrender.com](https://genelink-prototype.onrender.com) (Render Starter instance, Frankfurt, always on, fictional parties, state resets on redeploy). The demo is a single shared instance — if another evaluator's session has moved things, the administrator persona's "Reset demo data" restores the seed.
 
 This is not a mock-up. It is the seed of the MVP codebase: the stack the proposal recommends for production, structured as the production system will be structured. On contract award it becomes the MVP.
 
@@ -29,7 +29,7 @@ The RFP's appendices make claims that are easy to write and hard to fake. This p
 | **Compliance output is information, never advice or approval, and what the system told each user is recorded.** | The wording everywhere, and `/disclosures` |
 | **Hash-chained audit and integrity verification.** Every consequential action is an entry whose hash covers the previous entry. Tampering is detected. Any party can verify a document against the record. | `/verify`, `/cases/<id>/audit`, `/admin/audit` |
 | **Open decisions are open.** Every held-open item in Appendix A, and every A7 question that applies to the three configured countries, is rendered as an open state with a decision slot, not resolved by drawing. | `/open-decisions`, inline `?` markers |
-| **Production posture from the first commit.** Security headers (CSP, HSTS, frame denial), a non-root container, zero known dependency vulnerabilities, zero WCAG 2.2 AA violations under axe-core across every route (`npm run a11y` replays the sweep against any running instance), and a `/health` probe that verifies the audit chain and returns 503 if it is broken. Denied views answer with real statuses (401 anonymous, 403 wrong authority) so a refusal is visible to scanners and WAF rules, not only to a human reading the page. | `next.config.ts`, `Dockerfile`, `scripts/a11y-sweep.mjs`, `/health` |
+| **Production-grade hygiene from the first commit.** Security headers (CSP, HSTS, frame denial), a non-root container, zero known dependency vulnerabilities, zero WCAG 2.2 AA violations under axe-core across every route (`npm run a11y` replays the sweep against any running instance), and a `/health` probe that verifies the audit chain and returns 503 if it is broken. Denied views answer with real statuses (401 anonymous, 403 wrong authority) so a refusal is visible to scanners and WAF rules, not only to a human reading the page. | `next.config.ts`, `Dockerfile`, `scripts/a11y-sweep.mjs`, `/health` |
 | **Out of scope is a stated position.** Non-commercial users reach a page that records the basis. No "already proven" exit exists anywhere. | `/out-of-scope`, case `case_5_co` |
 
 ## What it deliberately does not do
