@@ -6,6 +6,7 @@
 schemaVersion: 1
 code: BR
 name: Brazil
+tag: dry run
 legalInstruments:
   - Lei 13.123/2015
   - Decreto 8.772/2016
@@ -54,6 +55,27 @@ scope:
         - id: database_extraction
           label: Comparing or extracting information from databases
           hint: Not access only while outside research and development (Art. 107 VI).
+    # Brazil's own fact. It is recorded for the file; the judgment itself is a manual-review state (R5).
+    - id: scientific_collaboration
+      fact: scientificCollaboration
+      prompt: Genuine scientific collaboration with the Brazilian institution?
+      note: >-
+        Recorded as a fact for the file. It is not the decision: neither decree defines genuine
+        scientific collaboration, so the judgment is a manual-review state that only the reviewer seat
+        can move, with a recorded reason. Answering here never selects the instrument.
+      reg:
+        state: unknown
+        marker: "?"
+        note: No statutory test. Cannot be a self-declared checkbox (R5).
+        citation: Decreto Arts. 22-B, 22-C
+        owner: Legal review, routed to the Brazil escalation owner
+      options:
+        - id: "yes"
+          label: "Yes"
+        - id: "no"
+          label: "No"
+        - id: unclear
+          label: Unclear
   rules:
     - id: non_commercial_out_of_scope
       when: { purpose: non_commercial }
@@ -103,8 +125,8 @@ scope:
       basis:
         state: established
         marker: "§"
-        value: A Brazilian natural person may register an access directly. No association with a national institution is required.
-        citation: Lei Art. 11 I
+        value: A Brazilian natural person may register an access directly, as a registrant in their own name. No association with a national institution is required.
+        citation: Lei Art. 12 I
     - id: in_scope
       result: in_scope
       basis:
@@ -273,6 +295,7 @@ stages:
   - id: continuity
     title: What attaches to the registration (phase two)
     subject: platform
+    informational: true
     trig: Receipt issued
     who: The registrant
     needs: []
@@ -357,6 +380,7 @@ outputs:
     automatic: true
     amendmentPolicy: new_registration
     verificationOpenAfterIssue: true
+    verifier: CGen
     term:
       state: established
       marker: "§"
@@ -481,6 +505,7 @@ manualReview:
   - id: genuine_scientific_collaboration
     question: Does genuine scientific collaboration exist between the foreign company and the Brazilian institution?
     decides: Which association instrument applies, ordinary Art. 12 II association or the Art. 22-B instrumental termo. Art. 22-C makes a wrong answer an eligibility defect.
+    stageId: registrant
     when: { applicantType: foreign_legal }
     reg:
       state: unknown

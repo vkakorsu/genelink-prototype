@@ -31,7 +31,7 @@ export default async function ConfigPage({ params }: { params: Promise<{ code: s
 
   return (
     <div className="container">
-      <PageHead eyebrow={`Country configuration · config/countries/${cfg.name.toLowerCase()}.yaml · schema v${cfg.schemaVersion}`} title={`${cfg.name}${cfg.code === "BR" ? " (dry run)" : ""}`} lede={`${cfg.legalInstruments.join(" · ")}`}>
+      <PageHead eyebrow={`Country configuration · config/countries/${cfg.name.toLowerCase()}.yaml · schema v${cfg.schemaVersion}`} title={`${cfg.name}${cfg.tag ? ` (${cfg.tag})` : ""}`} lede={`${cfg.legalInstruments.join(" · ")}`}>
         <div className="row">
           <EvidenceLegend />
           <span className="small mute">{all.length} regulatory values: {counts.established} established, {counts.inferred} GENE-LINK reading or construct, {counts.unknown} unresolved ({Math.round((counts.unknown / all.length) * 100)}%).</span>
@@ -55,6 +55,12 @@ export default async function ConfigPage({ params }: { params: Promise<{ code: s
           <table className="data compact">
             <thead><tr><th>Rule</th><th>When</th><th>Result</th><th>Basis</th></tr></thead>
             <tbody>{cfg.scope.rules.map((r) => <tr key={r.id}><td className="mono small">{r.id}</td><td className="mono small">{r.when ? JSON.stringify(r.when) : "otherwise"}</td><td><strong>{r.result.replace("_", " ")}</strong></td><td><RegBlock reg={r.basis} compact /></td></tr>)}</tbody>
+          </table>
+          <h4 style={{ marginTop: 12 }}>Intake questions this file declares</h4>
+          <p className="small soft">The shared intake collects purpose, provenance, applicant, exchange scenario, community holding and traditional knowledge for every country. These are {cfg.name}&apos;s own deciding facts. The form renders them from here; the interface has no country code.</p>
+          <table className="data compact">
+            <thead><tr><th>Fact</th><th>Prompt</th><th>Answers</th></tr></thead>
+            <tbody>{cfg.scope.questions.map((q) => <tr key={q.id}><td className="mono small">{q.fact}{q.fact === "activity" ? " · decides scope" : ""}</td><td className="small">{q.prompt}{q.reg && <> <EvidenceChip reg={q.reg} short /></>}</td><td className="small">{q.kind === "number" ? `a whole number${q.min !== undefined ? ` from ${q.min}` : ""}${q.max !== undefined ? ` to ${q.max}` : ""}` : q.options.map((o) => o.label).join(" · ")}</td></tr>)}</tbody>
           </table>
         </section>
       </div>
@@ -108,7 +114,7 @@ export default async function ConfigPage({ params }: { params: Promise<{ code: s
         <section className="card">
           <h3>Manual-review judgments (R5)</h3>
           {cfg.manualReview.length === 0 && <p className="small mute">None of the three named judgments falls in {cfg.name}.</p>}
-          {cfg.manualReview.map((m) => <RegBlock key={m.id} reg={m.reg} text={`${m.question} Decides: ${m.decides}`} compact />)}
+          {cfg.manualReview.map((m) => <RegBlock key={m.id} reg={m.reg} text={`${m.question} Decides: ${m.decides} Halts stage: ${cfg.stages.find((s) => s.id === m.stageId)?.title ?? m.stageId}.`} compact />)}
         </section>
         <section className="card">
           <h3>Live data layers (R6)</h3>

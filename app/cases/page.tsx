@@ -31,7 +31,7 @@ export default async function CasesPage() {
             return (
               <tr key={c.id}>
                 <td><Link href={`/cases/${c.id}`}><strong>{c.title}</strong></Link><div className="small mute">{c.participants.map((p) => `${platform.store.organisations.get(p.organisationId)?.name} (${p.role})`).join(" · ")}</div></td>
-                <td>{cfg.name}{cfg.code === "BR" && <div className="small mute">dry run</div>}</td>
+                <td>{cfg.name}{cfg.tag && <div className="small mute">{cfg.tag}</div>}</td>
                 <td><span className={`state ${state.kind === "halted" ? "halted" : ""} ${state.kind === "terminal" ? "terminal" : ""}`}>{state.label}</span></td>
                 <td>
                   {pathway.scope.kind === "out_of_scope" && <span className="status-pill informational">Out of scope</span>}

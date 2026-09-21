@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { ZodError } from "zod";
 import { getPlatform, resetPlatform } from "@/core";
-import { CaseFacts } from "@/core/config/schema";
+import { CaseFacts, TYPED_FACTS, type CountryConfig } from "@/core/config/schema";
 import type { MarketFunction } from "@/core/domain/types";
 import { InvalidRequest, NotFound, PermissionDenied } from "@/core/platform";
 import { TransitionError } from "@/core/engine/stateMachine";
@@ -274,35 +274,50 @@ export const registerOrganisation = wrap(
 );
 
 // ------------------------------------------------------------------ cases
-function parseFacts(fd: FormData): CaseFacts {
-  const localities = text(fd, "localities", 6);
+/**
+ * The shared facts are fixed field names. Everything else is read from the country file's
+ * declared questions: a typed fact lands on its key, any other fact lands in `flags`. The
+ * action therefore needs no knowledge of which country asks what.
+ */
+function parseFacts(fd: FormData, cfg: CountryConfig): CaseFacts {
   const opt = (name: string) => text(fd, name, 40) || undefined;
+  const typed: Record<string, unknown> = {};
+  const flags: Record<string, string> = {};
+  for (const q of cfg.scope.questions) {
+    const raw = opt(q.fact);
+    if (raw === undefined) continue;
+    if ((TYPED_FACTS as readonly string[]).includes(q.fact)) typed[q.fact] = q.kind === "number" ? Number(raw) : raw;
+    else flags[q.fact] = raw;
+  }
   return CaseFacts.parse({
     purpose: opt("purpose"),
-    activity: opt("activity"),
     provenance: opt("provenance"),
     applicantType: opt("applicantType"),
     exchange: opt("exchange"),
     communityHeld: opt("communityHeld"),
     tkInvolved: opt("tkInvolved"),
-    directAffectation: opt("directAffectation"),
-    speciesListed: opt("speciesListed"),
-    scientificCollaboration: opt("scientificCollaboration"),
-    localities: localities ? Number(localities) : undefined,
-    flags: {},
+    ...typed,
+    flags,
   });
+}
+
+function countryOfCase(caseId: string): CountryConfig {
+  const p = getPlatform();
+  const c = p.store.cases.get(caseId);
+  if (!c) throw new NotFound(`Case ${caseId} was not found. The demo may have been reset since this page was rendered. Reload the page.`);
+  return p.country(c.providerCountry);
 }
 
 export const updateFacts = onCase("updateFacts", async (caseId, fd) => {
   const actor = await requireSeat();
-  getPlatform().updateFacts(actor, caseId, parseFacts(fd));
+  getPlatform().updateFacts(actor, caseId, parseFacts(fd, countryOfCase(caseId)));
 });
 
 export const changeOfIntent = onCase("changeOfIntent", async (caseId, fd) => {
   const actor = await requireSeat();
   const description = text(fd, "description", 300);
   if (!description) throw new InvalidRequest("Say what changed. The description is the change-of-intent record.");
-  getPlatform().changeOfIntent(actor, caseId, parseFacts(fd), description);
+  getPlatform().changeOfIntent(actor, caseId, parseFacts(fd, countryOfCase(caseId)), description);
 });
 
 export const uploadDocument = onCase("uploadDocument", async (caseId, fd) => {

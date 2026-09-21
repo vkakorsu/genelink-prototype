@@ -78,8 +78,10 @@ export function buildPathway(cfg: CountryConfig, facts: CaseFacts): Pathway {
     const consentParties = stage.consentParties
       .filter((c) => matches(c.when, facts))
       .map((c) => ({ id: c.id, label: c.label, reg: c.reg }));
+    // A judgment attaches to the stage its declaration names (R5). The engine carries no
+    // list of judgment ids: South Africa's and Malaysia's will arrive in their own files.
     const manualReviews = cfg.manualReview
-      .filter((m) => matches(m.when, facts) && stageOwnsManualReview(stage, m.id))
+      .filter((m) => matches(m.when, facts) && m.stageId === stage.id)
       .map((m) => ({ id: m.id, question: m.question, decides: m.decides, reg: m.reg }));
 
     const stageEscalations: Escalation[] = requirements
@@ -96,11 +98,10 @@ export function buildPathway(cfg: CountryConfig, facts: CaseFacts): Pathway {
     escalations.push(...stageEscalations);
 
     const halted = stageEscalations.length > 0 || manualReviews.some((m) => m.reg.state === "unknown" && m.reg.drives);
-    const informational = stage.id === "continuity";
     stages.push({
       stage,
       index: index++,
-      status: informational ? "informational" : halted ? "halted" : "active",
+      status: stage.informational ? "informational" : halted ? "halted" : "active",
       requirements,
       documents,
       consentParties,
@@ -122,14 +123,6 @@ export function buildPathway(cfg: CountryConfig, facts: CaseFacts): Pathway {
     escalations,
     haltedStageIds: stages.filter((s) => s.status === "halted").map((s) => s.stage.id),
   };
-}
-
-/** Manual-review judgments attach to the stage whose id prefix matches, else to the registrant/eligibility stage. */
-function stageOwnsManualReview(stage: Stage, reviewId: string): boolean {
-  if (reviewId === "genuine_scientific_collaboration") return stage.id === "registrant";
-  if (reviewId === "stakeholders_cannot_be_identified") return stage.id.startsWith("stakeholder");
-  if (reviewId === "adequate_abs_measures") return stage.id === "submission" || stage.id === "application";
-  return stage.id === "eligibility";
 }
 
 /** Attached duties (Classes 1 to 9) for the continuity panel. Recorded, not run (R10). */

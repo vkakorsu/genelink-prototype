@@ -32,14 +32,16 @@ services:
         condition: service_healthy
 
   postgres:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     restart: unless-stopped
     environment:
       POSTGRES_DB: genelink
       POSTGRES_USER: genelink
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      # postgres:18 keeps data under a versioned PGDATA inside /var/lib/postgresql;
+      # the volume mounts the parent, so do not point it at the old /data path.
+      - pgdata:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U genelink -d genelink"]
       interval: 10s

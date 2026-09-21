@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join, basename } from "node:path";
 import { parse } from "yaml";
 import { CountryConfig } from "./schema";
-import { lintCountry, type LintIssue } from "./lint";
+import { lintCountry, lintRawForBooleans, type LintIssue } from "./lint";
 
 export class ConfigError extends Error {
   constructor(
@@ -13,8 +13,18 @@ export class ConfigError extends Error {
   }
 }
 
+/**
+ * Parse, validate and lint one country file. Three gates, in order:
+ *  1. R1 on the raw document, so a boolean in a regulatory field is reported as that
+ *     and not as a generic type error;
+ *  2. the strict schema, so a key the schema does not know (a typo in `drives`, a
+ *     field from an older schema version) fails the load instead of vanishing;
+ *  3. the linter, for the invariants a schema cannot express.
+ */
 export function parseCountry(source: string, file = "<inline>"): CountryConfig {
   const raw = parse(source);
+  const r1 = lintRawForBooleans(raw);
+  if (r1.length) throw new ConfigError(file, r1.map((i) => `${i.path}: ${i.message}`));
   const result = CountryConfig.safeParse(raw);
   if (!result.success) {
     throw new ConfigError(

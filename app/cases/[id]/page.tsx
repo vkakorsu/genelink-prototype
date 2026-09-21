@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { forbidden, notFound, unauthorized } from "next/navigation";
 import { getPlatform } from "@/core";
+import { activityQuestion } from "@/core/config/schema";
+import { readFact } from "@/core/engine/conditions";
 import { adminIntervene, requestSupport } from "@/app/actions";
 import { EvidenceChip, EvidenceLegend, RegBlock } from "@/components/Evidence";
 import { ErrorNotice, InformationNotAdvice, Notice, OpenMarker, PageHead, fmtTime, stateHeadline } from "@/components/ui";
@@ -59,7 +61,7 @@ export default async function CasePage({ params, searchParams }: { params: Promi
 
   return (
     <div className="container">
-      <PageHead eyebrow={`Case · provider country ${cfg.name}${cfg.code === "BR" ? " · dry run" : ""}`} title={c.title}>
+      <PageHead eyebrow={`Case · provider country ${cfg.name}${cfg.tag ? ` · ${cfg.tag}` : ""}`} title={c.title}>
         <div className="row">
           {c.participants.map((p) => <span key={p.organisationId} className="tag"><Link href={`/organisations/${p.organisationId}`}>{orgs.get(p.organisationId)?.name}</Link> · {p.role}</span>)}
           <span className="small mute">Opened {fmtTime(c.createdAt)}{c.revealedAt ? `, identities revealed symmetrically ${fmtTime(c.revealedAt)}` : ""}</span>
@@ -164,7 +166,7 @@ export default async function CasePage({ params, searchParams }: { params: Promi
             </section>
           )}
 
-          {pathway.scope.kind !== "out_of_scope" && <MachinePanel cfg={cfg} c={c} canAct={canEdit || isAdmin} isAdmin={isAdmin} />}
+          {pathway.scope.kind !== "out_of_scope" && <MachinePanel cfg={cfg} c={c} canAct={canSign || isAdmin} canPrepare={canEdit} isAdmin={isAdmin} />}
           {pathway.scope.kind !== "out_of_scope" && <InstrumentsPanel cfg={cfg} c={c} instruments={instruments} canSign={canSign} isAdmin={isAdmin} seatPermission={seat?.permission ?? null} />}
           {pathway.scope.kind !== "out_of_scope" && <AgreementsPanel c={c} agreements={agreements} orgs={orgs} mySeat={seat} canEdit={canEdit} canSign={canSign} seatPermission={seat?.permission ?? null} />}
 
@@ -198,13 +200,18 @@ export default async function CasePage({ params, searchParams }: { params: Promi
             <h3>Facts on file</h3>
             <dl className="kv">
               <dt>Purpose</dt><dd>{c.facts.purpose.replace("_", " ")}</dd>
-              <dt>Activity</dt><dd>{cfg.scope.questions[0].options.find((o) => o.id === c.facts.activity)?.label ?? c.facts.activity}</dd>
+              <dt>Activity</dt><dd>{activityQuestion(cfg).options.find((o) => o.id === c.facts.activity)?.label ?? c.facts.activity}</dd>
               <dt>Provenance</dt><dd>{c.facts.provenance.replace("_", " ")}</dd>
               <dt>Applicant</dt><dd>{c.facts.applicantType.replace("_", " ")}</dd>
               <dt>Exchange</dt><dd>{c.facts.exchange.replace("_", " ")}</dd>
               <dt>Community-held</dt><dd>{c.facts.communityHeld}</dd>
               <dt>TK involved</dt><dd>{c.facts.tkInvolved}</dd>
-              {c.facts.localities && <><dt>Localities</dt><dd>{c.facts.localities}</dd></>}
+              {cfg.scope.questions.filter((q) => q.fact !== "activity").map((q) => {
+                const v = readFact(c.facts, q.fact);
+                if (v === undefined) return null;
+                const label = q.options.find((o) => o.id === String(v))?.label ?? String(v);
+                return <span key={q.id} style={{ display: "contents" }}><dt>{q.prompt}</dt><dd>{label}</dd></span>;
+              })}
             </dl>
             <details className="fold" style={{ marginTop: 8 }}>
               <summary>Edit intake facts</summary>
@@ -212,7 +219,7 @@ export default async function CasePage({ params, searchParams }: { params: Promi
             </details>
             <details className="fold">
               <summary>Record a change of intent</summary>
-              <FactsForm cfg={cfg} caseId={c.id} facts={c.facts} mode="change" canEdit={canEdit} />
+              <FactsForm cfg={cfg} caseId={c.id} facts={c.facts} mode="change" canEdit={canSign} />
             </details>
             {c.changeOfIntent.length > 0 && (
               <div style={{ marginTop: 8 }}>

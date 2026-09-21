@@ -31,7 +31,7 @@ export default async function ListingPage({ params, searchParams }: { params: Pr
       <PageHead eyebrow={`${raw.side === "offer" ? "Offer" : "Need"} · ${raw.glId}`} title={raw.resourceClass}>
         <div className="row">
           <span className={`tag ${projection.projection === "full" ? "" : ""}`}>Projection: <strong>{projection.projection}</strong></span>
-          {projection.projection === "public" && <span className="small mute">Identity, species and locality are withheld until both sides signal interest.</span>}
+          {projection.projection === "public" && <span className="small mute">Identity, species and accession detail, and locality are withheld until both sides signal interest.</span>}
           {projection.projection === "full" && (
             <span className="small mute">
               {session.kind === "admin"
@@ -52,6 +52,7 @@ export default async function ListingPage({ params, searchParams }: { params: Pr
               <dt>Functions</dt><dd>{raw.functionCodes.join(", ")}</dd>
               <dt>Provenance</dt><dd>{raw.provenanceCountry === "any" ? "Any provenance with a lawful pathway" : platform.countries.get(raw.provenanceCountry)?.name ?? raw.provenanceCountry}</dd>
               <dt>Scale</dt><dd>{raw.indicativeScale}</dd>
+              <dt>Taxon (as published)</dt><dd>{raw.publicTaxon}. The owner chooses how much to publish; this level is what species search can find.</dd>
               <dt>Organisation</dt><dd>{owner.kind.replace("_", " ")}, {owner.verification.status}</dd>
               <dt>DSI exposure</dt><dd>{raw.dsiExposure}. An exposure analysis flags and informs. It does not assert a resolved DSI or Cali Fund obligation.</dd>
               <dt>Identifiers</dt><dd>GENE-LINK-native ID {raw.glId} minted at listing. GGBN ID {raw.ggbnId ?? "not available, never blocks"}.</dd>

@@ -5,17 +5,33 @@
  *  R1  no regulatory field may be a bare boolean or a bare scalar
  *  R3  every unknown names an owner, and every unknown that drives a stage is
  *      reachable by the halt logic
+ *  R5  every manual-review judgment names the stage it halts, and that stage exists
  *  R8  every clock has an on-lapse rule and the on-lapse target never carries a
  *      granted outcome
- *  R9  the state machine carries the unhappy paths the regime has
+ *  R9  the state machine carries the unhappy paths the regime has, and every
+ *      declared state is reachable (a state nobody can enter is a typo or a decoration)
  *
  * Used by the loader (errors abort the load) and by CI on every configuration change.
  */
-import type { CountryConfig } from "./schema";
+import { SHARED_FACTS, TYPED_FACTS, type CountryConfig } from "./schema";
 
 export type LintIssue = { severity: "error" | "warning"; path: string; message: string };
 
-const REQUIRED_UNHAPPY = ["information_requested", "refused", "withdrawn"];
+const REGULATORY_KEY = /(required|applies|allowed|capped|transferable|exists|inForce|negotiable)$/i;
+
+/**
+ * R1 on the raw document, before the schema strips or rejects anything: a boolean at a
+ * key that reads like a regulatory statement is an error wherever it sits.
+ */
+export function lintRawForBooleans(raw: unknown): LintIssue[] {
+  const issues: LintIssue[] = [];
+  walk(raw, "", (path, value) => {
+    if (typeof value === "boolean" && REGULATORY_KEY.test(path.split(".").pop() ?? path)) {
+      issues.push({ severity: "error", path, message: "regulatory field expressed as a boolean. Use a RegValue with a state (R1)" });
+    }
+  });
+  return issues;
+}
 
 export function lintCountry(cfg: CountryConfig): LintIssue[] {
   const issues: LintIssue[] = [];
@@ -23,9 +39,28 @@ export function lintCountry(cfg: CountryConfig): LintIssue[] {
   const warn = (path: string, message: string) => issues.push({ severity: "warning", path, message });
 
   // R1: walk every object; any key that looks regulatory but is a boolean is an error.
+  issues.push(...lintRawForBooleans(cfg));
+
+  // Intake questions: exactly one decides scope; the rest write to a typed fact or to flags,
+  // never to a fact the shared form already collects.
+  const activity = cfg.scope.questions.filter((q) => q.fact === "activity");
+  if (activity.length !== 1) err("scope.questions", `exactly one question must declare fact "activity" (found ${activity.length})`);
+  const seenFacts = new Set<string>();
+  for (const q of cfg.scope.questions) {
+    if ((SHARED_FACTS as readonly string[]).includes(q.fact)) err(`scope.questions.${q.id}`, `fact ${q.fact} is collected by the shared intake and cannot be redeclared`);
+    if (seenFacts.has(q.fact)) err(`scope.questions.${q.id}`, `fact ${q.fact} is declared twice`);
+    seenFacts.add(q.fact);
+    if (q.kind === "choice" && q.options.length < 2) err(`scope.questions.${q.id}`, "a choice question needs at least two options");
+    if (q.kind === "number" && q.options.length) err(`scope.questions.${q.id}`, "a number question carries no options");
+    if (q.fact === "activity" && q.kind !== "choice") err(`scope.questions.${q.id}`, "the activity question must be a choice");
+  }
+  // Every condition that names a non-shared, non-typed fact must have a question that collects it.
+  const declared = new Set<string>([...SHARED_FACTS, ...TYPED_FACTS, ...cfg.scope.questions.map((q) => q.fact)]);
   walk(cfg, "", (path, value) => {
-    if (typeof value === "boolean" && /(required|applies|allowed|capped|transferable|exists|inForce|negotiable)$/i.test(path)) {
-      err(path, "regulatory field expressed as a boolean. Use a RegValue with a state (R1)");
+    if (/(^|\.)when(Not)?$/.test(path) && value && typeof value === "object" && !Array.isArray(value)) {
+      for (const field of Object.keys(value as Record<string, unknown>)) {
+        if (!declared.has(field)) err(path, `condition reads fact "${field}" but no question collects it`);
+      }
     }
   });
 
@@ -36,6 +71,7 @@ export function lintCountry(cfg: CountryConfig): LintIssue[] {
     if (!target) err(`stateMachine.clocks.${clock.id}.onLapse.to`, `unknown state ${clock.onLapse.to}`);
     else if (target.outcome === "granted") err(`stateMachine.clocks.${clock.id}`, "a lapsed clock may never grant (R8)");
     if (!states[clock.startsIn]) err(`stateMachine.clocks.${clock.id}.startsIn`, `unknown state ${clock.startsIn}`);
+    for (const s of clock.suspendsIn) if (!states[s]) err(`stateMachine.clocks.${clock.id}.suspendsIn`, `unknown state ${s}`);
   }
 
   // Transitions reference known states, and no "lapse" event reaches a granted state.
@@ -46,22 +82,36 @@ export function lintCountry(cfg: CountryConfig): LintIssue[] {
   }
   if (!states[cfg.stateMachine.initial]) err("stateMachine.initial", "unknown initial state");
 
-  // R9: unhappy paths present
-  for (const s of REQUIRED_UNHAPPY) {
-    if (!states[s]) warn("stateMachine.states", `no ${s} state. Appendix B lists it as a real state in at least one regime`);
+  // Every declared state is reachable. An unreachable state is a typo or a decoration,
+  // and a decoration would let a file claim an unhappy path it cannot walk.
+  const reachable = new Set<string>([cfg.stateMachine.initial]);
+  for (const t of cfg.stateMachine.transitions) reachable.add(t.to);
+  for (const c of cfg.stateMachine.clocks) reachable.add(c.onLapse.to);
+  for (const id of Object.keys(states)) {
+    if (!reachable.has(id)) err(`stateMachine.states.${id}`, "no transition or clock reaches this state (R9: a declared path must be walkable)");
   }
+
+  // R9: unhappy paths present, judged by what a state is, not by what it is called.
+  const values = Object.values(states);
+  if (!values.some((s) => s.outcome === "refused")) warn("stateMachine.states", "no state with outcome refused. Appendix B lists refusal as a real state in every regime");
+  if (!values.some((s) => s.outcome === "withdrawn")) warn("stateMachine.states", "no state with outcome withdrawn. Appendix B lists withdrawal as a real state in at least one regime");
+  const informationRequested = Object.entries(states).some(([id, s]) => id !== cfg.stateMachine.initial && s.kind === "active" && s.outcome === "none");
+  if (!informationRequested) warn("stateMachine.states", "no active state after the initial one: nothing models incomplete, information requested or correction required (R9)");
 
   // Outputs issued in an existing granted state
   for (const o of cfg.outputs) {
     const st = states[o.issuedInState];
     if (!st) err(`outputs.${o.id}.issuedInState`, `unknown state ${o.issuedInState}`);
     else if (st.outcome !== "granted") err(`outputs.${o.id}.issuedInState`, "instruments issue only in a granted-outcome state");
+    if (o.verificationOpenAfterIssue && !o.verifier) err(`outputs.${o.id}.verifier`, "an instrument whose verification stays open must name the body that verifies it");
   }
   for (const stage of cfg.stages) {
     for (const p of stage.produces) {
       if (!cfg.outputs.find((o) => o.id === p)) err(`stages.${stage.id}.produces`, `unknown output ${p}`);
     }
   }
+  const stageIds = new Set(cfg.stages.map((s) => s.id));
+  if (cfg.stages.filter((s) => s.usesStateMachine).length !== 1) err("stages", "exactly one stage must be governed by the regulator state machine");
 
   // Renewal probe consistency with Class 5
   const class5 = cfg.obligationClasses.find((c) => c.number === 5);
@@ -73,9 +123,11 @@ export function lintCountry(cfg: CountryConfig): LintIssue[] {
     err("renewalProbe", "Class 5 term_exists is unknown, so renewalProbe cannot be 'schedule'");
   }
 
-  // Manual review judgments must not be self-declared facts (R5)
+  // R5: manual review judgments attach to a real stage and must not be self-declared facts
   for (const m of cfg.manualReview) {
     if (m.reg.state === "established" && m.reg.marker !== "§") err(`manualReview.${m.id}`, "inconsistent marker");
+    if (!stageIds.has(m.stageId)) err(`manualReview.${m.id}.stageId`, `unknown stage ${m.stageId}`);
+    if (m.reg.state !== "unknown") warn(`manualReview.${m.id}`, "a manual-review judgment is by definition unresolved until a human records it; expected state unknown");
   }
 
   // Escalation owner present

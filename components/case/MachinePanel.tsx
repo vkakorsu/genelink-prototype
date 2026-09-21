@@ -5,7 +5,7 @@ import { fireEvent, tickClocks } from "@/app/actions";
 import { EvidenceChip } from "@/components/Evidence";
 import { fmtTime, stateHeadline } from "@/components/ui";
 
-export function MachinePanel({ cfg, c, canAct, isAdmin }: { cfg: CountryConfig; c: Case; canAct: boolean; isAdmin: boolean }) {
+export function MachinePanel({ cfg, c, canAct, canPrepare, isAdmin }: { cfg: CountryConfig; c: Case; canAct: boolean; canPrepare: boolean; isAdmin: boolean }) {
   const sm = cfg.stateMachine;
   const current = sm.states[c.machine.state];
   const events = availableEvents(sm, c.machine.state).filter((t) => t.event !== "lapse");
@@ -61,7 +61,11 @@ export function MachinePanel({ cfg, c, canAct, isAdmin }: { cfg: CountryConfig; 
       <div style={{ marginTop: 12 }}>
         <h4>Record what happened</h4>
         {events.length === 0 && <p className="small mute">Terminal state. No further events are declared.</p>}
-        {events.length > 0 && !canAct && <p className="small mute">Your seat can view but not record regulator events.</p>}
+        {events.length > 0 && !canAct && (
+          <p className="small mute">{canPrepare
+            ? "Your seat prepares the bundle: facts, documents and work in progress. Filing before the regulator (submit, resubmit, withdraw, appeal) is a commitment the organisation stands behind and takes an authorised signatory or administrator seat."
+            : "Your seat can view but not record regulator events."}</p>
+        )}
         {events.length > 0 && canAct && (() => {
           const mine = events.filter((t) => isAdmin || t.actor === "applicant");
           const held = events.length - mine.length;

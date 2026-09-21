@@ -8,6 +8,10 @@
  * person or role it escalates to (R3). Adding a provider country means filling
  * this schema again, not extending it (R2).
  *
+ * Every object is strict: a key the schema does not know is a load error, not a
+ * silent drop. A misspelt `drives` on an unknown would otherwise disable a halt
+ * without anyone noticing, which is the R3 failure the schema exists to prevent.
+ *
  * The core has no dependency on any web framework or database.
  */
 import { z } from "zod";
@@ -32,7 +36,7 @@ const markerToState: Record<Marker, RegState> = {
 };
 
 export const RegValue = z
-  .object({
+  .strictObject({
     state: RegState,
     marker: Marker,
     /** The statement itself. Optional for an unknown: the question is in `note`. */
@@ -72,7 +76,15 @@ export const ApplicantType = z.enum(["foreign_legal", "foreign_natural", "nation
 export const Exchange = z.enum(["title_transfer", "service_shipment", "dsi_only", "no_movement"]);
 export const Tri = z.enum(["yes", "no", "unclear"]);
 
-export const CaseFacts = z.object({
+/**
+ * The facts every case carries. The first seven are the common variables Section 6 of
+ * the RFP names (purpose, activity, provenance, applicant, exchange scenario, community
+ * holding, traditional knowledge). The optional ones are collected only where a
+ * country's file declares a question for them. Anything a country needs beyond this
+ * set goes into `flags`, keyed by the question's `fact`, so a new country adds
+ * questions in its file and nothing in this type.
+ */
+export const CaseFacts = z.strictObject({
   purpose: Purpose,
   /** Country-specific activity option id (see scope.questions). */
   activity: z.string(),
@@ -85,10 +97,15 @@ export const CaseFacts = z.object({
   speciesListed: z.enum(["listed", "not_listed", "unchecked"]).optional(),
   localities: z.number().int().min(1).optional(),
   scientificCollaboration: Tri.optional(),
-  /** Free-form flags a country may declare in scope.questions (e.g. Brazil downstream acts). */
+  /** Free-form facts a country may declare in scope.questions (e.g. Brazil downstream acts). */
   flags: z.record(z.string(), z.string()).default({}),
 });
 export type CaseFacts = z.infer<typeof CaseFacts>;
+
+/** The typed fact keys a question may write to. Any other `fact` writes to `flags`. */
+export const TYPED_FACTS = ["activity", "directAffectation", "speciesListed", "localities", "scientificCollaboration"] as const;
+/** Facts the shared intake form always collects; a country file may not redeclare them. */
+export const SHARED_FACTS = ["purpose", "provenance", "applicantType", "exchange", "communityHeld", "tkInvolved"] as const;
 
 /** A condition is an AND of field matches. Each field matches if the fact equals one of the values. */
 export const Condition = z.record(z.string(), z.union([z.string(), z.array(z.string())]));
@@ -98,14 +115,31 @@ export type Condition = z.infer<typeof Condition>;
 // Scope engine (A5.2): in scope, out of scope with recorded basis, or escalate
 // ---------------------------------------------------------------------------
 
-export const ScopeQuestion = z.object({
+/**
+ * An intake question the country declares. Exactly one has `fact: activity` (the
+ * scope engine's deciding fact). The others collect the country's own deciding facts,
+ * rendered by the interface from this declaration: Colombia's direct affectation,
+ * Kenya's species status and locality count, Brazil's collaboration fact. A new
+ * country adds questions here; the interface has no country-specific code.
+ */
+export const ScopeQuestion = z.strictObject({
   id: z.string(),
   fact: z.string(),
   prompt: z.string(),
-  options: z.array(z.object({ id: z.string(), label: z.string(), hint: z.string().optional() })),
+  kind: z.enum(["choice", "number"]).default("choice"),
+  options: z.array(z.strictObject({ id: z.string(), label: z.string(), hint: z.string().optional() })).default([]),
+  /** Option pre-selected when the fact has not been answered yet. Only for a fact whose unanswered state is itself an option. */
+  default: z.string().optional(),
+  /** Shown under the prompt. Use it to say what the answer does and does not decide. */
+  note: z.string().optional(),
+  /** Evidence chip shown with the question, e.g. the R5 judgment a fact does not replace. */
+  reg: RegValue.optional(),
+  min: z.number().int().optional(),
+  max: z.number().int().optional(),
 });
+export type ScopeQuestion = z.infer<typeof ScopeQuestion>;
 
-export const ScopeRule = z.object({
+export const ScopeRule = z.strictObject({
   id: z.string(),
   when: Condition.optional(),
   whenNot: Condition.optional(),
@@ -115,9 +149,9 @@ export const ScopeRule = z.object({
   redirect: z.string().optional(),
 });
 
-export const ScopeConfig = z.object({
+export const ScopeConfig = z.strictObject({
   premise: z.string(),
-  questions: z.array(ScopeQuestion),
+  questions: z.array(ScopeQuestion).min(1),
   rules: z.array(ScopeRule).min(1),
 });
 
@@ -127,28 +161,28 @@ export const ScopeConfig = z.object({
 
 export const Subject = z.enum(["platform", "government", "community", "money", "prohibition", "applicant"]);
 
-export const Requirement = z.object({
+export const Requirement = z.strictObject({
   id: z.string(),
   text: z.string(),
   reg: RegValue,
   when: Condition.optional(),
 });
 
-export const DocumentRequirement = z.object({
+export const DocumentRequirement = z.strictObject({
   id: z.string(),
   label: z.string(),
   reg: RegValue,
   when: Condition.optional(),
 });
 
-export const ConsentParty = z.object({
+export const ConsentParty = z.strictObject({
   id: z.string(),
   label: z.string(),
   when: Condition.optional(),
   reg: RegValue,
 });
 
-export const Stage = z.object({
+export const Stage = z.strictObject({
   id: z.string(),
   title: z.string(),
   subject: Subject.default("platform"),
@@ -164,6 +198,8 @@ export const Stage = z.object({
   usesStateMachine: z.boolean().default(false),
   /** Stage that produces the listed output instruments on completion. */
   produces: z.array(z.string()).default([]),
+  /** Informational stage: duties recorded for phase two, never marked complete (R10). */
+  informational: z.boolean().default(false),
 });
 export type Stage = z.infer<typeof Stage>;
 
@@ -173,7 +209,7 @@ export type Stage = z.infer<typeof Stage>;
 
 export const StateKind = z.enum(["active", "waiting", "terminal", "halted"]);
 
-export const MachineState = z.object({
+export const MachineState = z.strictObject({
   label: z.string(),
   kind: StateKind,
   /** Only states with outcome "granted" produce instruments. */
@@ -181,7 +217,7 @@ export const MachineState = z.object({
   reg: RegValue.optional(),
 });
 
-export const Transition = z.object({
+export const Transition = z.strictObject({
   from: z.string(),
   to: z.string(),
   event: z.string(),
@@ -189,7 +225,7 @@ export const Transition = z.object({
   reg: RegValue.optional(),
 });
 
-export const Clock = z.object({
+export const Clock = z.strictObject({
   id: z.string(),
   label: z.string(),
   startsIn: z.string(),
@@ -197,14 +233,14 @@ export const Clock = z.object({
   dayKind: z.enum(["calendar", "working"]),
   extendableDays: z.number().int().optional(),
   suspendsIn: z.array(z.string()).default([]),
-  onLapse: z.object({
+  onLapse: z.strictObject({
     to: z.string(),
     effect: z.literal("remedy_against_administrator"),
     reg: RegValue,
   }),
 });
 
-export const StateMachine = z.object({
+export const StateMachine = z.strictObject({
   initial: z.string(),
   states: z.record(z.string(), MachineState),
   transitions: z.array(Transition),
@@ -224,7 +260,7 @@ export const AmendmentPolicy = z.enum([
   "amendment_path", // South Africa reg. 35: amendment as a first-class path
 ]);
 
-export const OutputInstrument = z.object({
+export const OutputInstrument = z.strictObject({
   id: z.string(),
   label: z.string(),
   kind: z.enum(["declaratory_receipt", "permit", "licence", "authorisation", "access_contract", "notification"]),
@@ -238,6 +274,8 @@ export const OutputInstrument = z.object({
   transferable: RegValue.optional(),
   /** Brazil: verification stays open after the receipt issues. */
   verificationOpenAfterIssue: z.boolean().default(false),
+  /** The body whose post-issue verification the reviewer seat records (e.g. CGen). Required when verification stays open. */
+  verifier: z.string().optional(),
   ircc: RegValue.optional(),
   notes: z.array(z.string()).default([]),
 });
@@ -247,7 +285,7 @@ export type OutputInstrument = z.infer<typeof OutputInstrument>;
 // A5 variables, A6 classes, R5 judgments, R6 live layers, A7 open questions
 // ---------------------------------------------------------------------------
 
-export const A5Variables = z.object({
+export const A5Variables = z.strictObject({
   whoMayApply: RegValue,
   trigger: RegValue,
   orderOfConsent: RegValue,
@@ -258,22 +296,24 @@ export const A5Variables = z.object({
   postPermitLifecycle: RegValue,
 });
 
-export const ObligationClass = z.object({
+export const ObligationClass = z.strictObject({
   number: z.number().int().min(1).max(9),
   name: z.string(),
   fields: z.record(z.string(), RegValue),
   note: z.string().optional(),
 });
 
-export const ManualReview = z.object({
+export const ManualReview = z.strictObject({
   id: z.string(),
   question: z.string(),
   decides: z.string(),
+  /** The stage this judgment halts. Declared here so the engine carries no list of review ids. */
+  stageId: z.string(),
   reg: RegValue,
   when: Condition.optional(),
 });
 
-export const LiveLayer = z.object({
+export const LiveLayer = z.strictObject({
   id: z.string(),
   name: z.string(),
   description: z.string(),
@@ -282,14 +322,14 @@ export const LiveLayer = z.object({
   entries: z.array(z.record(z.string(), z.string())).default([]),
 });
 
-export const OpenQuestion = z.object({
+export const OpenQuestion = z.strictObject({
   id: z.string(),
   question: z.string(),
   affects: z.string(),
   reg: RegValue,
 });
 
-export const ChangeOfIntent = z.object({
+export const ChangeOfIntent = z.strictObject({
   whatCounts: RegValue,
   consequence: RegValue,
   policy: AmendmentPolicy,
@@ -299,15 +339,17 @@ export const ChangeOfIntent = z.object({
 // The country file
 // ---------------------------------------------------------------------------
 
-export const CountryConfig = z.object({
+export const CountryConfig = z.strictObject({
   schemaVersion: z.literal(1),
   code: z.string().length(2),
   name: z.string(),
+  /** A short label the interface shows next to the name, e.g. "dry run". Presentation only. */
+  tag: z.string().optional(),
   legalInstruments: z.array(z.string()).min(1),
   operativeInstrumentStatus: RegValue,
   nagoyaParty: RegValue,
   euSide: RegValue,
-  escalation: z.object({
+  escalation: z.strictObject({
     defaultOwnerRole: z.string(),
     defaultOwnerName: z.string().nullable(),
   }),
@@ -327,6 +369,13 @@ export const CountryConfig = z.object({
   renewalProbe: z.enum(["schedule", "never", "unknown"]),
 });
 export type CountryConfig = z.infer<typeof CountryConfig>;
+
+/** The question whose answer the scope engine decides on. The linter guarantees exactly one exists. */
+export function activityQuestion(cfg: CountryConfig): ScopeQuestion {
+  const q = cfg.scope.questions.find((x) => x.fact === "activity");
+  if (!q) throw new Error(`${cfg.code}: no intake question declares fact "activity"`);
+  return q;
+}
 
 export function describeState(state: RegState): string {
   switch (state) {

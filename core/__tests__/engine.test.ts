@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { join } from "node:path";
 import { loadCountries } from "../config/load";
-import type { CaseFacts, CountryConfig } from "../config/schema";
+import { activityQuestion, type CaseFacts, type CountryConfig } from "../config/schema";
 import { evaluateScope } from "../engine/scope";
 import { buildPathway } from "../engine/pathway";
 import { applyLapse, fire, initialSnapshot, isGranted, tick, TransitionError } from "../engine/stateMachine";
@@ -24,7 +24,7 @@ const base: CaseFacts = {
 };
 const facts = (cfg: CountryConfig, over: Partial<CaseFacts> = {}): CaseFacts => ({
   ...base,
-  activity: cfg.scope.questions[0].options[0].id,
+  activity: activityQuestion(cfg).options[0].id,
   ...over,
 });
 

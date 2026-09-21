@@ -17,7 +17,7 @@
 - id: visible_before_match
   source: Appendix A, held open
   question: What is visible before a mutual match.
-  workingPosition: Public projection shows function, resource class, provenance country, indicative scale, organisation kind and verified status, and a DSI exposure flag. Identity, species and locality are withheld until both sides signal interest. The split is configuration.
+  workingPosition: Public projection shows function, resource class, provenance country, indicative scale, organisation kind and verified status, a DSI exposure flag, and a taxon descriptor at the level the listing owner chooses to publish (family or genus, or withheld). Identity, species and accession detail, and locality are withheld until both sides signal interest. Search runs over the public projection only, so a species query finds a listing only where its owner published that name; a withheld field is never a search key. The split is configuration.
   decidedBy: Landscape Alliance at the Discovery Workshop
   affects: Explore, listing pages, the reveal event
 - id: screening_corridor
@@ -63,7 +63,7 @@
   decidedBy: Legal opinion commissioned by GENE-LINK
   affects: Documentation burden shown to EU users on Colombian material
 - id: accessory_contracts
-  source: Appendix B A6, Colombia Decree 391/2021 Arts. 42-43
+  source: Appendix B A5.4 and the Colombia flow diagram, Decisión Andina 391 Arts. 41, 42 and 44
   question: Whether accessory contracts are first-class instruments with their own lifecycle, or agreements whose effect is conditioned on the access contract.
   workingPosition: Modelled as an agreement carrying a suspensive clause (it takes effect only when the access contract takes effect). The access contract remains the instrument; the nullity cascade on its termination is MVP scope, recorded rather than automated.
   decidedBy: Landscape Alliance at the Discovery Workshop

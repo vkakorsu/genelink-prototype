@@ -37,10 +37,10 @@ export default async function OpenDecisionsPage() {
       </section>
       <section className="card">
         <h2><EvidenceChip reg={{ state: "unknown", marker: "?", owner: "regulators", drives: false, executable: true }} /> Legal questions open with regulators or unresolved in the sources ({totalOpen})</h2>
-        <p className="small soft">Published in Appendix B A7 so that bidders price them rather than discover them. Each is an explicit unknown in configuration. Where it drives a step, the step halts. When an answer arrives, the value changes in the country file under legal review, with no code change.</p>
+        <p className="small soft">Published in Appendix B so that bidders price them rather than discover them: the A7 table, the country configuration file&apos;s ? entries, the flow diagrams and the A9 practitioner input, for the three configured countries. Questions that belong to Madagascar, Malaysia and South Africa are analysed in the proposal and will be configured with those countries. Each is an explicit unknown in configuration. Where it drives a step, the step halts. When an answer arrives, the value changes in the country file under legal review, with no code change.</p>
         {countries.map((c) => (
           <div key={c.code} style={{ marginTop: 14 }}>
-            <h3>{c.name} · {c.openQuestions.length} question{c.openQuestions.length === 1 ? "" : "s"}{c.code === "BR" ? " · dry run" : ""}</h3>
+            <h3>{c.name} · {c.openQuestions.length} question{c.openQuestions.length === 1 ? "" : "s"}{c.tag ? ` · ${c.tag}` : ""}</h3>
             {c.openQuestions.map((q) => (
               <div key={q.id} className="grid cols-2" style={{ alignItems: "start", marginBottom: 6 }}>
                 <RegBlock reg={q.reg} text={q.question} compact />

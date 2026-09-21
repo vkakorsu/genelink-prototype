@@ -94,7 +94,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           <p className="small soft">Read-only viewer with every value&apos;s evidence class. Changes are pull requests against the country files with legal review for any evidence-class change (R2, R4).</p>
           <ul style={{ paddingLeft: 18 }}>
             {Array.from(platform.countries.values()).map((c) => (
-              <li key={c.code}><Link href={`/admin/config/${c.code}`}><strong>{c.name}</strong></Link> <span className="small mute">· {c.stages.length} stages · {Object.keys(c.stateMachine.states).length} states · {c.outputs.length} instrument{c.outputs.length === 1 ? "" : "s"} · {c.openQuestions.length} open questions · {c.liveLayers.length} live layer{c.liveLayers.length === 1 ? "" : "s"}{c.code === "BR" ? " · dry run" : ""}</span></li>
+              <li key={c.code}><Link href={`/admin/config/${c.code}`}><strong>{c.name}</strong></Link> <span className="small mute">· {c.stages.length} stages · {Object.keys(c.stateMachine.states).length} states · {c.outputs.length} instrument{c.outputs.length === 1 ? "" : "s"} · {c.openQuestions.length} open questions · {c.liveLayers.length} live layer{c.liveLayers.length === 1 ? "" : "s"}{c.tag ? ` · ${c.tag}` : ""}</span></li>
             ))}
           </ul>
           <h4 style={{ marginTop: 14 }}>Recent administrative actions</h4>

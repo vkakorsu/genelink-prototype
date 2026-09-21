@@ -60,6 +60,21 @@ scope:
           hint: Record the methodology the conclusion rests on. A change of method can bring the activity back in.
         - id: dsi_only
           label: Sequence data only, nothing physical
+    # Colombia's own deciding fact. The interface renders it from the file; it has no Colombia code.
+    - id: direct_affectation
+      fact: directAffectation
+      prompt: Direct affectation (afectación directa) of an ethnic community?
+      note: >-
+        Decides whether prior consultation precedes the application. Per SU-123/2018 a titled resguardo
+        is strong evidence but not the trigger, and geography alone does not suffice. Unclear keeps the
+        consultation stage on the pathway; answering no removes it and is itself recorded.
+      options:
+        - id: "yes"
+          label: "Yes"
+        - id: "no"
+          label: "No"
+        - id: unclear
+          label: Unclear
   rules:
     - id: non_commercial_out_of_scope
       when: { purpose: non_commercial }
@@ -270,6 +285,7 @@ stages:
   - id: continuity
     title: What attaches to the contract (phase two)
     subject: platform
+    informational: true
     trig: Contract perfected
     who: The applicant, the national support institution, MADS
     needs: []
@@ -292,7 +308,7 @@ stateMachine:
     resubmitted: { label: Resubmitted, kind: waiting }
     admitted: { label: Admitted (complete), kind: waiting }
     published: { label: Published in two media, kind: waiting }
-    evaluated: { label: Under evaluation (30 working days, extendable by up to 60), kind: waiting }
+    evaluated: { label: "Under evaluation (30 working days, extendable by up to 60)", kind: waiting }
     accepted:
       label: Accepted. Five days to notify. Acceptance is not a contract.
       kind: active
@@ -307,7 +323,6 @@ stateMachine:
       label: Denied by reasoned resolution. Recurso de reposición contemplated.
       kind: terminal
       outcome: refused
-    refused: { label: Denied (alias for reporting), kind: terminal, outcome: refused }
     appealed: { label: Recurso de reposición filed, kind: waiting }
     terminated:
       label: Terminated

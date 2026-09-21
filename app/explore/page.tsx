@@ -20,10 +20,10 @@ export default async function ExplorePage({ searchParams }: { searchParams: Prom
       <PageHead
         eyebrow="Discovery"
         title="Opportunities and market needs"
-        lede="Search by function, species or country before signing up. A buyer usually knows the property it needs, not the species that carries it. What you see here is the public projection: identity, species and locality are withheld until both sides signal interest."
+        lede="Search by function, species or country before signing up. A buyer usually knows the property it needs, not the species that carries it. What you see here is the public projection: identity, species and accession detail, and locality are withheld until both sides signal interest."
       >
         <p className="small mute">
-          <OpenMarker /> What is visible before a match is a held-open decision (Appendix A). The split shown here is a working position and is configuration, not code.
+          <OpenMarker /> What is visible before a match is a held-open decision (Appendix A). The split shown here is a working position and is configuration, not code. Search runs over the public projection only: a taxon query finds a listing where its owner published that taxon, never through a withheld field.
         </p>
       </PageHead>
 
@@ -69,8 +69,9 @@ export default async function ExplorePage({ searchParams }: { searchParams: Prom
             <p className="small" style={{ margin: 0 }}>{l.publicSummary}</p>
             <dl className="kv" style={{ marginTop: 4 }}>
               <dt>Scale</dt><dd>{l.indicativeScale}</dd>
+              <dt>Taxon (as published)</dt><dd>{l.publicTaxon}</dd>
               <dt>Organisation</dt><dd><span className="redacted">Withheld until match</span> · {l.organisationKind.replace("_", " ")}{l.organisationVerified ? ", verified" : ", verification pending"}</dd>
-              <dt>Species, locality</dt><dd><span className="redacted">Withheld until mutual interest</span></dd>
+              <dt>Species detail, locality</dt><dd><span className="redacted">Withheld until mutual interest</span></dd>
               <dt>DSI exposure</dt><dd>{l.dsiExposure}{l.dsiExposure !== "none" && <> <span className="small mute">(flags and informs, never asserts an obligation)</span></>}</dd>
             </dl>
             <div className="row" style={{ marginTop: 6 }}>

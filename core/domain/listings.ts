@@ -19,6 +19,7 @@ export type PublicListing = {
   provenanceCountry: string;
   publicSummary: string;
   indicativeScale: string;
+  publicTaxon: string;
   organisationKind: Organisation["kind"];
   organisationVerified: boolean;
   dsiExposure: Listing["dsiExposure"];
@@ -40,6 +41,7 @@ export function publicProjection(l: Listing, org: Organisation): PublicListing {
     provenanceCountry: l.provenanceCountry,
     publicSummary: l.publicSummary,
     indicativeScale: l.indicativeScale,
+    publicTaxon: l.publicTaxon,
     organisationKind: org.kind,
     organisationVerified: org.verification.status === "verified",
     dsiExposure: l.dsiExposure,
@@ -49,6 +51,15 @@ export function publicProjection(l: Listing, org: Organisation): PublicListing {
 
 export function fullProjection(l: Listing, org: Organisation): FullListing {
   return { ...l, organisationName: org.name, projection: "full" };
+}
+
+/**
+ * The text a discovery search may match. Only what the public projection shows: search
+ * is not an oracle into withheld fields. A query for a species name finds a listing only
+ * where the owner published that name in the public taxon or the summary.
+ */
+export function searchableText(l: Listing): string {
+  return [l.publicSummary, l.resourceClass, l.publicTaxon, ...l.functionCodes, l.provenanceCountry, l.glId].join(" ").toLowerCase();
 }
 
 /** Structured identity fields are hidden by code. Free text is checked for identifying content before publication. */

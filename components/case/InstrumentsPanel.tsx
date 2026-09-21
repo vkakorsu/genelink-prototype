@@ -75,18 +75,24 @@ export function InstrumentsPanel({ cfg, c, instruments, canSign, isAdmin, seatPe
               </form>
             </div>
           )}
-          {isAdmin && (cfg.outputs.find((o) => o.id === inst.outputId)?.verificationOpenAfterIssue) && inst.versions.length > 0 && (
-            <form action={statusHere} className="row" style={{ marginTop: 8 }}>
-              <input type="hidden" name="instrumentId" value={inst.id} />
-              <input type="hidden" name="note" value="Verification outcome recorded on the authority's behalf" />
-              <button className="btn small ghost" type="submit" name="status" value="verified">CGen: verified</button>
-              <button className="btn small ghost" type="submit" name="status" value="correction_required">CGen: correction required</button>
-              <button className="btn small ghost" type="submit" name="status" value="cancelled">CGen: cancelled</button>
-            </form>
-          )}
-          {!isAdmin && canSign && (cfg.outputs.find((o) => o.id === inst.outputId)?.verificationOpenAfterIssue) && (
-            <p className="small mute" style={{ marginTop: 8 }}>CGen verification is recorded by the reviewer seat, never by a party to the case.</p>
-          )}
+          {(() => {
+            const out = cfg.outputs.find((o) => o.id === inst.outputId);
+            if (!out?.verificationOpenAfterIssue) return null;
+            const verifier = out.verifier ?? "The verifying authority";
+            if (isAdmin && inst.versions.length > 0) {
+              return (
+                <form action={statusHere} className="row" style={{ marginTop: 8 }}>
+                  <input type="hidden" name="instrumentId" value={inst.id} />
+                  <input type="hidden" name="note" value={`${verifier} outcome recorded on the authority's behalf`} />
+                  <button className="btn small ghost" type="submit" name="status" value="verified">{verifier}: verified</button>
+                  <button className="btn small ghost" type="submit" name="status" value="correction_required">{verifier}: correction required</button>
+                  <button className="btn small ghost" type="submit" name="status" value="cancelled">{verifier}: cancelled</button>
+                </form>
+              );
+            }
+            if (!isAdmin && canSign) return <p className="small mute" style={{ marginTop: 8 }}>{verifier}&apos;s verification outcome is recorded by the reviewer seat, never by a party to the case.</p>;
+            return null;
+          })()}
         </div>
       ))}
 

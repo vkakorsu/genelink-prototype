@@ -5,7 +5,7 @@ import { InMemoryStore } from "../store/memory";
 import { seed, ADMIN } from "../seed/seed";
 import { Platform, PermissionDenied } from "../platform";
 import { verifyChain } from "../audit/chain";
-import type { CaseFacts } from "../config/schema";
+import { activityQuestion, type CaseFacts } from "../config/schema";
 
 const countries = loadCountries(join(process.cwd(), "config", "countries"));
 
@@ -164,7 +164,7 @@ describe("dry run (R2): the same journey for every configured country, no countr
         return store.cases.get(caseId)!;
       })();
       void before;
-      const facts: CaseFacts = { purpose: "commercial", activity: cfg.scope.questions[0].options[0].id, provenance: "in_situ", applicantType: "foreign_legal", exchange: "no_movement", communityHeld: "no", tkInvolved: "no", flags: {} };
+      const facts: CaseFacts = { purpose: "commercial", activity: activityQuestion(cfg).options[0].id, provenance: "in_situ", applicantType: "foreign_legal", exchange: "no_movement", communityHeld: "no", tkInvolved: "no", flags: {} };
       p.updateFacts(supplier, c.id, facts);
       const pathway = p.pathwayFor(c);
       expect(pathway.scope.kind).toBe("in_scope");

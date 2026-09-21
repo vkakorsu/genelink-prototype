@@ -1,8 +1,8 @@
 import { nextEntry, verifyChain, type AuditEntry } from "./audit/chain";
 import { makeDisclosure, type Disclosure } from "./audit/disclosure";
-import type { CaseFacts, CountryConfig, RegValue } from "./config/schema";
+import { activityQuestion, type CaseFacts, type CountryConfig, type RegValue } from "./config/schema";
 import { FROZEN_STATUSES, amendInstrument, awaitingInstrument, issueInstruments, sha256 } from "./domain/instruments";
-import { fullProjection, publicProjection, type FullListing, type PublicListing } from "./domain/listings";
+import { fullProjection, publicProjection, searchableText, type FullListing, type PublicListing } from "./domain/listings";
 import type {
   Agreement, AgreementVersion, Case, CaseDocument, EscalationRecord, Instrument, Listing, ManualReviewRecord, MarketFunction, Membership, Organisation, Permission, Person,
 } from "./domain/types";
@@ -210,9 +210,10 @@ export class Platform {
 
   // ---------------------------------------------------------- discovery
   /**
-   * Search runs on the full record server-side: species can match a query, locality
-   * deliberately cannot, so search cannot be used to enumerate withheld values.
-   * Only the public projection leaves this method. Searchable is not the same as shown.
+   * Search runs over the public projection and nothing else. A withheld field is not a
+   * search key: if a species query matched a listing on its withheld species detail, the
+   * result set itself would reveal what the projection hides. The owner decides how
+   * findable a listing is by what it publishes in the public taxon and summary.
    */
   searchPublicListings(query: string, country: string, side: string): PublicListing[] {
     const q = query.trim().toLowerCase();
@@ -221,8 +222,7 @@ export class Platform {
         if (country && l.provenanceCountry !== country) return false;
         if (side && l.side !== side) return false;
         if (!q) return true;
-        const hay = [l.publicSummary, l.resourceClass, l.speciesDetail, ...l.functionCodes, l.provenanceCountry].join(" ").toLowerCase();
-        return hay.includes(q);
+        return searchableText(l).includes(q);
       })
       .map((l) => publicProjection(l, this.must(this.store.organisations.get(l.organisationId), "Organisation", l.organisationId)));
   }
@@ -332,7 +332,7 @@ export class Platform {
         { organisationId: supplier.id, role: "supply" },
       ],
       listingId: listing.id,
-      facts: { purpose: "commercial", activity: cfg.scope.questions[0].options[0].id, provenance: "in_situ", applicantType: "foreign_legal", exchange: "no_movement", communityHeld: "unclear", tkInvolved: "unclear", flags: {} },
+      facts: { purpose: "commercial", activity: activityQuestion(cfg).options[0].id, provenance: "in_situ", applicantType: "foreign_legal", exchange: "no_movement", communityHeld: "unclear", tkInvolved: "unclear", flags: {} },
       machine: initialSnapshot(cfg, at),
       revealedAt: at.toISOString(),
       createdAt: at.toISOString(),
@@ -398,11 +398,18 @@ export class Platform {
     return c;
   }
 
-  /** Change of intent is a first-class event. It re-runs scope and applies the country's Class 4 consequence. */
+  /**
+   * Change of intent is a first-class event. It re-runs scope and applies the country's Class 4
+   * consequence, which can version a live contract (Colombia) or require a new application. That
+   * is a declaration the organisation stands behind before the regulator, so it takes an
+   * authorised signatory: a member prepares facts, a signatory commits to a change in them.
+   */
   changeOfIntent(actor: Actor, caseId: string, newFacts: CaseFacts, description: string): Case {
     const c = this.caseFor(caseId);
     this.requireParticipant(actor, c);
-    this.require(actor, "member");
+    if ("seat" in actor && rank[actor.seat.permission] < rank.authorised_signatory) {
+      throw new PermissionDenied("A change of intent is a declaration the organisation stands behind: it re-runs scope and applies this country's consequence to the instrument. It needs an authorised signatory or administrator seat. Your seat can edit facts that keep the scope answer, and record work in progress.");
+    }
     const cfg = this.country(c.providerCountry);
     const at = this.now().toISOString();
     c.changeOfIntent.push({
@@ -542,6 +549,13 @@ export class Platform {
       this.audit(actor, "regulator.event_denied", { type: "case", id: caseId }, { event, reason: "authority events are recorded by an administrator on the authority's behalf" });
       throw this.denied("That event belongs to the authority. An administrator records it on the authority's behalf; your seat can record applicant events only.");
     }
+    // An applicant event (submit, resubmit, withdraw, appeal) is a filing before the regulator:
+    // a commitment the organisation stands behind, so it takes the same seat as recording an
+    // instrument. A member prepares the bundle; a signatory files it. Viewers read.
+    if ("seat" in actor && rank[actor.seat.permission] < rank.authorised_signatory) {
+      this.audit(actor, "regulator.event_denied", { type: "case", id: caseId }, { event, reason: `filing before the regulator needs an authorised signatory seat; seat is ${actor.seat.permission}` });
+      throw this.denied(`Recording "${event.replace(/_/g, " ")}" is a filing before the regulator, a commitment the organisation stands behind. It needs an authorised signatory or administrator seat; your seat is ${actor.seat.permission}. This attempt has been recorded.`);
+    }
     const wasGranted = isGranted(cfg, c.machine);
     c.machine = fire(cfg, c.machine, event, effectiveActor, this.now(), note);
     this.store.cases.put(c);
@@ -672,14 +686,14 @@ export class Platform {
     this.mustBelong(caseId, inst, "Instrument");
     const c = this.caseFor(inst.caseId);
     this.requireParticipant(actor, c);
-    // CGen's outcome is an authority act. A party recording it would be self-declaration under another name (R5).
+    const out = this.country(c.providerCountry).outputs.find((o) => o.id === inst.outputId);
+    // The verifying body's outcome is an authority act. A party recording it would be self-declaration under another name (R5).
     if (!("admin" in actor) && !("system" in actor)) {
-      throw new PermissionDenied("CGen verification is recorded by the reviewer seat, never by a party to the case.");
+      throw new PermissionDenied(`${out?.verifier ?? "The verifying authority"}'s verification outcome is recorded by the reviewer seat, never by a party to the case.`);
     }
     const allowed: Instrument["status"][] = ["verified", "correction_required", "cancelled", "issued"];
     if (!allowed.includes(status)) throw new InvalidRequest(`Status ${status} cannot be set here`);
     if (inst.status === "awaiting_record") throw new InvalidRequest(`${inst.label} has not been recorded yet. Record it before recording a verification outcome on it.`);
-    const out = this.country(c.providerCountry).outputs.find((o) => o.id === inst.outputId);
     if (!out?.verificationOpenAfterIssue) throw new InvalidRequest(`${inst.label} has no post-issue verification step in this regime.`);
     inst.status = status;
     this.store.instruments.put(inst);
@@ -783,6 +797,7 @@ export class Platform {
     if (!("seat" in actor)) throw new PermissionDenied("Only a seat can request support");
     const c = this.caseFor(caseId);
     this.requireParticipant(actor, c);
+    this.require(actor, "member"); // a request is written onto the case; a viewer seat reads it
     if (kind !== "technical" && kind !== "expert") throw new InvalidRequest(`Unknown support kind ${kind}`);
     const routedTo = kind === "expert"
       ? "Recorded on the case for the parties to take to their own adviser, or to a partner-provided adviser. Not a GENE-LINK review queue, and no adviser is attached to the case by this request."

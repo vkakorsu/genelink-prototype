@@ -64,6 +64,31 @@ scope:
           hint: Record the geographical place of origin, not the holding institution (reg. 2).
         - id: dsi_only
           label: Sequence data only, nothing physical
+    # Kenya's own deciding facts. The interface renders these from the file; it has no Kenya code.
+    - id: species_status
+      fact: speciesListed
+      prompt: Species status on an authoritative list
+      default: unchecked
+      note: >-
+        reg. 11(4)(e) turns on the species status on an authoritative list, not on the applicant's own
+        answer. The platform resolves it against the maintained species-status layer before the
+        application is accepted; this answer records what that check found.
+      options:
+        - id: unchecked
+          label: Not yet checked
+        - id: not_listed
+          label: Not endemic, rare or threatened
+        - id: listed
+          label: Listed (a commercial application must exclude it)
+    - id: localities
+      fact: localities
+      kind: number
+      prompt: Collection localities
+      min: 1
+      max: 999
+      note: >-
+        reg. 2 defines a locality by geography, in situ or ex situ, not by the holding institution.
+        Whether several localities mean several applications is an open question (A7).
   rules:
     - id: non_commercial_out_of_scope
       when: { purpose: non_commercial }
@@ -368,6 +393,7 @@ stages:
   - id: continuity
     title: What attaches to the permit (phase two)
     subject: platform
+    informational: true
     trig: Instruments issued
     who: The permit holder, NEMA, the Cabinet Secretary
     needs: []

@@ -13,7 +13,7 @@ import { lintCountry } from "../core/config/lint";
 import { buildPathway } from "../core/engine/pathway";
 import { fire, initialSnapshot, isGranted } from "../core/engine/stateMachine";
 import { instrumentFrom, renewalProbeAllowed } from "../core/domain/instruments";
-import type { CaseFacts } from "../core/config/schema";
+import { activityQuestion, type CaseFacts } from "../core/config/schema";
 
 const code = (process.argv[2] ?? "BR").toUpperCase();
 const countries = loadCountries(join(process.cwd(), "config", "countries"));
@@ -36,7 +36,7 @@ line();
 
 const facts: CaseFacts = {
   purpose: "commercial",
-  activity: cfg.scope.questions[0].options[0].id,
+  activity: activityQuestion(cfg).options[0].id,
   provenance: "in_situ",
   applicantType: "foreign_legal",
   exchange: "service_shipment",
@@ -90,7 +90,8 @@ for (const ev of path ?? []) {
   line(`  ${ev.padEnd(24)} -> ${snap.state}`);
 }
 line(`  granted: ${isGranted(cfg, snap)}`);
-line(`  unhappy states declared: ${Object.keys(sm.states).filter((s) => ["information_requested", "returned_incomplete", "resubmitted", "refused", "denied", "appealed", "withdrawn", "cancelled", "correction_required", "deadline_lapsed"].includes(s)).join(", ")}`);
+// Unhappy states by shape, not by name: anything reachable that does not grant.
+line(`  unhappy states declared: ${Object.entries(sm.states).filter(([id, s]) => id !== sm.initial && s.outcome !== "granted").map(([id]) => id).join(", ")}`);
 line();
 
 line("What the applicant holds:");

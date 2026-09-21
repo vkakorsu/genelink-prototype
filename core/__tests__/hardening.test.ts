@@ -478,15 +478,86 @@ describe("the verification gate holds between mutual interest and the pathway", 
   });
 });
 
-describe("discovery search can match what the projection withholds, without revealing it", () => {
-  it("a species query matches, the result still carries only the public shape", () => {
+describe("discovery search runs on the public projection and nothing else", () => {
+  it("a query matches a taxon the owner published; a withheld species or accession never matches", () => {
     const p = fresh();
+    // The owner published the family. A family-level query finds the listing.
     const hits = p.searchPublicListings("lamiaceae", "", "");
     expect(hits.length).toBeGreaterThan(0);
     expect(hits.every((h) => h.projection === "public")).toBe(true);
-    expect(JSON.stringify(hits)).not.toMatch(/Lamiaceae|Nyando|Kisumu|Streptomyces/);
+    expect(hits.some((h) => h.id === "lst_ke_antiinfl")).toBe(true);
+    // The result carries only the public shape: no species, accession or locality value leaks.
+    expect(JSON.stringify(hits)).not.toMatch(/LBNPI-A-|LBNPI-E-|Nyando|Kisumu|Streptomyces/);
+    // Withheld fields are not search keys. If they were, the result set itself would reveal them.
+    expect(p.searchPublicListings("streptomyces", "", "")).toHaveLength(0);
+    expect(p.searchPublicListings("LBNPI-A-003", "", "")).toHaveLength(0);
+    expect(p.searchPublicListings("araceae", "", "")).toEqual(expect.arrayContaining([expect.objectContaining({ id: "lst_co_emulsifier" })]));
+    // The dry-run owner withheld the taxon entirely: it is not findable by genus guesses.
+    expect(p.searchPublicListings("IAM-0007", "", "")).toHaveLength(0);
     // Locality is not searchable: withheld means withheld, and search is no oracle into it.
     expect(p.searchPublicListings("nyando", "", "")).toHaveLength(0);
     expect(p.searchPublicListings("kisumu", "", "")).toHaveLength(0);
+  });
+});
+
+describe("a filing before the regulator is a signatory act, not a member's", () => {
+  it("a member can prepare the bundle but cannot submit, withdraw or appeal; the denial is audited", () => {
+    const p = fresh();
+    const tobias = p.actorFor("seat_tobias_nordlicht"); // member seat on the Nordlicht/LBNPI case
+    const ines = p.actorFor("seat_ines_nordlicht"); // authorised signatory on the same case
+    const c0 = p.store.cases.list().find((c) => c.listingId === "lst_ke_antiinfl" && c.participants.some((x) => x.organisationId === "org_nordlicht"))!;
+    // Preparation is open to a member.
+    expect(() => p.updateFacts(tobias, c0.id, keFacts())).not.toThrow();
+    // Filing is not.
+    expect(() => p.fireEvent(tobias, c0.id, "submit")).toThrow(PermissionDenied);
+    expect(p.store.cases.get(c0.id)!.machine.state).toBe(p.country("KE").stateMachine.initial);
+    const denied = p.store.audit.list().filter((e) => e.action === "regulator.event_denied" && e.subject.id === c0.id);
+    expect(denied).toHaveLength(1);
+    expect(denied[0].detail).toMatchObject({ event: "submit" });
+    // A signatory files.
+    expect(() => p.fireEvent(ines, c0.id, "submit")).not.toThrow();
+    expect(p.store.cases.get(c0.id)!.machine.state).not.toBe(p.country("KE").stateMachine.initial);
+    expect(verifyChain(p.store.audit.list()).ok).toBe(true);
+  });
+
+  it("a change of intent re-runs scope and can version a live contract: member denied, signatory allowed", () => {
+    const p = fresh();
+    const co = p.store.cases.list().find((c) => c.providerCountry === "CO" && c.participants.some((x) => x.organisationId === "org_nordlicht"))!;
+    // Nordlicht's member seat tries to declare a change of intent on the Colombia case.
+    const tobias = p.actorFor("seat_tobias_nordlicht");
+    const facts: CaseFacts = { ...co.facts, exchange: "service_shipment" };
+    expect(() => p.changeOfIntent(tobias, co.id, facts, "Samples abroad for sequencing")).toThrow(PermissionDenied);
+    expect(p.store.cases.get(co.id)!.changeOfIntent).toHaveLength(co.changeOfIntent.length);
+    // Camila (IBP signatory) records it.
+    const camila = p.actorFor("seat_camila_ibp");
+    expect(() => p.changeOfIntent(camila, co.id, facts, "Samples abroad for sequencing service, returned after")).not.toThrow();
+    expect(verifyChain(p.store.audit.list()).ok).toBe(true);
+  });
+
+  it("a viewer cannot write a support request onto a case; a member can", () => {
+    const p = fresh();
+    const ke = p.store.cases.list().find((c) => c.providerCountry === "KE" && c.participants.some((x) => x.organisationId === "org_nordlicht"))!;
+    // Give Nordlicht a real viewer seat for the test.
+    p.store.persons.put({ id: "p_test_viewer", name: "Test Viewer", email: "viewer@nordlicht.example", country: "DE", onboardingPath: "A", badges: [] });
+    const seat = p.inviteSeat(ADMIN, "org_nordlicht", p.store.persons.get("p_test_viewer")!, "viewer");
+    const viewer = p.actorFor(seat.id);
+    expect(() => p.requestSupport(viewer, ke.id, "technical", "can I write?")).toThrow(PermissionDenied);
+    const tobias = p.actorFor("seat_tobias_nordlicht");
+    expect(() => p.requestSupport(tobias, ke.id, "technical", "Checking rate status wording")).not.toThrow();
+  });
+});
+
+describe("a manual-review judgment attaches to the stage its declaration names (R5)", () => {
+  it("Brazil's collaboration judgment halts the registrant stage, declared in the file, not by an engine list", () => {
+    const p = fresh();
+    const br = p.store.cases.list().find((c) => c.providerCountry === "BR")!;
+    const pathway = p.pathwayFor(br);
+    const registrant = pathway.stages.find((s) => s.stage.id === "registrant")!;
+    expect(registrant.status).toBe("halted");
+    expect(registrant.manualReviews.map((m) => m.id)).toContain("genuine_scientific_collaboration");
+    // And no other stage carries it.
+    for (const s of pathway.stages) {
+      if (s.stage.id !== "registrant") expect(s.manualReviews.map((m) => m.id)).not.toContain("genuine_scientific_collaboration");
+    }
   });
 });

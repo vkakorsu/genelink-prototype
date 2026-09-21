@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { join } from "node:path";
 import { loadCountries, parseCountry, ConfigError } from "../config/load";
 import { lintCountry } from "../config/lint";
-import { RegValue } from "../config/schema";
+import { CountryConfig, RegValue } from "../config/schema";
+import { parse } from "yaml";
 import { readFileSync } from "node:fs";
 
 const dir = join(process.cwd(), "config", "countries");
@@ -64,15 +65,25 @@ describe("R1: three-state fields, not booleans", () => {
     expect(RegValue.safeParse({ state: "established", marker: "⊘", value: "s.93A", executable: false }).success).toBe(true);
   });
 
-  it("a country file with a boolean regulatory field fails the linter", () => {
+  it("a country file with a boolean regulatory field fails to load, named as an R1 violation", () => {
+    const src = readFileSync(join(dir, "kenya.yaml"), "utf8") + "\nextraBlock:\n  renewalsCapped: false\n";
+    expect(() => parseCountry(src, "kenya-with-boolean.yaml")).toThrow(/boolean.*\(R1\)/i);
+  });
+
+  it("a key the schema does not know fails the load instead of being dropped", () => {
+    // A misspelt drives: on an unknown would silently disable a halt. Strict objects make it a load error.
+    const src = readFileSync(join(dir, "kenya.yaml"), "utf8") + "\nunfamiliarField: true\n";
+    expect(() => parseCountry(src, "kenya-unknown-key.yaml")).toThrow(ConfigError);
+  });
+
+  it("a state machine state nothing can reach fails the lint (R9)", () => {
     const src = readFileSync(join(dir, "kenya.yaml"), "utf8").replace(
-      "renewalProbe: schedule",
-      "renewalProbe: schedule\nvariablesExtra:\n  renewalsCapped: false",
+      "    appealed:",
+      "    dormant_for_no_reason: { label: Never reachable, kind: waiting }\n    appealed:",
     );
-    // Schema forbids unknown keys implicitly? Zod strips unknown keys by default, so we lint the raw object shape instead.
-    const cfg = parseCountry(src, "kenya-with-boolean.yaml");
-    const issues = lintCountry({ ...cfg, ...({ variablesExtra: { renewalsCapped: false } } as object) });
-    expect(issues.some((i) => i.severity === "error" && /boolean/.test(i.message))).toBe(true);
+    const cfg = CountryConfig.parse(parse(src));
+    const issues = lintCountry(cfg).filter((i) => i.severity === "error" && /no transition or clock reaches/.test(i.message));
+    expect(issues.length).toBe(1);
   });
 
   it("a clock whose lapse target is a granted state fails to load (R8)", () => {

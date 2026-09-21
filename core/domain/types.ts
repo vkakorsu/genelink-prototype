@@ -73,6 +73,13 @@ export type Listing = {
   /** Public projection fields */
   publicSummary: string;
   indicativeScale: string;
+  /**
+   * The taxon descriptor the listing owner chooses to publish (family or genus level, or
+   * a statement that it is withheld). Appendix A asks for search by species before sign-up;
+   * this is the field that search runs on, so the owner decides how findable the listing is.
+   * Species, accession and voucher detail stay in the full projection below.
+   */
+  publicTaxon: string;
   /** Full projection fields, revealed on mutual interest only */
   speciesDetail: string;
   localityDetail: string;

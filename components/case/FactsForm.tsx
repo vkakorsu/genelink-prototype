@@ -1,12 +1,21 @@
-import type { CaseFacts, CountryConfig } from "@/core/config/schema";
+import { activityQuestion, type CaseFacts, type CountryConfig, type ScopeQuestion } from "@/core/config/schema";
+import { readFact } from "@/core/engine/conditions";
 import { changeOfIntent, updateFacts } from "@/app/actions";
 import { EvidenceChip } from "@/components/Evidence";
 
 const TRI = [["yes", "Yes"], ["no", "No"], ["unclear", "Unclear"]] as const;
 
+/**
+ * The intake form. The first block is the shared set every country collects (the common
+ * variables Section 6 of the RFP names). Everything after it is rendered from the country
+ * file's `scope.questions`: the activity question that decides scope, then the country's own
+ * deciding facts. This component contains no country-specific code, so a new country's
+ * questions appear here by adding them to its file.
+ */
 export function FactsForm({ cfg, caseId, facts, mode, canEdit }: { cfg: CountryConfig; caseId: string; facts: CaseFacts; mode: "intake" | "change"; canEdit: boolean }) {
   const action = (mode === "intake" ? updateFacts : changeOfIntent).bind(null, caseId);
-  const q = cfg.scope.questions[0];
+  const activity = activityQuestion(cfg);
+  const own = cfg.scope.questions.filter((q) => q.fact !== "activity");
   return (
     <form action={action} className="stack">
       <fieldset disabled={!canEdit} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
@@ -18,9 +27,9 @@ export function FactsForm({ cfg, caseId, facts, mode, canEdit }: { cfg: CountryC
         </div>
       </fieldset>
       <fieldset>
-        <legend>{q.prompt}</legend>
+        <legend>{activity.prompt}</legend>
         <div className="radio-list">
-          {q.options.map((o) => (
+          {activity.options.map((o) => (
             <label key={o.id}><input type="radio" name="activity" value={o.id} defaultChecked={facts.activity === o.id} /> <span>{o.label}{o.hint && <span className="small mute"> · {o.hint}</span>}</span></label>
           ))}
         </div>
@@ -55,10 +64,6 @@ export function FactsForm({ cfg, caseId, facts, mode, canEdit }: { cfg: CountryC
           </select>
           <div className="hint">A service shipment is temporary: the material is returned or destroyed after the work.</div>
         </div>
-        <div className="field">
-          <label htmlFor="localities">Collection localities</label>
-          <input id="localities" name="localities" type="number" min={1} max={999} step={1} inputMode="numeric" defaultValue={facts.localities ?? ""} placeholder="1" />
-        </div>
       </div>
       <div className="grid cols-fit-sm">
         <fieldset>
@@ -70,32 +75,9 @@ export function FactsForm({ cfg, caseId, facts, mode, canEdit }: { cfg: CountryC
           <p className="small mute" style={{ marginTop: 0 }}>Adds a consent party. Never decides whether consent is needed.</p>
           <div className="radio-list">{TRI.map(([v, l]) => <label key={v}><input type="radio" name="tkInvolved" value={v} defaultChecked={facts.tkInvolved === v} /> {l}</label>)}</div>
         </fieldset>
-        {cfg.code === "CO" && (
-          <fieldset>
-            <legend>Direct affectation (afectación directa)?</legend>
-            <div className="radio-list">{TRI.map(([v, l]) => <label key={v}><input type="radio" name="directAffectation" value={v} defaultChecked={facts.directAffectation === v} /> {l}</label>)}</div>
-          </fieldset>
-        )}
-        {cfg.code === "KE" && (
-          <fieldset style={{ gridColumn: "1 / -1" }}>
-            <legend>Species status on an authoritative list</legend>
-            <div className="radio-list">
-              <label><input type="radio" name="speciesListed" value="unchecked" defaultChecked={(facts.speciesListed ?? "unchecked") === "unchecked"} /> Not yet checked</label>
-              <label><input type="radio" name="speciesListed" value="not_listed" defaultChecked={facts.speciesListed === "not_listed"} /> Not endemic, rare or threatened</label>
-              <label><input type="radio" name="speciesListed" value="listed" defaultChecked={facts.speciesListed === "listed"} /> Listed (commercial application must exclude it)</label>
-            </div>
-          </fieldset>
-        )}
-        {cfg.code === "BR" && (
-          <fieldset>
-            <legend>Genuine scientific collaboration with the Brazilian institution?</legend>
-            <p className="small mute" style={{ marginTop: 0 }}>Recorded as a fact for the file. It is <strong>not</strong> the decision: the judgment is a manual-review state (R5) because no statutory test exists. <EvidenceChip reg={cfg.manualReview[0].reg} short /></p>
-            <div className="radio-list">
-              {TRI.map(([v, l]) => <label key={v}><input type="radio" name="scientificCollaboration" value={v} defaultChecked={facts.scientificCollaboration === v} /> {l}</label>)}
-            </div>
-          </fieldset>
-        )}
+        {own.map((q) => <CountryQuestion key={q.id} q={q} facts={facts} />)}
       </div>
+      {own.length > 0 && <p className="small mute">The questions after traditional knowledge are {cfg.name}&apos;s own deciding facts, declared in <span className="mono">config/countries/{cfg.name.toLowerCase()}.yaml</span>. The form renders them from the file.</p>}
       {mode === "change" && (
         <div className="field">
           <label htmlFor="description">What changed</label>
@@ -106,8 +88,33 @@ export function FactsForm({ cfg, caseId, facts, mode, canEdit }: { cfg: CountryC
       </fieldset>
       <div className="row">
         <button className="btn" type="submit" disabled={!canEdit}>{mode === "intake" ? "Save facts and regenerate pathway" : "Record change of intent"}</button>
-        {!canEdit && <span className="small mute">Your seat cannot edit this case (member or above required).</span>}
+        {!canEdit && <span className="small mute">{mode === "intake" ? "Your seat cannot edit this case (member or above required)." : "A change of intent is a declaration the organisation stands behind (authorised signatory or above required)."}</span>}
       </div>
     </form>
+  );
+}
+
+/** One country-declared question, rendered from its declaration. Typed facts and flags use the same control. */
+function CountryQuestion({ q, facts }: { q: ScopeQuestion; facts: CaseFacts }) {
+  const current = readFact(facts, q.fact);
+  if (q.kind === "number") {
+    return (
+      <div className="field">
+        <label htmlFor={`q-${q.id}`}>{q.prompt}</label>
+        <input id={`q-${q.id}`} name={q.fact} type="number" min={q.min ?? 1} max={q.max ?? 999} step={1} inputMode="numeric" defaultValue={current ?? ""} placeholder={String(q.min ?? 1)} />
+        {q.note && <div className="hint">{q.note}</div>}
+      </div>
+    );
+  }
+  return (
+    <fieldset style={q.options.length > 3 ? { gridColumn: "1 / -1" } : undefined}>
+      <legend>{q.prompt}</legend>
+      {(q.note || q.reg) && <p className="small mute" style={{ marginTop: 0 }}>{q.note} {q.reg && <EvidenceChip reg={q.reg} short />}</p>}
+      <div className="radio-list">
+        {q.options.map((o) => (
+          <label key={o.id}><input type="radio" name={q.fact} value={o.id} defaultChecked={current === undefined ? o.id === q.default : String(current) === o.id} /> <span>{o.label}{o.hint && <span className="small mute"> · {o.hint}</span>}</span></label>
+        ))}
+      </div>
+    </fieldset>
   );
 }
