@@ -14,12 +14,13 @@ The RFP's appendices make claims that are easy to write and hard to fake. This p
 | --- | --- |
 | **Country rules are configuration, not code (R2).** Three YAML files, one engine. Brazil was written after the engine was finished and the engine did not change. | `config/countries/*.yaml`, `npm run dry-run -- BR` |
 | **Three-state fields, not booleans (R1).** Every regulatory value carries `established`, `inferred` or `unknown`, with its Appendix B evidence marker and citation. A boolean in a regulatory field is a type error and a lint error. | `core/config/schema.ts` (`RegValue`), `core/config/lint.ts` |
-| **Unknown halts and escalates, never defaults (R3).** A stage that depends on an unresolved value stops, shows the question, and routes it to a named owner slot. The same rule reaches the intake: a country's deciding fact starts in its explicit "not yet established" option (the linter requires one), and a stage that turns on a fact nobody has answered halts on the page instead of dropping off the pathway as if the answer were no. | Kenya case, stages "Consent and terms" and "Traditional knowledge". Colombia case, "Prior consultation". `core/engine/facts.ts`, `core/engine/conditions.ts` |
+| **Unknown halts and escalates, never defaults (R3).** A stage that depends on an unresolved value stops, shows the question, and routes it to a named owner slot. The same rule reaches the intake: a country's deciding fact starts in its explicit "not yet established" option (the linter requires one), and a stage, a requirement inside it, or a state-machine branch that turns on a fact nobody has answered halts on the page instead of dropping off the pathway as if the answer were no. A case opened from a match guesses nothing: purpose, activity, provenance and exchange start unestablished and scope reads "undetermined" until the parties answer. Escalation records follow the pathway, closed with a reason when the facts stop reaching them and reopened if they return. | Kenya case, stages "Consent and terms" and "Traditional knowledge". Colombia case, "Prior consultation". `core/engine/facts.ts`, `core/engine/conditions.ts`, `core/engine/scope.ts` |
+| **A prohibition stops; a settled rule waiting on a fact holds.** Kenya reg. 11(4)(e): a listed species stops the eligibility stage and nothing on or after it can be completed; an unchecked one holds it on the species-status check, never on the legal owner. Colombia's application holds until Art. 6 country of origin is established, and Brazil's filing until the Art. 27 area is: neither branch is offered on a guess. | Change the species status on the Kenya case. `effect: stop` and `effect: hold` in the country files |
 | **Evidence class reaches the interface (R4).** Every rule shown carries §, ▸, ?, ⊘ or [GL], visibly distinguished. | Every case page, `/admin/config/KE` |
 | **Manual-review states for judgments no system can make (R5).** Brazil's "genuine scientific collaboration" is a state only a human with a recorded reason can move. Never a checkbox. | Brazil case, stage "Who holds the registration" |
 | **Live data layers (R6).** Modelled in the schema (`liveLayers`); Kenya's species status list carries clearly-marked demonstration entries pending a maintained source. | `/admin/config/KE` |
 | **One contract, versioned by addendum (R7).** The Colombian access contract is one record with an otrosí history. Kenya's change of intent requires a new application instead. | Colombia case, "What the applicant holds" |
-| **A lapsed clock never grants (R8).** The second Kenya case sits in `deadline_lapsed` with a remedy against the administrator and no permit. The linter refuses any clock whose lapse target is a granted state. Recording an external instrument is refused unless the machine is in a granted state or an awaiting-record slot already exists. | Case `case_3_ke`, `core/config/lint.ts`, `core/platform.ts` |
+| **A lapsed clock never grants (R8), and a lawful one is not mistaken for a lapse.** The second Kenya case sits in `deadline_lapsed` with a remedy against the administrator and no permit. The linter refuses any clock whose lapse target is a granted state, and any clock that could run out in a state with no declared lapse. Recording an external instrument is refused unless the machine is in a granted state or an awaiting-record slot already exists. Clocks are counted as the law counts them: working days skip each country's gazetted public holidays (a calendar in its file), a suspension stops the count and moves the deadline on resumption (Kenya reg. 14(3)), a clock runs through every state the law runs it through (Colombia's 30 working days from registration, D391 Art. 29), and the authority's extension of up to 60 working days is recorded as its act, capped by the file. | Case `case_3_ke`, the administrator's extension control on a Colombian case in evaluation, `core/engine/stateMachine.ts`, `core/config/lint.ts` |
 | **Full state machines with unhappy paths (R9).** Returned incomplete, information requested, resubmitted, refused, appealed, withdrawn, correction required, cancelled, all declared per country and walkable. | "Regulator processing" panel on any case |
 | **A compliance module distinct from intake (R10).** The nine obligation classes are recorded on the instrument for phase two. They are not run. The renewal probe reads configuration: never for Brazil. | "What attaches to the instrument" panel |
 | **The sequence itself varies (A5.3).** The same pathway page renders Colombia's consultation-before-application and Kenya's documents-with-the-application from configuration alone. | Compare the Kenya and Colombia case pages |
@@ -58,7 +59,7 @@ Requires Node 24 (the current LTS line; Node 26 enters LTS on 28 October 2026 an
 
 ```bash
 npm ci
-npm run test:ci        # 95 tests on the core: schema, lint, scope, pathway, state machines, instruments, audit, full journeys, dry run for every country, and a hardening suite replaying every defect found in live evaluation
+npm run test:ci        # 121 tests on the core: schema, lint, scope, pathway, state machines, clocks and calendars, instruments, audit, full journeys, dry run for every country, a regime suite pinning each country file to its Appendix B diagram, and a hardening suite replaying every defect found in live evaluation
 npm run dry-run -- BR  # walk Brazil end to end in the terminal. Try CO or KE too
 npm run lint           # ESLint (Next.js core-web-vitals + TypeScript) across the codebase
 npm run a11y           # axe-core WCAG 2.2 AA sweep over every route, anonymous and under each seat kind
@@ -92,11 +93,11 @@ config/
   open-decisions.yaml         Appendix A held-open items with the prototype's working position
 core/                         framework independent. No import from Next, React or a database driver.
   config/schema.ts            Zod schema. RegValue, CountryConfig, stages, state machine, outputs, A5 variables, A6 classes
-  config/lint.ts              invariants the schema cannot express (R1, R3, R8, R9)
+  config/lint.ts              invariants the schema cannot express (R1, R3, R4, R8, R9)
   config/load.ts              YAML loader
-  engine/scope.ts             in scope, out of scope with basis, escalate. No default branch
+  engine/scope.ts             in scope, out of scope with basis, escalate; undetermined until the parties answer. No default branch
   engine/pathway.ts           stages, requirements, documents, consent parties, halts, escalations
-  engine/stateMachine.ts      country-agnostic interpreter. Lapse never grants
+  engine/stateMachine.ts      country-agnostic interpreter. Guards on facts, working-day calendars, suspension, extension. Lapse never grants
   domain/types.ts             person, organisation, membership, listing, case, instrument, agreement
   domain/instruments.ts       issue and amend by policy (addendum, new application, new registration)
   domain/listings.ts          public and full projections
@@ -134,7 +135,7 @@ renewalsCapped:
   drives: true                # an unknown that drives halts the dependent stage
 ```
 
-A country file carries: metadata and legal instruments, operative instrument status, Nagoya status and EU side, the default escalation owner, the scope premise with questions and rules, eligibility, consent order, stages in the country's own order (TRIG, WHO, NEEDS, GIVES, requirements, documents, consent parties), the regulator state machine with clocks and on-lapse rules, output instruments with amendment policy, change-of-intent consequence, the eight A5 variables, the nine A6 obligation classes, manual-review judgments, live data layers, open questions, and whether a renewal probe may ever be scheduled.
+A country file carries: metadata and legal instruments, operative instrument status, Nagoya status and EU side, the default escalation owner, the scope premise with questions and rules, eligibility, consent order, stages in the country's own order (TRIG, WHO, NEEDS, GIVES, requirements that may stop or hold the stage, documents, consent parties), the regulator state machine with fact-guarded transitions, clocks (the states they run and suspend in, any extension power, and on-lapse rules), the working-day calendar of gazetted public holidays, output instruments with amendment policy, change-of-intent consequence, the eight A5 variables, the nine A6 obligation classes, manual-review judgments, live data layers, open questions, and whether a renewal probe may ever be scheduled.
 
 Adding a country means adding a file that fills the same schema. `npm run lint:config` and `npm run test:ci` are the acceptance test. If a new country needs a schema change, that is a finding to report, not something to hide.
 

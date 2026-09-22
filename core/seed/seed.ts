@@ -120,7 +120,7 @@ export function seed(store: Store, countries: Map<string, CountryConfig>, baseDa
   step();
   platform.updateFacts(camila, coId, {
     purpose: "commercial", activity: "listed_activity", provenance: "in_situ", applicantType: "foreign_legal", exchange: "title_transfer",
-    communityHeld: "no", tkInvolved: "no", directAffectation: "unclear", flags: {},
+    communityHeld: "no", tkInvolved: "no", directAffectation: "unclear", flags: { colombiaOrigin: "yes" },
   });
   step();
   // Walk the Colombian proceeding through an unhappy path to a perfected contract, then amend it twice by addendum.
@@ -182,7 +182,7 @@ export function seed(store: Store, countries: Map<string, CountryConfig>, baseDa
   const { caseId: brId } = platform.reciprocate(luana, "lst_br_metabolite", "org_nordlicht");
   platform.updateFacts(luana, brId, {
     purpose: "commercial", activity: "research_development", provenance: "in_situ", applicantType: "foreign_legal", exchange: "service_shipment",
-    communityHeld: "no", tkInvolved: "no", scientificCollaboration: "unclear", flags: {},
+    communityHeld: "no", tkInvolved: "no", scientificCollaboration: "unclear", flags: { art27Area: "no" },
   });
   step();
   platform.fireEvent({ system: true }, brId, "complete_form", "SisGen form completed. Receipt issued automatically.");

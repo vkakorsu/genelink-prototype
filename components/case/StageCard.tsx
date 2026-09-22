@@ -20,18 +20,19 @@ export function StageCard({
   upstreamHalted: boolean;
 }) {
   const progress = c.stageProgress[stage.stage.id] ?? "not_started";
-  const cls = stage.status === "halted" ? "halted" : stage.status === "informational" ? "informational" : progress === "complete" ? "complete" : "";
+  const cls = stage.status === "halted" || stage.status === "stopped" ? "halted" : stage.status === "informational" ? "informational" : progress === "complete" ? "complete" : "";
   const judgeHere = decideManualReview.bind(null, c.id);
   const uploadHere = uploadDocument.bind(null, c.id);
   const markHere = markStage.bind(null, c.id);
   return (
     <div className={`stage ${cls}`} id={`stage-${stage.stage.id}`}>
       <div className="num" aria-hidden="true">{stage.index + 1}</div>
-      <div className={`stage-card ${stage.status === "halted" ? "halted" : ""}`}>
+      <div className={`stage-card ${stage.status === "halted" || stage.status === "stopped" ? "halted" : ""}`}>
         <div className="stage-head">
           <span className={`subject ${stage.stage.subject}`}>{SUBJECT_LABEL[stage.stage.subject]}</span>
           <h3>{stage.stage.title}</h3>
-          {stage.status === "halted" && <span className="status-pill halted">Halted · routed to a named person</span>}
+          {stage.status === "stopped" && <span className="status-pill halted">Stopped · a prohibition applies on these facts</span>}
+          {stage.status === "halted" && <span className="status-pill halted">{stage.escalations.every((e) => e.kind === "unanswered_fact") && !stage.manualReviews.length ? "Halted · waiting on a fact" : "Halted · routed to a named person"}</span>}
           {stage.status === "informational" && <span className="status-pill informational">Phase two · recorded, not run</span>}
           {stage.status === "active" && <span className={`status-pill ${progress === "complete" ? "complete" : progress === "in_progress" ? "in_progress" : "active"}`}>{progress.replace("_", " ")}</span>}
         </div>
@@ -43,13 +44,22 @@ export function StageCard({
             <dt>Gives</dt><dd>{stage.stage.gives}</dd>
           </dl>
 
+          {stage.stops.map((x) => (
+            <div className="halt-box" key={x.requirementId} role="status">
+              <strong>Stop.</strong> {x.text} <EvidenceChip reg={x.reg} short /> <span className="mono mute">{x.reg.citation}</span>
+              <div className="small" style={{ marginTop: 6 }}>
+                {x.reg.value} This is established law on the facts entered, not an open question, so nothing is routed for an answer. If the facts are wrong, correct them on the intake form; if the project changes, record a change of intent.
+              </div>
+            </div>
+          ))}
+
           {stage.escalations.map((e) => {
             if (e.kind === "unanswered_fact") {
               return (
                 <div className="halt-box" key={e.id} role="status">
                   <strong>Halted on an unanswered fact.</strong> {e.question}
                   <div className="small" style={{ marginTop: 6 }}>
-                    This is the parties&apos; question, not a legal unknown: answer it on the facts form above and the stage resumes. The engine does not choose an answer for you.
+                    This is the parties&apos; question, not a legal unknown{e.owner && !/intake form/.test(e.owner) ? ` (established by: ${e.owner})` : ""}: answer it on the intake form and the stage resumes. The engine does not choose an answer for you.
                   </div>
                 </div>
               );
@@ -167,6 +177,7 @@ export function StageCard({
             <p className="small mute" style={{ marginTop: 6 }}>An earlier stage is halted. This one can be prepared, but it cannot be marked complete until the open question is answered through configuration review.</p>
           )}
           {stage.status === "halted" && <p className="small mute" style={{ marginTop: 10 }}>This stage cannot be marked complete while it is halted. The engine refuses.</p>}
+          {stage.status === "stopped" && <p className="small mute" style={{ marginTop: 10 }}>This stage cannot be marked complete while the prohibition applies, and no later stage can either. The engine refuses.</p>}
         </div>
       </div>
     </div>

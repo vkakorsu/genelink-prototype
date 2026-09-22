@@ -83,14 +83,19 @@ export const Tri = z.enum(["yes", "no", "unclear"]);
  * country's file declares a question for them. Anything a country needs beyond this
  * set goes into `flags`, keyed by the question's `fact`, so a new country adds
  * questions in its file and nothing in this type.
+ *
+ * Purpose, activity, provenance and exchange may be absent: absent means "not yet
+ * established", never a default. A case opened from a match starts that way, the scope
+ * engine answers "undetermined" and every stage that turns on a missing fact halts and
+ * names the question (R3). The platform does not guess what the parties will do.
  */
 export const CaseFacts = z.strictObject({
-  purpose: Purpose,
+  purpose: Purpose.optional(),
   /** Country-specific activity option id (see scope.questions). */
-  activity: z.string(),
-  provenance: Provenance,
+  activity: z.string().optional(),
+  provenance: Provenance.optional(),
   applicantType: ApplicantType,
-  exchange: Exchange,
+  exchange: Exchange.optional(),
   communityHeld: Tri,
   tkInvolved: Tri,
   directAffectation: Tri.optional(),
@@ -161,11 +166,23 @@ export const ScopeConfig = z.strictObject({
 
 export const Subject = z.enum(["platform", "government", "community", "money", "prohibition", "applicant"]);
 
+/**
+ * What a matching requirement does to its stage, beyond informing.
+ *  stop  an established prohibition applies on these facts (a red box in the Appendix B
+ *        diagrams, e.g. Kenya reg. 11(4)(e)). The stage is stopped: nothing on it or after
+ *        it can be completed, and no rule is bent to find a way round.
+ *  hold  the rule is settled but a fact it needs has not been established from the source
+ *        the rule names (e.g. species status on an authoritative list). The stage halts on
+ *        the parties' question, not on a legal unknown.
+ */
+export const RequirementEffect = z.enum(["stop", "hold"]);
+
 export const Requirement = z.strictObject({
   id: z.string(),
   text: z.string(),
   reg: RegValue,
   when: Condition.optional(),
+  effect: RequirementEffect.optional(),
 });
 
 export const DocumentRequirement = z.strictObject({
@@ -223,15 +240,34 @@ export const Transition = z.strictObject({
   event: z.string(),
   actor: z.enum(["applicant", "authority", "system", "community"]),
   reg: RegValue.optional(),
+  /**
+   * Guard over case facts. A transition whose guard reads a fact nobody has answered is not
+   * available: the engine will not pick a branch of the law for the parties (Brazil Art. 27).
+   */
+  when: Condition.optional(),
 });
 
 export const Clock = z.strictObject({
   id: z.string(),
   label: z.string(),
+  /** The state whose entry starts the clock. */
   startsIn: z.string(),
+  /**
+   * States in which the clock counts down and can lapse. Defaults to [startsIn]. A clock that runs
+   * from receipt through publication (Kenya reg. 14(1)) or from registration through evaluation
+   * (Colombia D391 Art. 29) lists every state it runs through.
+   */
+  runsIn: z.array(z.string()).optional(),
   days: z.number().int().positive(),
   dayKind: z.enum(["calendar", "working"]),
-  extendableDays: z.number().int().optional(),
+  /** Total days the authority may add, counted in the clock's own dayKind (Colombia Art. 29: up to 60 working days). */
+  extendableDays: z.number().int().positive().optional(),
+  /** The rule behind the extension. Required when extendableDays is set. */
+  extension: RegValue.optional(),
+  /**
+   * States in which the clock is suspended: time spent there does not count, and the deadline
+   * moves forward by that time when the clock resumes (Kenya reg. 14(3), Brazil Decreto Art. 28).
+   */
   suspendsIn: z.array(z.string()).default([]),
   onLapse: z.strictObject({
     to: z.string(),
@@ -239,6 +275,25 @@ export const Clock = z.strictObject({
     reg: RegValue,
   }),
 });
+
+/**
+ * The days a working-day clock skips. Data, because public holidays are gazetted per country
+ * and some move every year (Kenya's Idd-ul-Fitr, Colombia's Ley Emiliani Mondays).
+ */
+export const WorkingCalendar = z.strictObject({
+  /** ISO weekday numbers that are never working days (1 = Monday ... 7 = Sunday). */
+  weekend: z.array(z.number().int().min(1).max(7)).default([6, 7]),
+  holidays: z.array(z.strictObject({
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    name: z.string(),
+    /** A date that moves with a moon sighting or a later gazette notice. Counted, and shown as provisional. */
+    provisional: z.boolean().default(false),
+  })).default([]),
+  /** Last date the holiday list is maintained through. A deadline beyond it counts weekends only and says so. */
+  coversThrough: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  reg: RegValue,
+});
+export type WorkingCalendar = z.infer<typeof WorkingCalendar>;
 
 export const StateMachine = z.strictObject({
   initial: z.string(),
@@ -358,6 +413,8 @@ export const CountryConfig = z.strictObject({
   consentOrder: RegValue,
   stages: z.array(Stage).min(3),
   stateMachine: StateMachine,
+  /** Required where any clock counts working days (linted). */
+  calendar: WorkingCalendar.optional(),
   outputs: z.array(OutputInstrument).min(1),
   changeOfIntent: ChangeOfIntent,
   variables: A5Variables,

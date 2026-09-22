@@ -52,9 +52,12 @@ scope:
         - id: database_reading
           label: Only reading or consulting sequence databases
           hint: Not access, unconditionally (Decreto Art. 107, parágrafo único).
-        - id: database_extraction
-          label: Comparing or extracting information from databases
-          hint: Not access only while outside research and development (Art. 107 VI).
+        - id: database_extraction_outside_rd
+          label: Comparing or extracting information from databases, outside research or technological development
+          hint: Not access (Art. 107 VI). The exclusion holds only while the work stays outside R&D.
+        - id: database_extraction_in_rd
+          label: Comparing or extracting information from databases, as part of research or technological development
+          hint: This is access (Lei Art. 2 I). Proceed to registration.
     # Brazil's own fact. It is recorded for the file; the judgment itself is a manual-review state (R5).
     - id: scientific_collaboration
       fact: scientificCollaboration
@@ -77,6 +80,20 @@ scope:
           label: "No"
         - id: unclear
           label: Unclear
+    - id: art27_area
+      fact: art27Area
+      prompt: Is the material from an Art. 27 area (border strip, oceanic islands, Brazilian jurisdictional waters, the continental shelf or the EEZ), with a foreign natural or legal person involved?
+      default: unclear
+      note: >-
+        Decides whether the cadastro moves to awaiting Art. 27 assent or issues its receipt at once. The deciding
+        fact is the collection site plus whether a foreign person takes part, not the location of the lab.
+      options:
+        - id: "yes"
+          label: Yes, an Art. 27 area and a foreign nexus
+        - id: "no"
+          label: No, anywhere else, or no foreign nexus
+        - id: unclear
+          label: Not yet established
   rules:
     - id: non_commercial_out_of_scope
       when: { purpose: non_commercial }
@@ -96,21 +113,28 @@ scope:
         value: Não configura acesso a leitura ou a consulta de informações de origem genética disponíveis em bancos de dados nacionais e internacionais, ainda que sejam parte integrante de pesquisa e desenvolvimento tecnológico. No cadastro, no obligation, no state.
         citation: Decreto Art. 107, parágrafo único
       redirect: Not access. Nothing is filed.
-    - id: database_extraction_in_rd
-      when: { activity: database_extraction }
-      result: escalate
+    - id: database_extraction_outside_rd
+      when: { activity: database_extraction_outside_rd }
+      result: out_of_scope
       basis:
-        state: unknown
-        marker: "?"
-        note: >-
-          Comparison and extraction are excluded only while outside R&D (Art. 107 VI). Extraction inside R&D
-          falls back under Lei Art. 2 I. The consolidated Art. 107 text could not be retrieved from Planalto
-          or the DOU on 13 Aug 2026. Wording is verbatim from three federal university compliance offices
-          (USP, UFSM, FURG), which agree. Whether Art. 107 also carries §1 and §2 is unresolved. Confirm
-          against the consolidated text before release.
+        state: established
+        marker: "§"
+        value: Não configura acesso a comparação e extração de informações de origem genética disponíveis em bancos de dados nacionais e internacionais, excluded only while outside research and technological development. No cadastro, no obligation, no state, for as long as the work stays outside R&D.
         citation: Decreto Art. 107 VI
-        owner: Consolidated text confirmation, routed to the Brazil escalation owner
-        drives: true
+        note: >-
+          Provenance caveat carried from Appendix B: the consolidated Art. 107 text could not be retrieved from
+          Planalto or the DOU on 13 Aug 2026. The wording is verbatim from three federal university compliance
+          offices (USP, UFSM, FURG), which agree. Whether Art. 107 also carries §1 and §2 is an open question
+          on this file. A change of method that brings the work inside R&D is a change of intent.
+      redirect: Not access while outside R&D. Nothing is filed. Recorded basis kept on the case.
+    - id: database_extraction_in_rd
+      when: { activity: database_extraction_in_rd }
+      result: in_scope
+      basis:
+        state: established
+        marker: "§"
+        value: This is access. Comparison or extraction inside research and technological development falls back under Lei Art. 2 I, which defines the protected thing as informação de origem genética. Proceed to registration.
+        citation: Lei Art. 2 I; Decreto Art. 107 VI
     - id: foreign_natural_person_barred
       when: { applicantType: foreign_natural }
       result: out_of_scope
@@ -148,7 +172,7 @@ eligibility:
     reg: { state: "established", marker: "§", value: "A Brazilian co-registrant record is required.", citation: "Lei Art. 12 II" }
   - id: art27_areas
     text: Where the material is in the border strip, oceanic islands, jurisdictional waters, the continental shelf or the EEZ and a foreign nexus exists, prior assent from the Conselho de Defesa Nacional or the Comando da Marinha is required and the cadastro moves to awaiting assent.
-    when: { applicantType: [foreign_legal, foreign_natural] }
+    when: { art27Area: "yes" }
     reg: { state: "established", marker: "§", value: "Filling in the SisGen form is the request. SisGen notifies within 5 days, the authority has 60 days, suspended while information is outstanding. Assent is revocable and a change of ownership must be reported within 30 days.", citation: "Decreto Arts. 27, 28, 29", note: "Decreto Art. 28 gives sixty days (sessenta dias) and the appendix's flow text agrees." }
 
 consentOrder:
@@ -216,9 +240,6 @@ stages:
       - id: standing_attribution
         text: Every publication, use, exploitation and disclosure must cite the origin of the traditional knowledge. This never expires and is not discharged by the cadastro.
         reg: { state: "established", marker: "§", value: "Failure is an offence under Decreto Art. 84.", citation: "Lei Art. 10 II; Decreto Art. 84" }
-      - id: traditional_varieties_own_rule
-        text: Traditional and local varieties and creole breeds carry their own rule even where no associated traditional knowledge is claimed. Answering no to the traditional knowledge question does not clear this branch.
-        reg: { state: "established", marker: "§", value: "A separate rule for traditional and local varieties and creole breeds, independent of the associated-knowledge test.", citation: "Lei Art. 9 §3" }
   - id: downstream_triggers
     title: The five triggers (the cadastro must precede each)
     subject: government
@@ -227,6 +248,9 @@ stages:
     needs: [Which downstream act is about to occur]
     gives: The point at which the cadastro must exist
     requirements:
+      - id: traditional_varieties_own_rule
+        text: Traditional and local varieties and creole breeds carry their own rule even where no associated traditional knowledge is claimed. Answering no to the traditional knowledge question does not clear this branch.
+        reg: { state: "established", marker: "§", value: "A separate rule for traditional and local varieties and creole breeds, independent of the associated-knowledge test.", citation: "Lei Art. 9 §3" }
       - id: five_triggers
         text: Research may begin with no registration. Brazil gates the outputs, not the access. The cadastro must precede each of the five acts.
         reg: { state: "established", marker: "§", value: "Lei Art. 12 §2.", citation: "Lei Art. 12 §2" }
@@ -243,6 +267,17 @@ stages:
     gives: A receipt issued automatically. Declaratory registration, not a permit. Verification stays open.
     produces: [sisgen_receipt]
     requirements:
+      - id: art27_area_outstanding
+        text: Whether the material comes from an Art. 27 area with a foreign nexus has not been established. It decides whether the form issues a receipt at once or moves the cadastro to awaiting assent, so the filing waits on it.
+        when: { art27Area: unclear }
+        effect: hold
+        reg:
+          state: established
+          marker: "§"
+          value: Art. 27 assent is a state of the cadastro, not an alternative to it. Filling in the SisGen form is the request.
+          citation: Decreto Art. 27 §§2, 5, 7
+          note: Establish the collection site and whether a foreign natural or legal person takes part, and answer it on the intake form.
+          owner: The case participants, from the collection record
       - id: receipt_automatic
         text: The receipt issues automatically on completing the form. No waiting.
         reg: { state: "established", marker: "§", value: "Decreto Art. 23 §2.", citation: "Decreto Art. 23 §2" }
@@ -342,8 +377,14 @@ stateMachine:
       to: receipt_issued
       event: complete_form
       actor: system
+      when: { art27Area: "no" }
       reg: { state: "established", marker: "§", value: "Automatic on form completion.", citation: "Decreto Art. 23 §2" }
-    - { from: preparing, to: awaiting_assent, event: complete_form_art27, actor: system }
+    - from: preparing
+      to: awaiting_assent
+      event: complete_form
+      actor: system
+      when: { art27Area: "yes" }
+      reg: { state: "established", marker: "§", value: "In an Art. 27 area with a foreign nexus the completed form is the request for assent, and the cadastro cannot conclude until assent is given.", citation: "Decreto Art. 27 §§2, 5, 7" }
     - { from: awaiting_assent, to: information_requested, event: request_information, actor: authority }
     - { from: information_requested, to: resubmitted, event: resubmit, actor: applicant }
     - { from: resubmitted, to: awaiting_assent, event: acknowledge, actor: authority }
@@ -366,7 +407,8 @@ stateMachine:
       startsIn: awaiting_assent
       days: 60
       dayKind: calendar
-      suspendsIn: [information_requested]
+      # Suspended from the request until the authority has the information again.
+      suspendsIn: [information_requested, resubmitted]
       onLapse:
         to: deadline_lapsed
         effect: remedy_against_administrator
@@ -493,7 +535,7 @@ obligationClasses:
       what_must_be_surrendered: { state: "unknown", marker: "?", note: "Not researched.", owner: "Brazil escalation owner" }
       appeal_available: { state: "unknown", marker: "?", note: "Not established.", owner: "Brazil escalation owner" }
       lapse_by_time: { state: "established", marker: "§", value: "None" }
-      penalties: { state: "established", marker: "§", value: "Banded by actor. Natural persons R$30,000, qualifying small entities R$200,000, other legal entities R$10,000,000. Shipment fines per species, tripled for CITES Appendix I, doubled for Appendix II.", citation: "Decreto Arts. 78 to 85" }
+      penalties: { state: "established", marker: "§", value: "Banded by actor, not a single ceiling. Decreto Art. 78: natural persons R$30,000, qualifying small entities R$200,000, other legal entities R$10,000,000. The R$10m ceiling reaches Arts. 78, 79, 80, 83 and 85; Arts. 81, 82 and 84 cap at R$500,000. Shipment fines apply per species, tripled for nationally endangered or CITES Appendix I species, doubled for Appendix II, quadrupled where the shipment serves weapons development.", citation: "Decreto Arts. 78 to 85" }
   - number: 9
     name: Standing attribution
     fields:
@@ -521,7 +563,7 @@ liveLayers: []
 openQuestions:
   - id: art107_structure
     question: The structure of the database-reading exclusion
-    affects: The sequence-data route, which is materially wider than earlier drafts showed
+    affects: The sequence-data route, which is materially wider than earlier drafts showed. Both database routes are configured on the operative wording three institutional sources agree on; the provenance caveat is carried on each
     reg: { state: "unknown", marker: "?", note: "The operative wording is sourced from three concurring institutional sources. The consolidated primary text could not be retrieved.", citation: "Decreto Art. 107", owner: "Brazil escalation owner", drives: true }
   - id: genuine_collaboration
     question: Whether genuine scientific collaboration exists (no statutory test)

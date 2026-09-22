@@ -146,7 +146,7 @@ describe("R3: an unknown halts and escalates, it never defaults", () => {
   it("an unanswered deciding fact halts the stage that turns on it; it never removes the stage", () => {
     // Nobody has said whether direct affectation arises. Skipping consulta previa here would be the
     // engine answering "no" on the parties' behalf.
-    const unanswered = buildPathway(CO, facts(CO));
+    const unanswered = buildPathway(CO, facts(CO, { flags: { colombiaOrigin: "yes" } }));
     expect(unanswered.scope.kind).toBe("in_scope");
     const consultation = unanswered.stages.find((s) => s.stage.id === "prior_consultation");
     expect(consultation, "the stage stays on the pathway").toBeTruthy();
@@ -156,7 +156,7 @@ describe("R3: an unknown halts and escalates, it never defaults", () => {
     expect(halt.question).toMatch(/afectación directa/);
     expect(unanswered.haltedStageIds).toContain("prior_consultation");
     // A recorded "no" is an answer, and does remove the stage.
-    const answeredNo = buildPathway(CO, facts(CO, { directAffectation: "no" }));
+    const answeredNo = buildPathway(CO, facts(CO, { directAffectation: "no", flags: { colombiaOrigin: "yes" } }));
     expect(answeredNo.stages.map((s) => s.stage.id)).not.toContain("prior_consultation");
   });
 
@@ -166,8 +166,14 @@ describe("R3: an unknown halts and escalates, it never defaults", () => {
       for (const q of cfg.scope.questions.filter((x) => x.fact !== "activity" && x.kind === "choice")) {
         expect(readFact(seeded, q.fact), `${cfg.code} ${q.fact}`).toBe(q.default);
       }
-      // With the defaults in place no stage is dropped for want of an answer.
-      expect(buildPathway(cfg, seeded).escalations.some((e) => e.kind === "unanswered_fact")).toBe(false);
+      // With the defaults in place no fact is missing: every question the file declares carries its
+      // explicit "not yet established" answer. Where a rule waits on that answer it holds its stage and
+      // names the question, which is a hold on the parties' question, never a dropped stage.
+      const pathway = buildPathway(cfg, seeded);
+      expect(pathway.escalations.filter((e) => e.requirementId.startsWith("fact:")), `${cfg.code}: no declared fact is missing`).toEqual([]);
+      for (const e of pathway.escalations.filter((x) => x.kind === "unanswered_fact" && x.stageId !== "intake")) {
+        expect(e.id, `${cfg.code}: a hold names its rule`).toMatch(/:hold:/);
+      }
     }
     // An answer already given is never overwritten by the default.
     expect(withDeclaredDefaults(CO, facts(CO, { directAffectation: "yes" })).directAffectation).toBe("yes");

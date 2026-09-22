@@ -1,6 +1,6 @@
 import type { CaseFacts, CountryConfig, RegValue, Stage } from "../config/schema";
 import { evaluate, matches, unresolvedFields } from "./conditions";
-import { evaluateScope, type ScopeAnswer } from "./scope";
+import { evaluateScope, promptFor, type ScopeAnswer } from "./scope";
 
 /**
  * Pathway generation. Takes a country configuration and the facts of a case and
@@ -28,23 +28,24 @@ export type Escalation = {
   kind: "unknown_rule" | "unanswered_fact";
 };
 
-/** The intake prompt for a fact, so the halt names the question the parties must answer. */
-function promptFor(cfg: CountryConfig, field: string): string {
-  return cfg.scope.questions.find((q) => q.fact === field)?.prompt ?? field;
-}
-
 export type ResolvedRequirement = {
   id: string;
   text: string;
   reg: RegValue;
   halts: boolean;
+  /** stop: an established prohibition applies on these facts. hold: a settled rule waits on a fact from its named source. */
+  effect?: "stop" | "hold";
 };
+
+/** A prohibition that applies on the facts entered. Established law, so not an escalation: nobody is asked to resolve it. */
+export type Stop = { stageId: string; requirementId: string; text: string; reg: RegValue };
 
 export type ResolvedStage = {
   stage: Stage;
   index: number;
-  status: "active" | "halted" | "informational";
+  status: "active" | "halted" | "stopped" | "informational";
   requirements: ResolvedRequirement[];
+  stops: Stop[];
   documents: { id: string; label: string; reg: RegValue }[];
   consentParties: { id: string; label: string; reg: RegValue }[];
   escalations: Escalation[];
@@ -58,6 +59,8 @@ export type Pathway = {
   eligibility: ResolvedRequirement[];
   escalations: Escalation[];
   haltedStageIds: string[];
+  /** Stages a prohibition stops on these facts. Nothing on or after them can be completed. */
+  stoppedStageIds: string[];
 };
 
 export function buildPathway(cfg: CountryConfig, facts: CaseFacts): Pathway {
@@ -65,6 +68,18 @@ export function buildPathway(cfg: CountryConfig, facts: CaseFacts): Pathway {
   const escalations: Escalation[] = [];
   const ownerName = cfg.escalation.defaultOwnerName;
 
+  if (scope.kind === "undetermined") {
+    escalations.push({
+      id: `scope:${scope.ruleId}`,
+      stageId: "intake",
+      requirementId: scope.ruleId,
+      question: scope.basis.note ?? "Scope cannot be determined until the parties answer the intake questions",
+      reg: scope.basis,
+      owner: "The case participants, on the intake form",
+      ownerName: null,
+      kind: "unanswered_fact",
+    });
+  }
   if (scope.kind === "escalate") {
     escalations.push({
       id: `scope:${scope.ruleId}`,
@@ -80,7 +95,7 @@ export function buildPathway(cfg: CountryConfig, facts: CaseFacts): Pathway {
 
   const eligibility: ResolvedRequirement[] = cfg.eligibility
     .filter((r) => matches(r.when, facts))
-    .map((r) => ({ id: r.id, text: r.text, reg: r.reg, halts: r.reg.state === "unknown" && r.reg.drives }));
+    .map((r) => ({ id: r.id, text: r.text, reg: r.reg, halts: r.reg.state === "unknown" && r.reg.drives, effect: r.effect }));
 
   const stages: ResolvedStage[] = [];
   let index = 0;
@@ -90,9 +105,15 @@ export function buildPathway(cfg: CountryConfig, facts: CaseFacts): Pathway {
     // The stage may apply, but a fact it turns on has no answer. It is shown and halted, and
     // the halt names the question. Skipping it here would be the engine answering "no" for
     // the parties (R3).
+    // The same holds inside the stage: a requirement, document, consent party or judgment whose own
+    // condition reads an unanswered fact is not dropped as if the answer were no. The stage halts on it.
+    const inner = [...stage.requirements, ...stage.documents, ...stage.consentParties, ...cfg.manualReview.filter((m) => m.stageId === stage.id)]
+      .filter((x) => evaluate(x.when, facts) === "unresolved")
+      .flatMap((x) => unresolvedFields(x.when, facts));
+    const missingFields = [...new Set([...(applies === "unresolved" ? unresolvedFields(stage.when, facts) : []), ...inner])];
     const factEscalations: Escalation[] =
-      applies === "unresolved"
-        ? unresolvedFields(stage.when, facts).map((field) => ({
+      missingFields.length
+        ? missingFields.map((field) => ({
             id: `${stage.id}:fact:${field}`,
             stageId: stage.id,
             requirementId: `fact:${field}`,
@@ -110,9 +131,26 @@ export function buildPathway(cfg: CountryConfig, facts: CaseFacts): Pathway {
             kind: "unanswered_fact",
           }))
         : [];
-    const requirements = stage.requirements
+    const requirements: ResolvedRequirement[] = stage.requirements
       .filter((r) => matches(r.when, facts))
-      .map((r) => ({ id: r.id, text: r.text, reg: r.reg, halts: r.reg.state === "unknown" && r.reg.drives }));
+      .map((r) => ({ id: r.id, text: r.text, reg: r.reg, halts: r.reg.state === "unknown" && r.reg.drives, effect: r.effect }));
+    const stops: Stop[] = requirements
+      .filter((r) => r.effect === "stop")
+      .map((r) => ({ stageId: stage.id, requirementId: r.id, text: r.text, reg: r.reg }));
+    // A hold names the fact the rule is waiting on. Its owner is whoever the rule says establishes
+    // it (a maintained list, the parties), never the country's legal escalation owner.
+    const holds: Escalation[] = requirements
+      .filter((r) => r.effect === "hold")
+      .map((r) => ({
+        id: `${stage.id}:hold:${r.id}`,
+        stageId: stage.id,
+        requirementId: r.id,
+        question: r.reg.note ?? r.text,
+        reg: r.reg,
+        owner: r.reg.owner ?? "The case participants, on the intake form",
+        ownerName: null,
+        kind: "unanswered_fact",
+      }));
     const documents = stage.documents.filter((d) => matches(d.when, facts)).map((d) => ({ id: d.id, label: d.label, reg: d.reg }));
     const consentParties = stage.consentParties
       .filter((c) => matches(c.when, facts))
@@ -125,6 +163,7 @@ export function buildPathway(cfg: CountryConfig, facts: CaseFacts): Pathway {
 
     const stageEscalations: Escalation[] = [
       ...factEscalations,
+      ...holds,
       ...requirements
         .filter((r) => r.halts)
         .map(
@@ -146,8 +185,9 @@ export function buildPathway(cfg: CountryConfig, facts: CaseFacts): Pathway {
     stages.push({
       stage,
       index: index++,
-      status: stage.informational ? "informational" : halted ? "halted" : "active",
+      status: stage.informational ? "informational" : stops.length ? "stopped" : halted ? "halted" : "active",
       requirements,
+      stops,
       documents,
       consentParties,
       escalations: stageEscalations,
@@ -157,7 +197,7 @@ export function buildPathway(cfg: CountryConfig, facts: CaseFacts): Pathway {
 
   // Out of scope: the pathway is the exit, nothing else applies.
   if (scope.kind === "out_of_scope") {
-    return { countryCode: cfg.code, scope, stages: [], eligibility: [], escalations: [], haltedStageIds: [] };
+    return { countryCode: cfg.code, scope, stages: [], eligibility: [], escalations: [], haltedStageIds: [], stoppedStageIds: [] };
   }
 
   return {
@@ -167,6 +207,7 @@ export function buildPathway(cfg: CountryConfig, facts: CaseFacts): Pathway {
     eligibility,
     escalations,
     haltedStageIds: stages.filter((s) => s.status === "halted").map((s) => s.stage.id),
+    stoppedStageIds: stages.filter((s) => s.status === "stopped").map((s) => s.stage.id),
   };
 }
 

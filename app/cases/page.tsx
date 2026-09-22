@@ -36,7 +36,8 @@ export default async function CasesPage() {
                 <td>
                   {pathway.scope.kind === "out_of_scope" && <span className="status-pill informational">Out of scope</span>}
                   {pathway.scope.kind === "escalate" && <span className="status-pill halted">Scope escalated</span>}
-                  {pathway.scope.kind === "in_scope" && (pathway.haltedStageIds.length ? <span className="status-pill halted">{pathway.haltedStageIds.length} halted</span> : <span className="status-pill active">{pathway.stages.length} stages</span>)}
+                  {pathway.scope.kind === "undetermined" && <span className="status-pill halted">Intake facts to answer</span>}
+                  {pathway.scope.kind === "in_scope" && (pathway.stoppedStageIds.length ? <span className="status-pill halted">Stopped</span> : pathway.haltedStageIds.length ? <span className="status-pill halted">{pathway.haltedStageIds.length} halted</span> : <span className="status-pill active">{pathway.stages.length} stages</span>)}
                 </td>
                 <td className="small">{instruments.length ? instruments.map((i) => `${i.label} (v${i.versions.length})`).join(", ") : "none"}</td>
                 <td className="small mute">{fmt(c.createdAt)}</td>

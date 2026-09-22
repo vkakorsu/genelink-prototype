@@ -74,7 +74,7 @@ export default async function ConfigPage({ params }: { params: Promise<{ code: s
         <h3>Stages, in this country&apos;s order (A5.3)</h3>
         <table className="data compact">
           <thead><tr><th>#</th><th>Stage</th><th>Subject</th><th>Applies when</th><th>Requirements</th><th>Documents</th><th>Consent parties</th></tr></thead>
-          <tbody>{cfg.stages.map((s, i) => <tr key={s.id}><td>{i + 1}</td><td><strong>{s.title}</strong><div className="mono small mute">{s.id}{s.usesStateMachine ? " · state machine" : ""}{s.produces.length ? ` · produces ${s.produces.join(", ")}` : ""}</div></td><td><span className={`subject ${s.subject}`}>{s.subject}</span></td><td className="mono small">{s.when ? JSON.stringify(s.when) : "always"}</td><td className="small">{s.requirements.map((r) => <div key={r.id}><EvidenceChip reg={r.reg} short /> {r.id}</div>)}</td><td className="small">{s.documents.map((d) => d.label).join(", ")}</td><td className="small">{s.consentParties.map((c) => c.label).join(", ")}</td></tr>)}</tbody>
+          <tbody>{cfg.stages.map((s, i) => <tr key={s.id}><td>{i + 1}</td><td><strong>{s.title}</strong><div className="mono small mute">{s.id}{s.usesStateMachine ? " · state machine" : ""}{s.produces.length ? ` · produces ${s.produces.join(", ")}` : ""}</div></td><td><span className={`subject ${s.subject}`}>{s.subject}</span></td><td className="mono small">{s.when ? JSON.stringify(s.when) : "always"}</td><td className="small">{s.requirements.map((r) => <div key={r.id}><EvidenceChip reg={r.reg} short /> {r.id}{r.effect ? <strong> · {r.effect} when {JSON.stringify(r.when)}</strong> : ""}</div>)}</td><td className="small">{s.documents.map((d) => d.label).join(", ")}</td><td className="small">{s.consentParties.map((c) => c.label).join(", ")}</td></tr>)}</tbody>
         </table>
       </section>
 
@@ -83,7 +83,22 @@ export default async function ConfigPage({ params }: { params: Promise<{ code: s
           <h3>State machine (R9)</h3>
           <div className="machine">{Object.entries(cfg.stateMachine.states).map(([id, s]) => <span key={id} className={`state ${s.kind === "terminal" ? "terminal" : ""} ${s.kind === "halted" ? "halted" : ""}`} title={`${s.kind}${s.outcome !== "none" ? ` · ${s.outcome}` : ""}`}>{stateHeadline(s.label)}</span>)}</div>
           <p className="small mute" style={{ marginTop: 8 }}>{cfg.stateMachine.transitions.length} declared transitions. {cfg.stateMachine.clocks.length} clock{cfg.stateMachine.clocks.length === 1 ? "" : "s"}, each with an on-lapse rule that never grants (R8).</p>
-          {cfg.stateMachine.clocks.map((k) => <RegBlock key={k.id} reg={k.onLapse.reg} text={`${k.label}: ${k.days} ${k.dayKind} days${k.extendableDays ? `, extendable by ${k.extendableDays}` : ""}, starts in ${k.startsIn}, lapses to ${k.onLapse.to}`} compact />)}
+          {cfg.stateMachine.clocks.map((k) => (
+            <div key={k.id}>
+              <RegBlock reg={k.onLapse.reg} text={`${k.label}: ${k.days} ${k.dayKind} days, starts in ${k.startsIn}, runs in ${(k.runsIn?.length ? k.runsIn : [k.startsIn]).join(", ")}${k.suspendsIn.length ? `, suspended in ${k.suspendsIn.join(", ")}` : ""}, lapses to ${k.onLapse.to}`} compact />
+              {k.extension && <RegBlock reg={k.extension} text={`Extension power: up to ${k.extendableDays} ${k.dayKind} days in total, recorded as the authority's act`} compact />}
+            </div>
+          ))}
+          {cfg.stateMachine.transitions.some((t) => t.when) && (
+            <p className="small mute">Guarded transitions: {cfg.stateMachine.transitions.filter((t) => t.when).map((t) => `${t.event} → ${t.to} when ${JSON.stringify(t.when)}`).join("; ")}. A guard on an unanswered fact is never taken.</p>
+          )}
+          {cfg.calendar ? (
+            <details className="fold">
+              <summary>Working-day calendar · {cfg.calendar.holidays.length} holidays through {cfg.calendar.coversThrough}</summary>
+              <RegBlock reg={cfg.calendar.reg} text="Working days" compact />
+              <p className="small">{cfg.calendar.holidays.map((h) => `${h.date} ${h.name}${h.provisional ? " (provisional)" : ""}`).join(" · ")}</p>
+            </details>
+          ) : cfg.stateMachine.clocks.some((k) => k.dayKind === "working") ? <p className="small mute">No holiday calendar: working days skip weekends only.</p> : null}
         </section>
         <section className="card">
           <h3>Outputs (A5.4, R7)</h3>

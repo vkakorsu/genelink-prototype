@@ -21,6 +21,7 @@ export function FactsForm({ cfg, caseId, facts, mode, canEdit }: { cfg: CountryC
       <fieldset disabled={!canEdit} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
       <fieldset>
         <legend>Purpose (decides the route before any {cfg.name} rule applies)</legend>
+        {facts.purpose === undefined && <p className="small mute" style={{ marginTop: 0 }}>Not yet established. Scope stays undetermined until it is answered.</p>}
         <div className="radio-list">
           <label><input type="radio" name="purpose" value="commercial" defaultChecked={facts.purpose === "commercial"} /> Commercial. GENE-LINK access is commercial by design.</label>
           <label><input type="radio" name="purpose" value="non_commercial" defaultChecked={facts.purpose === "non_commercial"} /> Non-commercial. Routed to a stated out-of-scope position, not through rules that do not fit.</label>
@@ -28,6 +29,7 @@ export function FactsForm({ cfg, caseId, facts, mode, canEdit }: { cfg: CountryC
       </fieldset>
       <fieldset>
         <legend>{activity.prompt}</legend>
+        {facts.activity === undefined && <p className="small mute" style={{ marginTop: 0 }}>Not yet established. Nothing is pre-selected: the engine does not guess the activity.</p>}
         <div className="radio-list">
           {activity.options.map((o) => (
             <label key={o.id}><input type="radio" name="activity" value={o.id} defaultChecked={facts.activity === o.id} /> <span>{o.label}{o.hint && <span className="small mute"> · {o.hint}</span>}</span></label>
@@ -38,7 +40,8 @@ export function FactsForm({ cfg, caseId, facts, mode, canEdit }: { cfg: CountryC
       <div className="grid cols-fit">
         <div className="field">
           <label htmlFor="provenance">Material provenance</label>
-          <select id="provenance" name="provenance" defaultValue={facts.provenance}>
+          <select id="provenance" name="provenance" defaultValue={facts.provenance ?? ""}>
+            <option value="">Not yet established</option>
             <option value="in_situ">In situ</option>
             <option value="ex_situ">Held ex situ</option>
             <option value="dsi_only">Digital sequence information only</option>
@@ -56,13 +59,14 @@ export function FactsForm({ cfg, caseId, facts, mode, canEdit }: { cfg: CountryC
         </div>
         <div className="field">
           <label htmlFor="exchange">Material-exchange scenario</label>
-          <select id="exchange" name="exchange" defaultValue={facts.exchange}>
+          <select id="exchange" name="exchange" defaultValue={facts.exchange ?? ""}>
+            <option value="">Not yet established</option>
             <option value="no_movement">Nothing leaves the country</option>
             <option value="title_transfer">Physical transfer with title</option>
             <option value="service_shipment">Temporary service shipment</option>
             <option value="dsi_only">Sequence data only</option>
           </select>
-          <div className="hint">A service shipment is temporary: the material is returned or destroyed after the work.</div>
+          <div className="hint">A service shipment is temporary: the material is returned or destroyed after the work. Until this is answered, the export stage stays on the pathway and halts.</div>
         </div>
       </div>
       <div className="grid cols-fit-sm">

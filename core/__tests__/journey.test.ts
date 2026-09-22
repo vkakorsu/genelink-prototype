@@ -6,6 +6,7 @@ import { seed, ADMIN } from "../seed/seed";
 import { PermissionDenied } from "../platform";
 import { verifyChain } from "../audit/chain";
 import { activityQuestion, type CaseFacts } from "../config/schema";
+import { evaluate } from "../engine/conditions";
 
 const countries = loadCountries(join(process.cwd(), "config", "countries"));
 
@@ -164,7 +165,13 @@ describe("dry run (R2): the same journey for every configured country, no countr
         return store.cases.get(caseId)!;
       })();
       void before;
-      const facts: CaseFacts = { purpose: "commercial", activity: activityQuestion(cfg).options[0].id, provenance: "in_situ", applicantType: "foreign_legal", exchange: "no_movement", communityHeld: "no", tkInvolved: "no", flags: {} };
+      // Every country question answered with its first established option (never the "not yet
+      // established" default), written where the country file says the fact lives.
+      const own: Record<string, string> = {};
+      for (const q of cfg.scope.questions.filter((x) => x.fact !== "activity" && x.kind === "choice")) own[q.fact] = q.options.find((o) => o.id !== q.default)!.id;
+      const typed = Object.fromEntries(Object.entries(own).filter(([k]) => ["directAffectation", "speciesListed", "scientificCollaboration"].includes(k)));
+      const flags = Object.fromEntries(Object.entries(own).filter(([k]) => !(k in typed)));
+      const facts: CaseFacts = { purpose: "commercial", activity: activityQuestion(cfg).options[0].id, provenance: "in_situ", applicantType: "foreign_legal", exchange: "no_movement", communityHeld: "no", tkInvolved: "no", ...typed, flags };
       p.updateFacts(supplier, c.id, facts);
       const pathway = p.pathwayFor(c);
       expect(pathway.scope.kind).toBe("in_scope");
@@ -173,7 +180,9 @@ describe("dry run (R2): the same journey for every configured country, no countr
       // Walk the machine along the shortest declared path to a granted state.
       const sm = cfg.stateMachine;
       const granted = Object.entries(sm.states).filter(([, s]) => s.outcome === "granted").map(([k]) => k);
-      const path = shortestPath(sm.initial, granted, sm.transitions.filter((t) => t.event !== "lapse").map((t) => [t.from, t.to, t.event] as const));
+      // Only the branches the case's facts allow: a guarded transition is part of the law, not a shortcut.
+      const onFacts = sm.transitions.filter((t) => t.event !== "lapse" && evaluate(t.when, store.cases.get(c.id)!.facts) === "match");
+      const path = shortestPath(sm.initial, granted, onFacts.map((t) => [t.from, t.to, t.event] as const));
       expect(path, `a declared path to a granted state exists in ${cfg.code}`).toBeTruthy();
       if (c.machine.state === sm.initial) {
         for (const ev of path!) p.fireEvent(ADMIN, c.id, ev);

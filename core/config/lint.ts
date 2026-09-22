@@ -7,8 +7,10 @@
  *      reachable by the halt logic; every deciding-fact question declares the
  *      option that means "not yet established" as its default
  *  R5  every manual-review judgment names the stage it halts, and that stage exists
- *  R8  every clock has an on-lapse rule and the on-lapse target never carries a
- *      granted outcome
+ *  R8  every clock has an on-lapse rule, the on-lapse target never carries a
+ *      granted outcome, and every state the clock runs in declares the lapse
+ *      transition (a clock that can run out where no lapse is declared would
+ *      throw at the moment the deadline passes)
  *  R9  the state machine carries the unhappy paths the regime has, and every
  *      declared state is reachable (a state nobody can enter is a typo or a decoration)
  *
@@ -63,23 +65,60 @@ export function lintCountry(cfg: CountryConfig): LintIssue[] {
     }
   }
   // Every condition that names a non-shared, non-typed fact must have a question that collects it.
+  // A condition on a number fact is refused: conditions compare declared option ids, and a count has
+  // none, so "localities: 2" would silently never match (or match only one spelling of the number).
   const declared = new Set<string>([...SHARED_FACTS, ...TYPED_FACTS, ...cfg.scope.questions.map((q) => q.fact)]);
+  const numberFacts = new Set<string>(["localities", ...cfg.scope.questions.filter((q) => q.kind === "number").map((q) => q.fact)]);
   walk(cfg, "", (path, value) => {
     if (/(^|\.)when(Not)?$/.test(path) && value && typeof value === "object" && !Array.isArray(value)) {
       for (const field of Object.keys(value as Record<string, unknown>)) {
         if (!declared.has(field)) err(path, `condition reads fact "${field}" but no question collects it`);
+        if (numberFacts.has(field)) err(path, `condition reads number fact "${field}". Conditions compare option ids; a count has none. Carry the number as data, not as a branch`);
       }
     }
   });
+  for (const r of cfg.eligibility) {
+    if (r.effect) err(`eligibility.${r.id}.effect`, "an eligibility entry has no stage to stop or hold. Put the requirement on the stage it governs");
+  }
+  for (const stage of cfg.stages) {
+    for (const r of stage.requirements) {
+      if (r.effect === "stop" && r.reg.state !== "established") err(`stages.${stage.id}.requirements.${r.id}`, "a stop is an established prohibition. A reading or an open question halts and escalates instead (R3, R4)");
+      if (r.effect === "stop" && !r.when) err(`stages.${stage.id}.requirements.${r.id}`, "an unconditional stop would close the pathway for every case. Say on which facts it applies");
+      if (r.effect === "hold" && !r.when) err(`stages.${stage.id}.requirements.${r.id}`, "a hold waits on a fact. Say which answer leaves it outstanding");
+    }
+  }
 
   // R8: clocks
   const states = cfg.stateMachine.states;
+  let workingClock = false;
   for (const clock of cfg.stateMachine.clocks) {
+    const at = `stateMachine.clocks.${clock.id}`;
     const target = states[clock.onLapse.to];
-    if (!target) err(`stateMachine.clocks.${clock.id}.onLapse.to`, `unknown state ${clock.onLapse.to}`);
-    else if (target.outcome === "granted") err(`stateMachine.clocks.${clock.id}`, "a lapsed clock may never grant (R8)");
-    if (!states[clock.startsIn]) err(`stateMachine.clocks.${clock.id}.startsIn`, `unknown state ${clock.startsIn}`);
-    for (const s of clock.suspendsIn) if (!states[s]) err(`stateMachine.clocks.${clock.id}.suspendsIn`, `unknown state ${s}`);
+    if (!target) err(`${at}.onLapse.to`, `unknown state ${clock.onLapse.to}`);
+    else if (target.outcome === "granted") err(at, "a lapsed clock may never grant (R8)");
+    if (!states[clock.startsIn]) err(`${at}.startsIn`, `unknown state ${clock.startsIn}`);
+    for (const s of clock.suspendsIn) if (!states[s]) err(`${at}.suspendsIn`, `unknown state ${s}`);
+    const running = clock.runsIn?.length ? clock.runsIn : [clock.startsIn];
+    if (clock.runsIn?.length && !clock.runsIn.includes(clock.startsIn)) err(`${at}.runsIn`, "a clock runs in the state that starts it");
+    for (const s of running) {
+      if (!states[s]) err(`${at}.runsIn`, `unknown state ${s}`);
+      if (clock.suspendsIn.includes(s)) err(`${at}.suspendsIn`, `${s} cannot both run and suspend the clock`);
+      if (!cfg.stateMachine.transitions.some((t) => t.from === s && t.event === "lapse" && t.to === clock.onLapse.to)) {
+        err(`${at}`, `the clock runs in ${s} but no lapse transition from ${s} to ${clock.onLapse.to} is declared. The deadline would pass with nowhere to go`);
+      }
+    }
+    if (clock.extendableDays && !clock.extension) err(`${at}.extension`, "an extension power must carry the rule that grants it (R4)");
+    if (clock.extension && !clock.extendableDays) err(`${at}.extendableDays`, "an extension rule without a cap. Say how many days the authority may add");
+    if (clock.dayKind === "working") workingClock = true;
+  }
+  if (workingClock && !cfg.calendar) warn("calendar", "a working-day clock with no holiday calendar counts weekends only. Gazetted public holidays belong in the file");
+  if (cfg.calendar) {
+    const seen = new Set<string>();
+    for (const h of cfg.calendar.holidays) {
+      if (seen.has(h.date)) err("calendar.holidays", `holiday ${h.date} is listed twice`);
+      seen.add(h.date);
+      if (h.date > cfg.calendar.coversThrough) err("calendar.holidays", `holiday ${h.date} falls after coversThrough ${cfg.calendar.coversThrough}`);
+    }
   }
 
   // Transitions reference known states, and no "lapse" event reaches a granted state.

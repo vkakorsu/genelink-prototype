@@ -123,9 +123,13 @@ export type EscalationRecord = {
   question: string;
   owner: string;
   ownerName: string | null;
-  status: "open" | "answered";
+  /**
+   * open: the pathway raises it. answered: the configuration now carries an answer (a change made with
+   * legal review, never an in-case override). closed: the case's facts no longer reach the requirement;
+   * the question stays open in the file. A closed or answered record reopens if the pathway raises it again.
+   */
+  status: "open" | "answered" | "closed";
   raisedAt: string;
-  /** Answering an escalation is a configuration change with legal review, never an in-case override. */
   answer?: { by: string; at: string; note: string };
 };
 

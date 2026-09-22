@@ -13,7 +13,9 @@ import { lintCountry } from "../core/config/lint";
 import { buildPathway } from "../core/engine/pathway";
 import { fire, initialSnapshot, isGranted } from "../core/engine/stateMachine";
 import { instrumentFrom, renewalProbeAllowed } from "../core/domain/instruments";
-import { activityQuestion, type CaseFacts } from "../core/config/schema";
+import { activityQuestion, TYPED_FACTS, type CaseFacts } from "../core/config/schema";
+import { withDeclaredDefaults } from "../core/engine/facts";
+import { evaluate } from "../core/engine/conditions";
 
 const code = (process.argv[2] ?? "BR").toUpperCase();
 const countries = loadCountries(join(process.cwd(), "config", "countries"));
@@ -34,7 +36,14 @@ line(`Lint: ${lint.filter((l) => l.severity === "error").length} errors, ${lint.
 for (const w of lint) line(`  ${w.severity}: ${w.path}: ${w.message}`);
 line();
 
-const facts: CaseFacts = {
+// Fictional parties: a foreign company, commercial research, a service shipment, a community-held
+// resource with traditional knowledge not yet established. Each question the country file declares is
+// answered with its first established option, read from the file, so the script knows no country.
+const declared: Record<string, string | number> = {};
+for (const q of cfg.scope.questions.filter((x) => x.fact !== "activity")) {
+  declared[q.fact] = q.kind === "number" ? (q.min ?? 1) : q.options.find((o) => o.id !== q.default)?.id ?? q.options[0].id;
+}
+const facts: CaseFacts = withDeclaredDefaults(cfg, {
   purpose: "commercial",
   activity: activityQuestion(cfg).options[0].id,
   provenance: "in_situ",
@@ -42,19 +51,18 @@ const facts: CaseFacts = {
   exchange: "service_shipment",
   communityHeld: "yes",
   tkInvolved: "unclear",
-  directAffectation: "unclear",
-  speciesListed: "not_listed",
-  localities: 1,
-  scientificCollaboration: "unclear",
-  flags: {},
-};
+  ...Object.fromEntries(Object.entries(declared).filter(([k]) => (TYPED_FACTS as readonly string[]).includes(k))),
+  flags: Object.fromEntries(Object.entries(declared).filter(([k]) => !(TYPED_FACTS as readonly string[]).includes(k)).map(([k, v]) => [k, String(v)])),
+});
+line(`Facts: ${Object.entries({ ...facts, flags: undefined }).filter(([, v]) => v !== undefined).map(([k, v]) => `${k}=${v}`).join(", ")}${Object.keys(facts.flags).length ? `, ${Object.entries(facts.flags).map(([k, v]) => `${k}=${v}`).join(", ")}` : ""}`);
+line();
 
 const pathway = buildPathway(cfg, facts);
 line(`Scope: ${pathway.scope.kind} (${pathway.scope.ruleId}) ${pathway.scope.basis.marker}`);
 line();
 line("Pathway (order from configuration):");
 for (const s of pathway.stages) {
-  const flag = s.status === "halted" ? "HALTED" : s.status === "informational" ? "phase two" : "active";
+  const flag = s.status === "halted" ? "HALTED" : s.status === "stopped" ? "STOPPED" : s.status === "informational" ? "phase two" : "active";
   line(`  ${String(s.index + 1).padStart(2)}. ${s.stage.title}  [${flag}]`);
   for (const r of s.requirements) line(`        ${r.reg.marker} ${r.text.slice(0, 110)}${r.text.length > 110 ? "…" : ""}`);
   for (const d of s.documents) line(`        needs document: ${d.label}`);
@@ -79,7 +87,7 @@ while (queue.length && !path) {
   const { state, events } = queue.shift()!;
   if (granted.includes(state) && events.length) { path = events; break; }
   for (const t of sm.transitions) {
-    if (t.from === state && t.event !== "lapse" && !seen.has(t.to)) {
+    if (t.from === state && t.event !== "lapse" && !seen.has(t.to) && evaluate(t.when, facts) === "match") {
       seen.add(t.to);
       queue.push({ state: t.to, events: [...events, t.event] });
     }
@@ -88,8 +96,8 @@ while (queue.length && !path) {
 line("Regulator processing (declared machine):");
 let snap = initialSnapshot(cfg, new Date());
 for (const ev of path ?? []) {
-  const t = sm.transitions.find((x) => x.from === snap.state && x.event === ev)!;
-  snap = fire(cfg, snap, ev, t.actor, new Date());
+  const t = sm.transitions.find((x) => x.from === snap.state && x.event === ev && evaluate(x.when, facts) === "match")!;
+  snap = fire(cfg, snap, ev, t.actor, new Date(), undefined, facts);
   line(`  ${ev.padEnd(24)} -> ${snap.state}`);
 }
 line(`  granted: ${isGranted(cfg, snap)}`);

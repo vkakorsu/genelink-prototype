@@ -72,6 +72,7 @@ export default async function CasePage({ params, searchParams }: { params: Promi
       {(() => {
         const done = pathway.stages.filter((s) => c.stageProgress[s.stage.id] === "complete").length;
         const halted = pathway.haltedStageIds.length;
+        const stopped = pathway.stoppedStageIds.length;
         const next = pathway.stages.find((s) => s.status !== "informational" && c.stageProgress[s.stage.id] !== "complete");
         const stateLabel = stateHeadline(cfg.stateMachine.states[c.machine.state]?.label ?? c.machine.state);
         const machineKind = cfg.stateMachine.states[c.machine.state]?.kind;
@@ -83,9 +84,9 @@ export default async function CasePage({ params, searchParams }: { params: Promi
               {outOfScope ? (
                 <span className="small"><strong>Pathway:</strong> none while out of scope</span>
               ) : (
-                <span className="small"><strong>Pathway:</strong> {done} of {pathway.stages.length} stages complete{halted > 0 ? `, ${halted} halted` : ""}</span>
+                <span className="small"><strong>Pathway:</strong> {done} of {pathway.stages.length} stages complete{stopped > 0 ? `, ${stopped} stopped by a prohibition` : ""}{halted > 0 ? `, ${halted} halted` : ""}</span>
               )}
-              {!outOfScope && next && <span className="small"><strong>Next:</strong> {(machineKind === "terminal" || machineKind === "halted") ? "GENE-LINK-side · " : ""}{next.stage.title}{next.status === "halted" ? " (halted, routed to its owner)" : ""}</span>}
+              {!outOfScope && next && <span className="small"><strong>Next:</strong> {(machineKind === "terminal" || machineKind === "halted") ? "GENE-LINK-side · " : ""}{next.stage.title}{next.status === "halted" ? " (halted, routed to its owner)" : next.status === "stopped" ? " (stopped: a prohibition applies on these facts)" : ""}</span>}
               {!outOfScope && !next && pathway.stages.length > 0 && <span className="small mute">All stages complete.</span>}
             </div>
             {(machineKind === "terminal" || machineKind === "halted") && done < pathway.stages.length && (
@@ -116,7 +117,7 @@ export default async function CasePage({ params, searchParams }: { params: Promi
       <div className="two-col" style={{ marginTop: 14 }}>
         <div className="stack">
           {/* Scope answer */}
-          <section className={`card ${pathway.scope.kind === "out_of_scope" ? "warn" : pathway.scope.kind === "escalate" ? "warn" : "tinted"}`}>
+          <section className={`card ${pathway.scope.kind === "in_scope" ? "tinted" : "warn"}`}>
             <div className="row between">
               <h3 style={{ margin: 0 }}>Scope on the facts entered: {pathway.scope.kind.replaceAll("_", " ")}</h3>
               <EvidenceChip reg={pathway.scope.basis} />
@@ -128,6 +129,9 @@ export default async function CasePage({ params, searchParams }: { params: Promi
             )}
             {pathway.scope.kind === "escalate" && (
               <p className="small"><strong>Halted at scope.</strong> Routed to {pathway.scope.owner}. The pathway below is provisional until the question is answered through configuration review.</p>
+            )}
+            {pathway.scope.kind === "undetermined" && (
+              <p className="small"><strong>Not yet determined.</strong> The parties have not yet established: {pathway.scope.missing.map((f) => FACT_LABEL[f] ?? cfg.scope.questions.find((q) => q.fact === f)?.prompt ?? f).join("; ")}. Answer on the intake form. The pathway below is provisional, and every stage that turns on an unanswered fact is halted rather than guessed.</p>
             )}
             <InformationNotAdvice />
           </section>
@@ -199,11 +203,11 @@ export default async function CasePage({ params, searchParams }: { params: Promi
           <section className="card sticky" tabIndex={0}>
             <h3>Facts on file</h3>
             <dl className="kv">
-              <dt>Purpose</dt><dd>{c.facts.purpose.replace("_", " ")}</dd>
-              <dt>Activity</dt><dd>{activityQuestion(cfg).options.find((o) => o.id === c.facts.activity)?.label ?? c.facts.activity}</dd>
-              <dt>Provenance</dt><dd>{c.facts.provenance.replace("_", " ")}</dd>
-              <dt>Applicant</dt><dd>{c.facts.applicantType.replace("_", " ")}</dd>
-              <dt>Exchange</dt><dd>{c.facts.exchange.replace("_", " ")}</dd>
+              <dt>Purpose</dt><dd>{show(c.facts.purpose)}</dd>
+              <dt>Activity</dt><dd>{c.facts.activity === undefined ? <NotYet /> : activityQuestion(cfg).options.find((o) => o.id === c.facts.activity)?.label ?? c.facts.activity}</dd>
+              <dt>Provenance</dt><dd>{show(c.facts.provenance)}</dd>
+              <dt>Applicant</dt><dd>{show(c.facts.applicantType)}</dd>
+              <dt>Exchange</dt><dd>{show(c.facts.exchange)}</dd>
               <dt>Community-held</dt><dd>{c.facts.communityHeld}</dd>
               <dt>TK involved</dt><dd>{c.facts.tkInvolved}</dd>
               {cfg.scope.questions.filter((q) => q.fact !== "activity").map((q) => {
@@ -232,8 +236,9 @@ export default async function CasePage({ params, searchParams }: { params: Promi
             {escalations.length === 0 && <p className="small mute">None.</p>}
             {escalations.map((e) => (
               <div key={e.id} className="small" style={{ marginBottom: 6 }}>
-                <span className="ev unknown"><span className="m">?</span>{e.status}</span> {e.question.slice(0, 120)}{e.question.length > 120 ? "…" : ""}
+                {e.status === "open" ? <span className="ev unknown"><span className="m">?</span>open</span> : <span className="tag">{e.status}</span>} {e.question.slice(0, 120)}{e.question.length > 120 ? "…" : ""}
                 <div className="mute">→ {e.owner}{e.ownerName ? ` (${e.ownerName})` : ", name pending"}</div>
+                {e.status !== "open" && e.answer && <div className="mute">{e.answer.note}</div>}
               </div>
             ))}
             <hr className="rule" />
@@ -266,4 +271,19 @@ export default async function CasePage({ params, searchParams }: { params: Promi
       </div>
     </div>
   );
+}
+
+const FACT_LABEL: Record<string, string> = {
+  purpose: "purpose (commercial or non-commercial)",
+  activity: "what will be done with the material or the data",
+  provenance: "material provenance",
+  exchange: "material-exchange scenario",
+};
+
+function NotYet() {
+  return <span className="mute">not yet established</span>;
+}
+
+function show(v: string | undefined) {
+  return v === undefined ? <NotYet /> : v.replaceAll("_", " ");
 }

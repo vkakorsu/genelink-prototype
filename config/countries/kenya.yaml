@@ -140,22 +140,6 @@ eligibility:
       marker: "§"
       value: Pair the company with a Kenyan institution. NACOSTI requires a local institutional affiliation for non-Kenyans.
       citation: NACOSTI research licence requirements
-  - id: endemic_rare_threatened_stop
-    text: A commercial application must exclude endemic, rare or threatened species. No exemption route appears in the text.
-    when: { speciesListed: listed }
-    reg:
-      state: established
-      marker: "§"
-      value: STOP. reg. 11(4)(e) requires a commercial application to exclude endemic, rare or threatened species.
-      citation: reg. 11(4)(e)
-  - id: species_status_source
-    text: Species status must be resolved against an authoritative list, not the applicant's own answer, before the application is accepted.
-    when: { speciesListed: unchecked }
-    reg:
-      state: established
-      marker: "§"
-      value: The platform must resolve species status against a recognised source. The applicant's own answer is not the deciding fact.
-      citation: reg. 11(4)(e)
   - id: custody_not_entitlement
     text: An institution holding a sample is not by that fact able to consent to its use.
     when: { activity: ex_situ_held }
@@ -226,6 +210,31 @@ stages:
     needs: [Citizenship of the applicant, species status on an authoritative list, whether the resource is wildlife, whether analysis can run inside Kenya]
     gives: Eligibility to apply
     requirements:
+      - id: endemic_rare_threatened_stop
+        text: A commercial application must exclude endemic, rare or threatened species. No exemption route appears in the text.
+        when: { speciesListed: listed }
+        effect: stop
+        reg:
+          state: established
+          marker: "§"
+          value: STOP. reg. 11(4)(e) requires a commercial application to exclude endemic, rare or threatened species.
+          citation: reg. 11(4)(e)
+          note: >-
+            The Kenya Law consolidated text (retrieved 22 September 2026) reads "exclude any endemic species, rare
+            species or any species protected under any written law or other relevant regulatory framework", which
+            is wider than "threatened". Appendix B's wording is kept as the rule; the wider reach is flagged for
+            Landscape Alliance's verification round and bears on which lists the species-status layer reads.
+      - id: species_status_source
+        text: Species status must be resolved against an authoritative list, not the applicant's own answer, before the application is accepted.
+        when: { speciesListed: unchecked }
+        effect: hold
+        reg:
+          state: established
+          marker: "§"
+          value: The platform must resolve species status against a recognised source. The applicant's own answer is not the deciding fact.
+          citation: reg. 11(4)(e)
+          note: Species status on an authoritative list has not been checked for this case. Resolve it against the maintained species-status layer and record what the check found.
+          owner: The species-status check against the maintained list, recorded on the intake form
       - id: wildlife_research_permit
         text: Where the resource falls within the wildlife definition and field research is intended, a WRTI research permit is a legal prerequisite that precedes field work.
         reg:
@@ -302,6 +311,19 @@ stages:
     needs: [Prior informed consent in accordance with customary laws, practices, protocols and procedures, mutually agreed terms on the Fifth Schedule model form]
     gives: Consent, MAT and a benefit-sharing agreement capable of supporting the application
     consentParties:
+      - id: resource_providers
+        label: Relevant biological resource providers (interested persons and relevant stakeholders), as NEMA guides
+        reg:
+          state: inferred
+          marker: "▸"
+          value: >-
+            A commercial application carries evidence of prior informed consent and mutually agreed terms "from
+            interested persons and relevant stakeholders where applicable" (reg. 11(4)(b)), and the Competent
+            National Authority "shall guide the applicant on the relevant biological resource providers from whom
+            Prior Informed Consent is to be obtained" (reg. 12(1)). Consent is therefore not only a community
+            question: a landholder, a resource manager or an ex-situ provider may be the consenting party.
+          citation: reg. 11(4)(b); reg. 12(1)
+          note: Retrieved from the Kenya Law consolidated text on 22 September 2026. Not drawn in the Appendix B diagram, which shows community consent only. Pending Landscape Alliance's verification round.
       - id: community
         label: Resource-providing community
         when: { communityHeld: [yes, unclear] }
@@ -323,6 +345,9 @@ stages:
           owner: NEMA question, routed to the Kenya escalation owner
           drives: true
     documents:
+      - id: pic_providers
+        label: Evidence of prior informed consent and mutually agreed terms from the relevant resource providers (Fourth Schedule PIC form), where applicable
+        reg: { state: "inferred", marker: "▸", value: "reg. 11(4)(b) with reg. 12(1): NEMA guides the applicant on whom consent must come from.", citation: "reg. 11(4)(b); reg. 12(1)", note: "Retrieved from the Kenya Law consolidated text on 22 September 2026. Pending Landscape Alliance's verification round." }
       - id: pic
         label: Prior informed consent (Fourth Schedule form, obtained under the community's own procedure)
         when: { communityHeld: [yes, unclear] }
@@ -392,9 +417,15 @@ stages:
       - id: holotype
         text: A holotype must remain in Kenya. How this applies to extracts, microbial isolates and other non-taxonomic material is an open design question.
         reg: { state: "established", marker: "§", value: "reg. 21(5).", citation: "reg. 21(5)" }
+      - id: border_declaration
+        text: Declare the material at the port of departure and produce the material transfer agreement.
+        reg: { state: "established", marker: "§", value: "reg. 21(4).", citation: "reg. 21(4)" }
+      - id: kws_export
+        text: Where the material is wildlife, a KWS export permit. KWS handles export and CITES; it does not grant the research permit, which is WRTI's, earlier in this pathway.
+        reg: { state: "established", marker: "§", value: "KWS export permit for wildlife. The wildlife definition reaches plants and microorganisms.", citation: "Wildlife Conservation and Management Act" }
       - id: phytosanitary
         text: KEPHIS phytosanitary certificate is conditional on the importing country's requirements for that material. Not a generic Kenyan export clearance.
-        reg: { state: "established", marker: "§", value: "Two machine-testable conditions, destination requirement and CITES listing.", citation: "KEPHIS procedure" }
+        reg: { state: "established", marker: "§", value: "Two machine-testable conditions: does the destination country require it for this material, and is the species CITES-listed, requiring a CITES permit as well.", citation: "KEPHIS procedure" }
       - id: tk_articles_export
         text: Unauthorised export of an article related to traditional knowledge for non-traditional use is an offence whether or not the use is commercial.
         when: { tkInvolved: [yes, unclear] }
@@ -427,7 +458,7 @@ stateMachine:
     public_notice:
       label: Public notice and comment
       kind: waiting
-      reg: { state: "established", marker: "§", value: "The regulations contemplate publication and comments before determination." }
+      reg: { state: "established", marker: "§", value: "The regulations contemplate publication and comments before determination. Publication is at the Authority's discretion ('may') and at the applicant's cost, so determination can also follow review directly.", citation: "reg. 13; reg. 15(1)" }
     information_requested: { label: Further information required, kind: active }
     resubmitted: { label: Resubmitted, kind: waiting }
     granted:
@@ -476,11 +507,14 @@ stateMachine:
     - { from: deadline_lapsed, to: under_review, event: administrator_resumes, actor: authority }
   clocks:
     - id: determination
-      label: Determination clock (reg. 14(1), suspended while incomplete or an issue is outstanding, reg. 14(3))
+      label: Determination clock (reg. 14(1) and 16, 30 working days from receipt; suspended while incomplete or an issue is outstanding, reg. 14(3))
       startsIn: under_review
+      # Publication and comment (reg. 13) sit inside the 30 working days, not after them.
+      runsIn: [under_review, public_notice]
       days: 30
       dayKind: working
-      suspendsIn: [information_requested]
+      # Suspended from the Authority's request until the Authority has the completed application again.
+      suspendsIn: [information_requested, resubmitted]
       onLapse:
         to: deadline_lapsed
         effect: remedy_against_administrator
@@ -489,6 +523,45 @@ stateMachine:
           marker: "§"
           value: In every regime a missed statutory deadline gives the applicant a remedy against the administrator. It does not grant the permit.
           citation: Appendix B, A5.5 and R8
+
+# Working days skip the weekend and Kenya's public holidays. Dates that turn on a moon sighting are
+# gazetted each year by the Cabinet Secretary for the Interior and are carried as provisional until then.
+calendar:
+  weekend: [6, 7]
+  coversThrough: "2027-12-31"
+  reg:
+    state: inferred
+    marker: "▸"
+    value: >-
+      Holidays are those of the Public Holidays Act (Cap. 110), with a holiday falling on a Sunday observed on
+      the Monday. LN 68 does not define a working day; treating Saturday and Sunday as non-working is
+      GENE-LINK's reading of ordinary administrative practice, pending NEMA's confirmation.
+    citation: Public Holidays Act (Cap. 110)
+  holidays:
+    - { date: "2026-01-01", name: New Year's Day }
+    - { date: "2026-03-20", name: Idd-ul-Fitr, provisional: true }
+    - { date: "2026-04-03", name: Good Friday }
+    - { date: "2026-04-06", name: Easter Monday }
+    - { date: "2026-05-01", name: Labour Day }
+    - { date: "2026-05-27", name: Idd-ul-Azha, provisional: true }
+    - { date: "2026-06-01", name: Madaraka Day }
+    - { date: "2026-10-10", name: Mazingira Day }
+    - { date: "2026-10-20", name: Mashujaa Day }
+    - { date: "2026-12-12", name: Jamhuri Day }
+    - { date: "2026-12-25", name: Christmas Day }
+    - { date: "2026-12-26", name: Boxing Day }
+    - { date: "2027-01-01", name: New Year's Day }
+    - { date: "2027-03-10", name: Idd-ul-Fitr, provisional: true }
+    - { date: "2027-03-26", name: Good Friday }
+    - { date: "2027-03-29", name: Easter Monday }
+    - { date: "2027-05-01", name: Labour Day }
+    - { date: "2027-05-17", name: Idd-ul-Azha, provisional: true }
+    - { date: "2027-06-01", name: Madaraka Day }
+    - { date: "2027-10-11", name: Mazingira Day (10 October falls on a Sunday) }
+    - { date: "2027-10-20", name: Mashujaa Day }
+    - { date: "2027-12-13", name: Jamhuri Day (12 December falls on a Sunday) }
+    - { date: "2027-12-25", name: Christmas Day }
+    - { date: "2027-12-27", name: Boxing Day (26 December falls on a Sunday) }
 
 # ---------------------------------------------------------------------------
 # What the applicant holds (A5.4): two instruments, two issuers

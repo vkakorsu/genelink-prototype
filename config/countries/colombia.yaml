@@ -83,6 +83,22 @@ scope:
           label: "No"
         - id: unclear
           label: Unclear
+    - id: country_of_origin
+      fact: colombiaOrigin
+      prompt: Is Colombia the country of origin of the genetic resource (D391 Art. 6)?
+      default: unclear
+      note: >-
+        Art. 6 makes genetic resources and derived products patrimony of the Nation of the Member Country that
+        is their country of origin, de conformidad con legislaciones internas. The condition is routinely
+        dropped when the article is quoted, and it can change the result. Holding material in Colombia does not
+        by itself make Colombia the country of origin.
+      options:
+        - id: "yes"
+          label: "Yes"
+        - id: "no"
+          label: "No, another country is the country of origin"
+        - id: unclear
+          label: Not yet established
   rules:
     - id: non_commercial_out_of_scope
       when: { purpose: non_commercial }
@@ -115,6 +131,15 @@ scope:
         value: Outside the access regime on the Art. 2 test. Record the methodology the conclusion rests on. Crude extracts are inside the definition of producto derivado (D391 Art. 1) but the definition is not the trigger. The Art. 2 activity test and the planned methodology decide.
         citation: Res. 1348/2014 Art. 2; D391 Art. 1
       redirect: Outside the access regime. Recorded basis kept on the case.
+    - id: not_country_of_origin
+      when: { colombiaOrigin: "no" }
+      result: out_of_scope
+      basis:
+        state: established
+        marker: "§"
+        value: The Art. 6 patrimony claim does not attach on these facts. Establish which country of origin does, and whether its regime applies instead.
+        citation: D391 Art. 6
+      redirect: The country of origin's own access regime. GENE-LINK runs it where that country is configured.
     - id: in_scope
       result: in_scope
       basis:
@@ -130,9 +155,6 @@ scope:
         citation: Res. 1348/2014 Art. 2; D391 Arts. 1, 6
 
 eligibility:
-  - id: country_of_origin
-    text: Is Colombia the country of origin? Art. 6 makes genetic resources patrimony of the Nation of which the Member Country is the country of origin, de conformidad con legislaciones internas.
-    reg: { state: "established", marker: "§", value: "The condition can change the result. Establish which country of origin applies.", citation: "D391 Art. 6" }
   - id: national_support_institution
     text: The application names a national support institution, la persona o institución nacional de apoyo, a person or an institution.
     reg:
@@ -226,6 +248,17 @@ stages:
     needs: [Applicant identity, the provider, the national support institution, the project team, the access activity, the location, the project]
     gives: A filable application
     requirements:
+      - id: country_of_origin_outstanding
+        text: Whether Colombia is the country of origin has not been established. The application rests on the Art. 6 claim, so it waits on that fact.
+        when: { colombiaOrigin: unclear }
+        effect: hold
+        reg:
+          state: established
+          marker: "§"
+          value: Art. 6 applies where Colombia is the country of origin. The condition decides whether this pathway applies at all.
+          citation: D391 Art. 6
+          note: Establish whether Colombia is the country of origin of the resource, from its provenance record, and answer it on the intake form.
+          owner: The case participants, from the resource's provenance record
       - id: which_authority
         text: Which environmental authority? The location of the activity and how many jurisdictions it spans. ANLA, a regional CAR, a sustainable-development corporation, a large urban authority, or Parques Nacionales Naturales inside the National Natural Parks System.
         reg: { state: "established", marker: "§", value: "The model is not simply ANLA or a CAR.", citation: "D391 Art. 26; Art. 31" }
@@ -246,11 +279,14 @@ stages:
     gives: Acceptance or denial by reasoned resolution
     requirements:
       - id: publication_two_media
-        text: Publication in two media within five business days, one of national circulation and one local. Store the date and the evidence per publication. A single published flag loses half the duty.
-        reg: { state: "established", marker: "§", value: "Art. 28.", citation: "D391 Art. 28" }
+        text: Publication of an extract within five working days of registration, in two media, one written medium of wide national circulation and one of the locality where access will take place. Store the date and the evidence per publication. A single published flag loses half the duty.
+        reg: { state: "established", marker: "§", value: "Art. 28: dentro de los cinco días hábiles siguientes a la fecha de inscripción de la solicitud en el registro público.", citation: "D391 Art. 28" }
       - id: evaluation_clock
-        text: 30 working days for evaluation, extendable by up to 60 more working days, roughly 90 in total. Five working days to notify an acceptance. The five-day deadline attaches to notifying, not deciding.
-        reg: { state: "established", marker: "§", value: "Arts. 29 and 30.", citation: "D391 Arts. 29, 30" }
+        text: 30 working days from registration for evaluation, extendable by up to 60 more working days at the authority's discretion, roughly 90 in total. Five working days to notify an acceptance. The five-day deadline attaches to notifying, not deciding.
+        reg: { state: "established", marker: "§", value: "Art. 29: dentro de los treinta días hábiles siguientes al registro ... prorrogable hasta por sesenta días hábiles, a juicio de la Autoridad Nacional Competente. Art. 30: notificada al solicitante dentro de los cinco días hábiles siguientes.", citation: "D391 Arts. 29, 30" }
+      - id: parallel_procedures
+        text: Where other environmental procedures apply, they run independently and their results feed this evaluation. They are not alternatives to it.
+        reg: { state: "established", marker: "§", value: "Art. 31.", citation: "D391 Art. 31" }
       - id: actual_duration
         text: How long it actually takes. MADS estimates roughly 120 business days and states the procedure is free of charge.
         reg:
@@ -287,6 +323,12 @@ stages:
     needs: [CITES route, or the ANLA No-CITES procedure with tariff under Res. 0921/2025, or a documented exemption, then ICA and sanitary layers]
     gives: Lawful export, checked against the contract's transfer conditions
     requirements:
+      - id: export_route
+        text: Which export route. The CITES route where the specimen is CITES-listed; the ANLA No-CITES import and export procedure for biological-diversity specimens not listed in CITES, subject to statutory exemptions, with a tariff under Res. 0921/2025; or a documented exemption, recorded with its basis.
+        reg: { state: "established", marker: "§", value: "Three routes, decided by CITES listing and whether an exemption is documented.", citation: "Res. 0921/2025" }
+      - id: sanitary_layers
+        text: Then the ICA and sanitary layers, on every route.
+        reg: { state: "established", marker: "§", value: "ICA and sanitary requirements." }
       - id: contract_transfer_terms
         text: D391 Art. 17 contemplates contract terms governing transfer of accessed material to third parties. Store them on the contract object and check before any export or sublicense.
         reg: { state: "established", marker: "§", value: "Art. 17.", citation: "D391 Art. 17" }
@@ -314,13 +356,18 @@ stateMachine:
       reg: { state: "established", marker: "§", value: "Model incomplete, information requested and resubmitted as real states.", citation: "D391 Art. 27" }
     information_requested: { label: Information requested, kind: active }
     resubmitted: { label: Resubmitted, kind: waiting }
-    admitted: { label: Admitted (complete), kind: waiting }
+    admitted: { label: Admitted and registered (Art. 27). The Art. 29 clock starts, kind: waiting }
     published: { label: Published in two media, kind: waiting }
-    evaluated: { label: "Under evaluation (30 working days, extendable by up to 60)", kind: waiting }
+    evaluated: { label: "Under evaluation (30 working days from registration, extendable by up to 60)", kind: waiting }
     accepted:
       label: Accepted. Five working days to notify. Acceptance is not a contract.
       kind: active
       reg: { state: "established", marker: "§", value: "Art. 30.", citation: "D391 Art. 30" }
+    notification_overdue:
+      label: Acceptance not notified within five working days. Remedy against the administrator; the acceptance stands.
+      kind: halted
+      outcome: lapsed
+      reg: { state: "established", marker: "§", value: "The five-day deadline attaches to notifying the acceptance, not to deciding. A late notification is a remedy against the administrator. It neither undoes the acceptance nor creates a contract.", citation: "D391 Art. 30" }
     negotiating: { label: Contract negotiation with MADS, kind: active }
     perfected:
       label: Contract perfected on publication
@@ -364,15 +411,22 @@ stateMachine:
     - { from: filed, to: withdrawn, event: withdraw, actor: applicant }
     - { from: evaluated, to: withdrawn, event: withdraw, actor: applicant }
     - { from: negotiating, to: withdrawn, event: withdraw, actor: applicant }
+    - { from: admitted, to: deadline_lapsed, event: lapse, actor: system }
+    - { from: published, to: deadline_lapsed, event: lapse, actor: system }
     - { from: evaluated, to: deadline_lapsed, event: lapse, actor: system }
     - { from: deadline_lapsed, to: evaluated, event: administrator_resumes, actor: authority }
+    - { from: accepted, to: notification_overdue, event: lapse, actor: system }
+    - { from: notification_overdue, to: negotiating, event: begin_negotiation, actor: authority }
   clocks:
     - id: evaluation
-      label: Evaluation clock (Art. 29)
-      startsIn: evaluated
+      label: Evaluation clock (Art. 29, 30 working days from registration)
+      startsIn: admitted
+      # "Dentro de los treinta días hábiles siguientes al registro": publication (Art. 28) runs inside it.
+      runsIn: [admitted, published, evaluated]
       days: 30
       dayKind: working
       extendableDays: 60
+      extension: { state: "established", marker: "§", value: "Dicho plazo será prorrogable hasta por sesenta días hábiles, a juicio de la Autoridad Nacional Competente. At the authority's discretion, up to 60 working days in total.", citation: "D391 Art. 29" }
       suspendsIn: [information_requested]
       onLapse:
         to: deadline_lapsed
@@ -384,9 +438,62 @@ stateMachine:
       days: 5
       dayKind: working
       onLapse:
-        to: deadline_lapsed
+        to: notification_overdue
         effect: remedy_against_administrator
         reg: { state: "established", marker: "§", value: "The deadline attaches to notifying acceptance, not to making the decision. Art. 30 counts it in working days (días hábiles).", citation: "D391 Art. 30" }
+
+# Días hábiles skip the weekend and Colombia's public holidays, most of which move to the following
+# Monday under Ley Emiliani. Ley 2578 of 2026 added the Virgen de Chiquinquirá (9 July, observed Monday).
+calendar:
+  weekend: [6, 7]
+  coversThrough: "2027-12-31"
+  reg:
+    state: inferred
+    marker: "▸"
+    value: >-
+      Holiday dates follow Ley 51 de 1983 (Ley Emiliani) and Ley 2578 de 2026. Ley 4 de 1913 Art. 62 removes
+      holidays from periods counted in days. Treating Saturday as a non-working day for días hábiles is
+      GENE-LINK's reading of administrative practice, to confirm with MADS.
+    citation: Ley 51 de 1983; Ley 2578 de 2026; Ley 4 de 1913 Art. 62
+  holidays:
+    - { date: "2026-01-01", name: Año Nuevo }
+    - { date: "2026-01-12", name: Reyes Magos }
+    - { date: "2026-03-23", name: San José }
+    - { date: "2026-04-02", name: Jueves Santo }
+    - { date: "2026-04-03", name: Viernes Santo }
+    - { date: "2026-05-01", name: Día del Trabajo }
+    - { date: "2026-05-18", name: Ascensión }
+    - { date: "2026-06-08", name: Corpus Christi }
+    - { date: "2026-06-15", name: Sagrado Corazón }
+    - { date: "2026-06-29", name: San Pedro y San Pablo }
+    - { date: "2026-07-13", name: Virgen de Chiquinquirá (Ley 2578 de 2026) }
+    - { date: "2026-07-20", name: Independencia }
+    - { date: "2026-08-07", name: Batalla de Boyacá }
+    - { date: "2026-08-17", name: Asunción }
+    - { date: "2026-10-12", name: Día de la Raza }
+    - { date: "2026-11-02", name: Todos los Santos }
+    - { date: "2026-11-16", name: Independencia de Cartagena }
+    - { date: "2026-12-08", name: Inmaculada Concepción }
+    - { date: "2026-12-25", name: Navidad }
+    - { date: "2027-01-01", name: Año Nuevo }
+    - { date: "2027-01-11", name: Reyes Magos }
+    - { date: "2027-03-22", name: San José }
+    - { date: "2027-03-25", name: Jueves Santo }
+    - { date: "2027-03-26", name: Viernes Santo }
+    - { date: "2027-05-01", name: Día del Trabajo }
+    - { date: "2027-05-10", name: Ascensión }
+    - { date: "2027-05-31", name: Corpus Christi }
+    - { date: "2027-06-07", name: Sagrado Corazón }
+    - { date: "2027-07-05", name: San Pedro y San Pablo }
+    - { date: "2027-07-12", name: Virgen de Chiquinquirá (Ley 2578 de 2026) }
+    - { date: "2027-07-20", name: Independencia }
+    - { date: "2027-08-07", name: Batalla de Boyacá }
+    - { date: "2027-08-16", name: Asunción }
+    - { date: "2027-10-18", name: Día de la Raza }
+    - { date: "2027-11-01", name: Todos los Santos }
+    - { date: "2027-11-15", name: Independencia de Cartagena }
+    - { date: "2027-12-08", name: Inmaculada Concepción }
+    - { date: "2027-12-25", name: Navidad }
 
 outputs:
   - id: access_contract
@@ -435,7 +542,7 @@ variables:
   trigger: { state: "established", marker: "§", value: "Listed activities configure access, separating DNA or RNA units, isolating metabolic molecules.", citation: "Res. 1348/2014 Art. 2" }
   orderOfConsent: { state: "established", marker: "§", value: "Prior consultation, where direct affectation arises, precedes the application. The contract is negotiated after acceptance.", citation: "A5.3" }
   applicantHolds: { state: "established", marker: "§", value: "A negotiated access contract with the State, perfected on publication and modified later by addendum, potentially with accessory contracts under a suspensive condition.", citation: "A5.4" }
-  clocks: { state: "established", marker: "§", value: "30 working days statutory, extendable by up to 60. Roughly 120 business days in practice. Free of charge.", citation: "D391 Arts. 29, 30" }
+  clocks: { state: "established", marker: "§", value: "30 working days from registration, extendable by up to 60 more working days. Five working days to notify an acceptance. Roughly 120 business days in practice. Free of charge.", citation: "D391 Arts. 29, 30" }
   durationRenewal: { state: "unknown", marker: "?", note: "No universal statutory term. The 2025 framework contract located runs 20 years.", owner: "Colombia escalation owner" }
   transferExport: { state: "established", marker: "§", value: "Contract terms govern third-party transfer. Export runs a CITES route, an ANLA procedure, or a documented exemption, then sanitary layers.", citation: "D391 Art. 17" }
   postPermitLifecycle: { state: "established", marker: "§", value: "Duties carried in the access contract.", citation: "A5.8" }
@@ -498,7 +605,7 @@ obligationClasses:
     name: Terminal states
     fields:
       states: { state: "established", marker: "§", value: "Returned incomplete, admitted, evaluated, accepted, denied, perfected, terminated" }
-      processing_clock: { state: "established", marker: "§", value: "30 working days extendable by up to 60 more. MADS' own estimate is roughly 120 business days.", citation: "D391 Art. 29" }
+      processing_clock: { state: "established", marker: "§", value: "30 working days from registration, extendable by up to 60 more working days. MADS' own estimate is roughly 120 business days.", citation: "D391 Art. 29" }
       gl_measurement: { state: "inferred", marker: "[GL]", value: "Median 237 calendar days, P75 410, maximum 3,125 across 347 files. Ours, not a government metric. Dataset stale since May 2023." }
       acceptance_notice: { state: "established", marker: "§", value: "Five working days (días hábiles) to notify an acceptance. Attaches to notifying, not deciding.", citation: "D391 Art. 30" }
       denial: { state: "established", marker: "§", value: "By reasoned resolution at completion of the Art. 29 evaluation. A recurso de reposición is contemplated." }

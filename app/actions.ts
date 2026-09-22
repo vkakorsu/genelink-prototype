@@ -353,6 +353,13 @@ export const tickClocks = onCase("tickClocks", async (caseId, fd) => {
   p.tickClocks(caseId, new Date(Date.now() + days * 86_400_000));
 });
 
+export const extendClock = onCase("extendClock", async (caseId, fd) => {
+  const admin = await requireAdmin();
+  const days = Number(text(fd, "days", 6));
+  if (!Number.isInteger(days) || days < 1) throw new InvalidRequest("An extension is a whole number of days, at least one.");
+  getPlatform().extendClock(admin, caseId, text(fd, "clockId", 60), days, text(fd, "note", 300));
+});
+
 export const recordInstrument = onCase("recordInstrument", async (caseId, fd) => {
   const actor = await requireSeat();
   const content = typeof fd.get("content") === "string" ? (fd.get("content") as string) : "";

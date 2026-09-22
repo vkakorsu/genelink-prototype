@@ -1,6 +1,6 @@
 import { nextEntry, verifyChain, type AuditEntry } from "./audit/chain";
 import { makeDisclosure, type Disclosure } from "./audit/disclosure";
-import { activityQuestion, type CaseFacts, type CountryConfig, type RegValue } from "./config/schema";
+import { type CaseFacts, type CountryConfig, type RegValue } from "./config/schema";
 import { FROZEN_STATUSES, amendInstrument, awaitingInstrument, issueInstruments, sha256 } from "./domain/instruments";
 import { fullProjection, publicProjection, searchableText, type FullListing, type PublicListing } from "./domain/listings";
 import type {
@@ -9,7 +9,7 @@ import type {
 import { withDeclaredDefaults } from "./engine/facts";
 import { attachedDuties, buildPathway, type Pathway } from "./engine/pathway";
 import { evaluateScope } from "./engine/scope";
-import { applyLapse, fire, initialSnapshot, isGranted, tick } from "./engine/stateMachine";
+import { applyLapse, extendClock, fire, initialSnapshot, isGranted, runsIn, tick } from "./engine/stateMachine";
 import type { Store } from "./store/Store";
 
 /**
@@ -333,9 +333,13 @@ export class Platform {
         { organisationId: supplier.id, role: "supply" },
       ],
       listingId: listing.id,
-      // Every fact starts in its explicit "not yet established" state: the shared ones as unclear, the
-      // country's own as the default its question declares. No stage is dropped for want of an answer.
-      facts: withDeclaredDefaults(cfg, { purpose: "commercial", activity: activityQuestion(cfg).options[0].id, provenance: "in_situ", applicantType: "foreign_legal", exchange: "no_movement", communityHeld: "unclear", tkInvolved: "unclear", flags: {} }),
+      // Nothing is guessed. Purpose, activity, provenance and exchange stay unestablished until the
+      // parties answer them, so scope reads "undetermined" and every stage that turns on them halts
+      // and names the question. Community holding and traditional knowledge start as "unclear", and
+      // each country's own facts as the "not yet established" option its question declares. The one
+      // fact the platform already holds is the applicant's: the demand-side organisation, whose
+      // registered country says whether it applies as a national or a foreign legal person.
+      facts: withDeclaredDefaults(cfg, { applicantType: demand.country === cfg.code ? "national_legal" : "foreign_legal", communityHeld: "unclear", tkInvolved: "unclear", flags: {} }),
       machine: initialSnapshot(cfg, at),
       revealedAt: at.toISOString(),
       createdAt: at.toISOString(),
@@ -392,7 +396,9 @@ export class Platform {
     const facts = withDeclaredDefaults(cfg, incoming);
     const before = evaluateScope(cfg, c.facts).kind;
     const after = evaluateScope(cfg, facts).kind;
-    if (before !== after) {
+    // Answering the intake questions for the first time is not a change of intent: before a scope
+    // answer exists there is no intent on the record to change.
+    if (before !== after && before !== "undetermined") {
       throw new InvalidRequest(`That edit changes the scope answer from ${before.replaceAll("_", " ")} to ${after.replaceAll("_", " ")}. A scope change is a declared change of intent with the country's consequence policy on the record. Use the change-of-intent form, not a facts edit.`);
     }
     c.facts = facts;
@@ -442,19 +448,45 @@ export class Platform {
     return c;
   }
 
-  private syncEscalations(actor: Actor, c: Case) {
+  /**
+   * Keep the case's escalation records in step with its pathway. A new legal unknown is raised to
+   * its owner. One the pathway no longer raises is closed with the reason on the record: either the
+   * configuration now carries an answer (legal review changed the file) or the case's facts no longer
+   * reach the requirement. It reopens if it comes back. Nothing is deleted.
+   */
+  syncEscalations(actor: Actor, c: Case) {
     const pathway = this.pathwayFor(c);
     const cfg = this.country(c.providerCountry);
+    const live = new Set<string>();
     for (const e of pathway.escalations) {
       // An unanswered intake fact halts the stage on the page, but it is the parties' question,
       // not a legal unknown for the escalation owner: it is not persisted as an escalation record.
       if (e.kind === "unanswered_fact") continue;
       const id = `esc_${c.id}_${e.id}`;
-      if (!this.store.escalations.get(id)) {
+      live.add(id);
+      const existing = this.store.escalations.get(id);
+      if (!existing) {
         const rec: EscalationRecord = { id, caseId: c.id, stageId: e.stageId, question: e.question, owner: e.owner, ownerName: e.ownerName, status: "open", raisedAt: this.now().toISOString() };
         this.store.escalations.put(rec);
         this.audit({ system: true }, "escalation.raised", { type: "escalation", id }, { stageId: e.stageId, owner: e.owner, requirement: e.requirementId });
+      } else if (existing.status !== "open") {
+        existing.status = "open";
+        existing.answer = undefined;
+        this.store.escalations.put(existing);
+        this.audit({ system: true }, "escalation.reopened", { type: "escalation", id }, { stageId: e.stageId, owner: e.owner, requirement: e.requirementId });
       }
+    }
+    for (const rec of this.escalationsFor(c.id)) {
+      if (rec.status !== "open" || live.has(rec.id)) continue;
+      const requirementId = rec.id.slice(`esc_${c.id}_`.length).split(":").pop() ?? "";
+      const stillUnknownInFile = this.unknownInFile(cfg, rec.stageId, requirementId);
+      const note = stillUnknownInFile
+        ? "No longer raised on this case: the facts entered no longer reach this requirement. The question itself remains open in the configuration."
+        : "No longer raised: the configuration now carries an answer for this requirement. The file records the evidence class and citation.";
+      rec.status = stillUnknownInFile ? "closed" : "answered";
+      rec.answer = { by: "system", at: this.now().toISOString(), note };
+      this.store.escalations.put(rec);
+      this.audit({ system: true }, stillUnknownInFile ? "escalation.closed" : "escalation.answered", { type: "escalation", id: rec.id }, { note });
     }
     for (const s of pathway.stages) {
       for (const m of s.manualReviews) {
@@ -467,6 +499,16 @@ export class Platform {
       }
     }
     void actor;
+  }
+
+  /** Whether the file still carries this requirement as an unresolved, driving value. */
+  private unknownInFile(cfg: CountryConfig, stageId: string, requirementId: string): boolean {
+    if (stageId === "intake") {
+      const rule = cfg.scope.rules.find((x) => x.id === requirementId);
+      if (rule) return rule.result === "escalate";
+    }
+    const req = cfg.stages.find((s) => s.id === stageId)?.requirements.find((r) => r.id === requirementId);
+    return !!req && req.reg.state === "unknown" && req.reg.drives;
   }
 
   escalationsFor(caseId: string) {
@@ -532,10 +574,12 @@ export class Platform {
     const pathway = this.pathwayFor(c);
     const stage = pathway.stages.find((s) => s.stage.id === stageId);
     if (!stage) throw new InvalidRequest("Stage not on this pathway");
-    if (stage.status === "halted" && progress === "complete") throw new PermissionDenied("A halted stage cannot be completed. The open question must be answered through configuration review first.");
-    const haltedBefore = pathway.stages.slice(0, pathway.stages.indexOf(stage)).filter((s) => s.status === "halted");
-    if (progress === "complete" && haltedBefore.length) {
-      throw new PermissionDenied(`An earlier stage is halted: ${haltedBefore.map((s) => s.stage.title).join("; ")}. A later stage cannot be marked complete while the question it depends on is open.`);
+    if (stage.status === "informational") throw new InvalidRequest("A phase-two stage records duties. It is never marked complete (R10).");
+    if (stage.status === "stopped" && progress === "complete") throw new PermissionDenied(`A prohibition applies on these facts: ${stage.stops.map((x) => x.text).join(" ")} The stage cannot be completed, and the platform offers no way round it.`);
+    if (stage.status === "halted" && progress === "complete") throw new PermissionDenied("A halted stage cannot be completed. The open question must be answered first: a legal unknown through configuration review, an unanswered fact on the intake form.");
+    const blockedBefore = pathway.stages.slice(0, pathway.stages.indexOf(stage)).filter((s) => s.status === "halted" || s.status === "stopped");
+    if (progress === "complete" && blockedBefore.length) {
+      throw new PermissionDenied(`An earlier stage is ${blockedBefore.some((s) => s.status === "stopped") ? "stopped or halted" : "halted"}: ${blockedBefore.map((s) => s.stage.title).join("; ")}. A later stage cannot be marked complete while the question it depends on is open.`);
     }
     c.stageProgress[stageId] = progress;
     this.store.cases.put(c);
@@ -565,7 +609,7 @@ export class Platform {
       throw this.denied(`Recording "${event.replace(/_/g, " ")}" is a filing before the regulator, a commitment the organisation stands behind. It needs an authorised signatory or administrator seat; your seat is ${actor.seat.permission}. This attempt has been recorded.`);
     }
     const wasGranted = isGranted(cfg, c.machine);
-    c.machine = fire(cfg, c.machine, event, effectiveActor, this.now(), note);
+    c.machine = fire(cfg, c.machine, event, effectiveActor, this.now(), note, c.facts);
     this.store.cases.put(c);
     this.audit(actor, "regulator.event_recorded", { type: "case", id: caseId }, { event, to: c.machine.state, recordedOnBehalfOf: effectiveActor, note });
     if (isGranted(cfg, c.machine)) this.issueOutputs(actor, c);
@@ -601,11 +645,28 @@ export class Platform {
     return { lapsed };
   }
 
-  /** Demo control: evaluate the running clock one day past its own deadline. Returns null when no clock governs the current state. */
+  /**
+   * The authority extends a running statutory clock under the power the country file declares. An
+   * authority act, so an administrator records it on the authority's behalf, with a reason. Without
+   * this, a lawful extension (Colombia D391 Art. 29) would present as a lapse.
+   */
+  extendClock(admin: Actor, caseId: string, clockId: string, days: number, note: string): Case {
+    if (!("admin" in admin)) throw new PermissionDenied("An extension is the authority's act. An administrator records it on the authority's behalf; a party seat cannot.");
+    if (!note.trim()) throw new InvalidRequest("Say what the authority's extension rests on (the notice or resolution). It goes into the audit chain.");
+    const c = this.caseFor(caseId);
+    const cfg = this.country(c.providerCountry);
+    c.machine = extendClock(cfg, c.machine, clockId, days, this.now(), note.trim());
+    this.store.cases.put(c);
+    const st = c.machine.clocks[clockId];
+    this.audit(admin, "clock.extended", { type: "case", id: caseId }, { clockId, days, extendedDays: st.extendedDays, deadline: st.deadline, note: note.trim(), recordedOnBehalfOf: "authority" });
+    return c;
+  }
+
+  /** Demo control: evaluate the running clock one day past its own deadline. Returns null when no clock runs in the current state. */
   forceLapse(caseId: string): { lapsed: string[]; at: Date } | null {
     const c = this.caseFor(caseId);
     const cfg = this.country(c.providerCountry);
-    const running = cfg.stateMachine.clocks.find((k) => k.startsIn === c.machine.state && c.machine.clocks[k.id]?.deadline && !c.machine.clocks[k.id].suspended);
+    const running = cfg.stateMachine.clocks.find((k) => runsIn(k).includes(c.machine.state) && c.machine.clocks[k.id]?.deadline && !c.machine.clocks[k.id].suspended && !c.machine.clocks[k.id].lapsed);
     if (!running) return null;
     const at = new Date(new Date(c.machine.clocks[running.id].deadline!).getTime() + 86_400_000);
     return { ...this.tickClocks(caseId, at), at };
