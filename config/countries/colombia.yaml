@@ -29,12 +29,19 @@ euSide:
   state: unknown
   marker: "?"
   note: >-
-    No internationally recognised certificate of compliance can issue for Colombian material. Regulation
-    (EU) No 511/2014 and Implementing Regulation 2015/1866 allow other relevant information and documents
-    where a certificate is unavailable, so Colombian material carries a heavier and less standardised
-    documentation burden, not an impossible one. Whether material from a non-Party State falls inside
-    Regulation 511/2014 at all is an open legal question. A legal opinion is being sought.
-  citation: Regulation (EU) No 511/2014; Appendix B, A7 cross-cutting
+    No internationally recognised certificate of compliance can issue for Colombian material, because
+    Colombia is not a Party. What follows for an EU user is the open question, and two readings are on
+    the table. Appendix B's reading: Regulation (EU) No 511/2014 Art. 4(3)(b) and Implementing Regulation
+    (EU) 2015/1866 accept other relevant information and documents where no certificate exists, so
+    Colombian material carries a heavier and less standardised documentation burden. The Commission's
+    reading: Art. 2(4) confines the Regulation to genetic resources governed by the ABS legislation of a
+    Party to the Nagoya Protocol, and the Commission's guidance 2021/C 13/01, section 2.1.6, states that
+    utilisation of genetic resources from non-Parties is outside the scope of the EU ABS Regulation, while
+    users should still comply with the provider country's law and any mutually agreed terms. The two
+    readings give an EU user opposite answers on whether an Art. 7 due-diligence declaration is owed at
+    all. Colombian law binds regardless. The platform presents neither reading as settled. A legal opinion
+    is being sought by GENE-LINK.
+  citation: Regulation (EU) No 511/2014 Arts. 2(4), 4(3)(b), 7; Commission guidance 2021/C 13/01 §2.1.6; Appendix B, A7 cross-cutting
   owner: Landscape Alliance legal opinion, routed to the Colombia escalation owner
   drives: false
 
@@ -64,6 +71,7 @@ scope:
     - id: direct_affectation
       fact: directAffectation
       prompt: Direct affectation (afectación directa) of an ethnic community?
+      default: unclear
       note: >-
         Decides whether prior consultation precedes the application. Per SU-123/2018 a titled resguardo
         is strong evidence but not the trigger, and geography alone does not suffice. Unclear keeps the
@@ -241,7 +249,7 @@ stages:
         text: Publication in two media within five business days, one of national circulation and one local. Store the date and the evidence per publication. A single published flag loses half the duty.
         reg: { state: "established", marker: "§", value: "Art. 28.", citation: "D391 Art. 28" }
       - id: evaluation_clock
-        text: 30 working days for evaluation, extendable by up to 60 more, roughly 90 in total. Five days to notify an acceptance. The five-day deadline attaches to notifying, not deciding.
+        text: 30 working days for evaluation, extendable by up to 60 more working days, roughly 90 in total. Five working days to notify an acceptance. The five-day deadline attaches to notifying, not deciding.
         reg: { state: "established", marker: "§", value: "Arts. 29 and 30.", citation: "D391 Arts. 29, 30" }
       - id: actual_duration
         text: How long it actually takes. MADS estimates roughly 120 business days and states the procedure is free of charge.
@@ -310,7 +318,7 @@ stateMachine:
     published: { label: Published in two media, kind: waiting }
     evaluated: { label: "Under evaluation (30 working days, extendable by up to 60)", kind: waiting }
     accepted:
-      label: Accepted. Five days to notify. Acceptance is not a contract.
+      label: Accepted. Five working days to notify. Acceptance is not a contract.
       kind: active
       reg: { state: "established", marker: "§", value: "Art. 30.", citation: "D391 Art. 30" }
     negotiating: { label: Contract negotiation with MADS, kind: active }
@@ -371,14 +379,14 @@ stateMachine:
         effect: remedy_against_administrator
         reg: { state: "established", marker: "§", value: "A missed statutory deadline gives a remedy against the administrator. It does not grant the contract.", citation: "Appendix B, R8" }
     - id: acceptance_notice
-      label: Five days to notify an acceptance
+      label: Five working days to notify an acceptance (Art. 30, "cinco días hábiles")
       startsIn: accepted
       days: 5
-      dayKind: calendar
+      dayKind: working
       onLapse:
         to: deadline_lapsed
         effect: remedy_against_administrator
-        reg: { state: "established", marker: "§", value: "The deadline attaches to notifying acceptance, not to making the decision.", citation: "D391 Art. 30" }
+        reg: { state: "established", marker: "§", value: "The deadline attaches to notifying acceptance, not to making the decision. Art. 30 counts it in working days (días hábiles).", citation: "D391 Art. 30" }
 
 outputs:
   - id: access_contract
@@ -492,7 +500,7 @@ obligationClasses:
       states: { state: "established", marker: "§", value: "Returned incomplete, admitted, evaluated, accepted, denied, perfected, terminated" }
       processing_clock: { state: "established", marker: "§", value: "30 working days extendable by up to 60 more. MADS' own estimate is roughly 120 business days.", citation: "D391 Art. 29" }
       gl_measurement: { state: "inferred", marker: "[GL]", value: "Median 237 calendar days, P75 410, maximum 3,125 across 347 files. Ours, not a government metric. Dataset stale since May 2023." }
-      acceptance_notice: { state: "established", marker: "§", value: "Five days to notify an acceptance. Attaches to notifying, not deciding.", citation: "D391 Art. 30" }
+      acceptance_notice: { state: "established", marker: "§", value: "Five working days (días hábiles) to notify an acceptance. Attaches to notifying, not deciding.", citation: "D391 Art. 30" }
       denial: { state: "established", marker: "§", value: "By reasoned resolution at completion of the Art. 29 evaluation. A recurso de reposición is contemplated." }
       nullity_cascade: { state: "established", marker: "§", value: "One-way. Nullity of the access contract entails nullity of the accessory contract. In the other direction the authority may terminate where an indispensable accessory contract fails.", citation: "D391 Art. 44" }
       annex_breach: { state: "established", marker: "§", value: "A causal de resolución y nulidad, a ground requiring a determination, not an automatic void state." }
@@ -517,7 +525,7 @@ openQuestions:
   - id: eu_reach_non_party
     question: The reach of EU due diligence over non-Party material
     affects: Whether material from a non-Party State falls inside Regulation (EU) No 511/2014 at all. The answer changes the documentation burden in either direction.
-    reg: { state: "unknown", marker: "?", note: "A legal opinion is being sought.", owner: "Landscape Alliance legal opinion" }
+    reg: { state: "unknown", marker: "?", note: "A legal opinion is being sought. Evidence to weigh: Art. 2(4) of the Regulation confines it to genetic resources governed by the ABS legislation of a Party, and Commission guidance 2021/C 13/01 §2.1.6 states that utilisation of genetic resources from non-Parties is outside the Regulation's scope. Guidance is not law, and it does not displace Colombian law.", citation: "Regulation (EU) No 511/2014 Art. 2(4); Commission guidance 2021/C 13/01 §2.1.6", owner: "Landscape Alliance legal opinion" }
   - id: dsi_route
     question: Whether digital sequence information alone is inside the access regime
     affects: The sequence-data-only route

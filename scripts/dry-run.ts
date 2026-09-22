@@ -63,7 +63,10 @@ for (const s of pathway.stages) {
 }
 line();
 line(`Escalations raised (R3): ${pathway.escalations.length}`);
-for (const e of pathway.escalations) line(`  ? ${e.stageId}/${e.requirementId} -> ${e.owner}${e.ownerName ? ` (${e.ownerName})` : " (name pending Landscape Alliance)"}`);
+for (const e of pathway.escalations) {
+  const owner = e.kind === "unanswered_fact" ? `${e.owner} (an intake fact, not a legal unknown)` : `${e.owner}${e.ownerName ? ` (${e.ownerName})` : " (name pending Landscape Alliance)"}`;
+  line(`  ? ${e.stageId}/${e.requirementId} -> ${owner}`);
+}
 line();
 
 // Walk the state machine along the shortest declared path to a granted state.

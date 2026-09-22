@@ -1,12 +1,14 @@
 import type { CaseFacts, CountryConfig, RegValue, Stage } from "../config/schema";
-import { matches } from "./conditions";
+import { evaluate, matches, unresolvedFields } from "./conditions";
 import { evaluateScope, type ScopeAnswer } from "./scope";
 
 /**
  * Pathway generation. Takes a country configuration and the facts of a case and
  * returns the ordered list of stages that apply, each with its requirements,
  * documents and consent parties resolved, and each HALTED where a requirement
- * that drives it is unknown (R3). Nothing here resolves an unknown to a default.
+ * that drives it is unknown (R3). Nothing here resolves an unknown to a default:
+ * a stage whose own condition reads a fact nobody has answered stays on the
+ * pathway and halts, instead of vanishing as if the answer had been "no".
  */
 
 export type Escalation = {
@@ -17,7 +19,19 @@ export type Escalation = {
   reg: RegValue;
   owner: string;
   ownerName: string | null;
+  /**
+   * unknown_rule: a regulatory value Appendix B leaves unresolved. Answered by configuration
+   * change with legal review, and persisted on the case as an escalation record.
+   * unanswered_fact: an intake fact the parties have not supplied. Answered on the facts form,
+   * and never a legal question for the country's escalation owner.
+   */
+  kind: "unknown_rule" | "unanswered_fact";
 };
+
+/** The intake prompt for a fact, so the halt names the question the parties must answer. */
+function promptFor(cfg: CountryConfig, field: string): string {
+  return cfg.scope.questions.find((q) => q.fact === field)?.prompt ?? field;
+}
 
 export type ResolvedRequirement = {
   id: string;
@@ -60,6 +74,7 @@ export function buildPathway(cfg: CountryConfig, facts: CaseFacts): Pathway {
       reg: scope.basis,
       owner: scope.owner,
       ownerName,
+      kind: "unknown_rule",
     });
   }
 
@@ -70,7 +85,31 @@ export function buildPathway(cfg: CountryConfig, facts: CaseFacts): Pathway {
   const stages: ResolvedStage[] = [];
   let index = 0;
   for (const stage of cfg.stages) {
-    if (!matches(stage.when, facts)) continue;
+    const applies = evaluate(stage.when, facts);
+    if (applies === "no_match") continue;
+    // The stage may apply, but a fact it turns on has no answer. It is shown and halted, and
+    // the halt names the question. Skipping it here would be the engine answering "no" for
+    // the parties (R3).
+    const factEscalations: Escalation[] =
+      applies === "unresolved"
+        ? unresolvedFields(stage.when, facts).map((field) => ({
+            id: `${stage.id}:fact:${field}`,
+            stageId: stage.id,
+            requirementId: `fact:${field}`,
+            question: `"${promptFor(cfg, field)}" has not been answered. This stage turns on that fact and cannot proceed on a guess.`,
+            reg: {
+              state: "unknown",
+              marker: "?",
+              note: `Deciding fact ${field} is not on the case. Nothing here selects an answer for the parties.`,
+              owner: "The case participants, on the intake form",
+              drives: true,
+              executable: true,
+            },
+            owner: "The case participants, on the intake form",
+            ownerName: null,
+            kind: "unanswered_fact",
+          }))
+        : [];
     const requirements = stage.requirements
       .filter((r) => matches(r.when, facts))
       .map((r) => ({ id: r.id, text: r.text, reg: r.reg, halts: r.reg.state === "unknown" && r.reg.drives }));
@@ -84,17 +123,23 @@ export function buildPathway(cfg: CountryConfig, facts: CaseFacts): Pathway {
       .filter((m) => matches(m.when, facts) && m.stageId === stage.id)
       .map((m) => ({ id: m.id, question: m.question, decides: m.decides, reg: m.reg }));
 
-    const stageEscalations: Escalation[] = requirements
-      .filter((r) => r.halts)
-      .map((r) => ({
-        id: `${stage.id}:${r.id}`,
-        stageId: stage.id,
-        requirementId: r.id,
-        question: r.reg.note ?? r.text,
-        reg: r.reg,
-        owner: r.reg.owner ?? cfg.escalation.defaultOwnerRole,
-        ownerName,
-      }));
+    const stageEscalations: Escalation[] = [
+      ...factEscalations,
+      ...requirements
+        .filter((r) => r.halts)
+        .map(
+          (r): Escalation => ({
+            id: `${stage.id}:${r.id}`,
+            stageId: stage.id,
+            requirementId: r.id,
+            question: r.reg.note ?? r.text,
+            reg: r.reg,
+            owner: r.reg.owner ?? cfg.escalation.defaultOwnerRole,
+            ownerName,
+            kind: "unknown_rule",
+          }),
+        ),
+    ];
     escalations.push(...stageEscalations);
 
     const halted = stageEscalations.length > 0 || manualReviews.some((m) => m.reg.state === "unknown" && m.reg.drives);

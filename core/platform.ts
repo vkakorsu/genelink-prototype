@@ -6,6 +6,7 @@ import { fullProjection, publicProjection, searchableText, type FullListing, typ
 import type {
   Agreement, AgreementVersion, Case, CaseDocument, EscalationRecord, Instrument, Listing, ManualReviewRecord, MarketFunction, Membership, Organisation, Permission, Person,
 } from "./domain/types";
+import { withDeclaredDefaults } from "./engine/facts";
 import { attachedDuties, buildPathway, type Pathway } from "./engine/pathway";
 import { evaluateScope } from "./engine/scope";
 import { applyLapse, fire, initialSnapshot, isGranted, tick } from "./engine/stateMachine";
@@ -332,7 +333,9 @@ export class Platform {
         { organisationId: supplier.id, role: "supply" },
       ],
       listingId: listing.id,
-      facts: { purpose: "commercial", activity: activityQuestion(cfg).options[0].id, provenance: "in_situ", applicantType: "foreign_legal", exchange: "no_movement", communityHeld: "unclear", tkInvolved: "unclear", flags: {} },
+      // Every fact starts in its explicit "not yet established" state: the shared ones as unclear, the
+      // country's own as the default its question declares. No stage is dropped for want of an answer.
+      facts: withDeclaredDefaults(cfg, { purpose: "commercial", activity: activityQuestion(cfg).options[0].id, provenance: "in_situ", applicantType: "foreign_legal", exchange: "no_movement", communityHeld: "unclear", tkInvolved: "unclear", flags: {} }),
       machine: initialSnapshot(cfg, at),
       revealedAt: at.toISOString(),
       createdAt: at.toISOString(),
@@ -381,11 +384,12 @@ export class Platform {
     return this.must(this.store.cases.get(caseId), "Case", caseId);
   }
 
-  updateFacts(actor: Actor, caseId: string, facts: CaseFacts): Case {
+  updateFacts(actor: Actor, caseId: string, incoming: CaseFacts): Case {
     const c = this.caseFor(caseId);
     this.requireParticipant(actor, c);
     this.require(actor, "member");
     const cfg = this.country(c.providerCountry);
+    const facts = withDeclaredDefaults(cfg, incoming);
     const before = evaluateScope(cfg, c.facts).kind;
     const after = evaluateScope(cfg, facts).kind;
     if (before !== after) {
@@ -404,13 +408,14 @@ export class Platform {
    * is a declaration the organisation stands behind before the regulator, so it takes an
    * authorised signatory: a member prepares facts, a signatory commits to a change in them.
    */
-  changeOfIntent(actor: Actor, caseId: string, newFacts: CaseFacts, description: string): Case {
+  changeOfIntent(actor: Actor, caseId: string, incoming: CaseFacts, description: string): Case {
     const c = this.caseFor(caseId);
     this.requireParticipant(actor, c);
     if ("seat" in actor && rank[actor.seat.permission] < rank.authorised_signatory) {
       throw new PermissionDenied("A change of intent is a declaration the organisation stands behind: it re-runs scope and applies this country's consequence to the instrument. It needs an authorised signatory or administrator seat. Your seat can edit facts that keep the scope answer, and record work in progress.");
     }
     const cfg = this.country(c.providerCountry);
+    const newFacts = withDeclaredDefaults(cfg, incoming);
     const at = this.now().toISOString();
     c.changeOfIntent.push({
       id: `coi_${caseId}_${c.changeOfIntent.length + 1}`,
@@ -441,6 +446,9 @@ export class Platform {
     const pathway = this.pathwayFor(c);
     const cfg = this.country(c.providerCountry);
     for (const e of pathway.escalations) {
+      // An unanswered intake fact halts the stage on the page, but it is the parties' question,
+      // not a legal unknown for the escalation owner: it is not persisted as an escalation record.
+      if (e.kind === "unanswered_fact") continue;
       const id = `esc_${c.id}_${e.id}`;
       if (!this.store.escalations.get(id)) {
         const rec: EscalationRecord = { id, caseId: c.id, stageId: e.stageId, question: e.question, owner: e.owner, ownerName: e.ownerName, status: "open", raisedAt: this.now().toISOString() };

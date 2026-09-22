@@ -284,7 +284,9 @@ function parseFacts(fd: FormData, cfg: CountryConfig): CaseFacts {
   const typed: Record<string, unknown> = {};
   const flags: Record<string, string> = {};
   for (const q of cfg.scope.questions) {
-    const raw = opt(q.fact);
+    // A choice left blank lands on the option the file declares as "not yet established", never
+    // on nothing: a missing fact would let a stage drop off the pathway as if the answer were no.
+    const raw = opt(q.fact) ?? (q.kind === "choice" ? q.default : undefined);
     if (raw === undefined) continue;
     if ((TYPED_FACTS as readonly string[]).includes(q.fact)) typed[q.fact] = q.kind === "number" ? Number(raw) : raw;
     else flags[q.fact] = raw;

@@ -14,7 +14,7 @@ The RFP's appendices make claims that are easy to write and hard to fake. This p
 | --- | --- |
 | **Country rules are configuration, not code (R2).** Three YAML files, one engine. Brazil was written after the engine was finished and the engine did not change. | `config/countries/*.yaml`, `npm run dry-run -- BR` |
 | **Three-state fields, not booleans (R1).** Every regulatory value carries `established`, `inferred` or `unknown`, with its Appendix B evidence marker and citation. A boolean in a regulatory field is a type error and a lint error. | `core/config/schema.ts` (`RegValue`), `core/config/lint.ts` |
-| **Unknown halts and escalates, never defaults (R3).** A stage that depends on an unresolved value stops, shows the question, and routes it to a named owner slot. | Kenya case, stages "Consent and terms" and "Traditional knowledge". Colombia case, "Prior consultation". |
+| **Unknown halts and escalates, never defaults (R3).** A stage that depends on an unresolved value stops, shows the question, and routes it to a named owner slot. The same rule reaches the intake: a country's deciding fact starts in its explicit "not yet established" option (the linter requires one), and a stage that turns on a fact nobody has answered halts on the page instead of dropping off the pathway as if the answer were no. | Kenya case, stages "Consent and terms" and "Traditional knowledge". Colombia case, "Prior consultation". `core/engine/facts.ts`, `core/engine/conditions.ts` |
 | **Evidence class reaches the interface (R4).** Every rule shown carries §, ▸, ?, ⊘ or [GL], visibly distinguished. | Every case page, `/admin/config/KE` |
 | **Manual-review states for judgments no system can make (R5).** Brazil's "genuine scientific collaboration" is a state only a human with a recorded reason can move. Never a checkbox. | Brazil case, stage "Who holds the registration" |
 | **Live data layers (R6).** Modelled in the schema (`liveLayers`); Kenya's species status list carries clearly-marked demonstration entries pending a maintained source. | `/admin/config/KE` |
@@ -58,7 +58,7 @@ Requires Node 24 (the current LTS line; Node 26 enters LTS on 28 October 2026 an
 
 ```bash
 npm ci
-npm run test:ci        # 90 tests on the core: schema, lint, scope, pathway, state machines, instruments, audit, full journeys, dry run for every country, and a hardening suite replaying every defect found in live evaluation
+npm run test:ci        # 95 tests on the core: schema, lint, scope, pathway, state machines, instruments, audit, full journeys, dry run for every country, and a hardening suite replaying every defect found in live evaluation
 npm run dry-run -- BR  # walk Brazil end to end in the terminal. Try CO or KE too
 npm run lint           # ESLint (Next.js core-web-vitals + TypeScript) across the codebase
 npm run a11y           # axe-core WCAG 2.2 AA sweep over every route, anonymous and under each seat kind

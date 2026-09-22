@@ -1,14 +1,36 @@
 import type { CaseFacts, Condition } from "../config/schema";
 
-/** A condition matches when every listed fact equals one of the allowed values. */
-export function matches(cond: Condition | undefined, facts: CaseFacts): boolean {
-  if (!cond) return true;
+/**
+ * Three answers, not two. A condition that names a fact nobody has answered yet is not
+ * "false": it is undecided, and a stage that hangs on it must stay on the pathway and halt
+ * (R3) rather than vanish as if the answer had been "no".
+ */
+export type ConditionAnswer = "match" | "no_match" | "unresolved";
+
+export function evaluate(cond: Condition | undefined, facts: CaseFacts): ConditionAnswer {
+  if (!cond) return "match";
+  let unresolved = false;
   for (const [field, allowed] of Object.entries(cond)) {
     const value = readFact(facts, field);
+    if (value === undefined) {
+      unresolved = true;
+      continue;
+    }
     const allowedList = Array.isArray(allowed) ? allowed : [allowed];
-    if (value === undefined || !allowedList.includes(String(value))) return false;
+    if (!allowedList.includes(String(value))) return "no_match";
   }
-  return true;
+  return unresolved ? "unresolved" : "match";
+}
+
+/** A condition matches only when every listed fact is answered and equals one of the allowed values. */
+export function matches(cond: Condition | undefined, facts: CaseFacts): boolean {
+  return evaluate(cond, facts) === "match";
+}
+
+/** The facts a condition reads that have no answer yet. */
+export function unresolvedFields(cond: Condition | undefined, facts: CaseFacts): string[] {
+  if (!cond) return [];
+  return Object.keys(cond).filter((field) => readFact(facts, field) === undefined);
 }
 
 export function readFact(facts: CaseFacts, field: string): string | number | undefined {

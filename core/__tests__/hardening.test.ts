@@ -35,6 +35,37 @@ function grantedKenyaCase(p: Platform) {
   return p.store.cases.get(c0.id)!;
 }
 
+describe("R3: a stage never disappears because a deciding fact was left blank", () => {
+  it("a case opened from a match carries Colombia's direct-affectation fact as unclear, so consulta previa is on the pathway and halted", () => {
+    const p = fresh();
+    const camila = p.actorFor("seat_camila_ibp");
+    const amara = p.actorFor("seat_amara_meridian");
+    p.signalInterest(amara, "lst_co_emulsifier");
+    const { caseId } = p.reciprocate(camila, "lst_co_emulsifier", "org_meridian");
+    const c = p.store.cases.get(caseId)!;
+    expect(c.facts.directAffectation).toBe("unclear");
+    const pathway = p.pathwayFor(c);
+    const consultation = pathway.stages.find((s) => s.stage.id === "prior_consultation")!;
+    expect(consultation).toBeTruthy();
+    expect(consultation.status).toBe("halted");
+    // The halt is the consultation-document unknown from the file, routed to the escalation owner. The
+    // parties' own unanswered fact is not a legal unknown and is never written to the escalation store.
+    expect(p.escalationsFor(caseId).some((e) => e.id.includes(":fact:"))).toBe(false);
+    expect(p.escalationsFor(caseId).some((e) => e.id.endsWith("prior_consultation:consultation_document"))).toBe(true);
+  });
+
+  it("a facts edit that omits a declared fact lands on the declared default, never on nothing", () => {
+    const p = fresh();
+    const camila = p.actorFor("seat_camila_ibp");
+    const co = p.store.cases.list().find((c) => c.providerCountry === "CO" && c.facts.purpose === "commercial")!;
+    const { directAffectation: _omitted, ...withoutIt } = co.facts;
+    void _omitted;
+    p.updateFacts(camila, co.id, withoutIt as CaseFacts);
+    expect(p.store.cases.get(co.id)!.facts.directAffectation).toBe("unclear");
+    expect(p.pathwayFor(p.store.cases.get(co.id)!).stages.map((s) => s.stage.id)).toContain("prior_consultation");
+  });
+});
+
 describe("CGen verification is not a party's self-declaration", () => {
   it("a case party cannot record CGen's outcome; the reviewer seat can", () => {
     const p = fresh();

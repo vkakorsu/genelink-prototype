@@ -8,7 +8,7 @@ schemaVersion: 1
 code: KE
 name: Kenya
 legalInstruments:
-  - Legal Notice 68 of 2025 (Access to Genetic Resources and Benefit Sharing Regulations)
+  - Legal Notice 68 of 2025 (Environmental Management and Co-ordination (Access to Biological Resources and Benefit Sharing) (No. 2) Regulations, 2025)
   - Protection of Traditional Knowledge and Cultural Expressions Act 2016
   - Wildlife Conservation and Management Act (definition of wildlife)
 
@@ -362,12 +362,21 @@ stages:
           owner: NACOSTI schedule confirmation, routed to the Kenya escalation owner
           drives: false
       - id: sectoral_clearance
-        text: Practitioner input reports a sectoral clearance layer before or alongside NEMA and NACOSTI, routed by category of material (KWS/KFS/KeFS, KEPHIS, DVS, MoH, NMK), and a separate ITPGRFA track through a KALRO SMTA.
+        text: Practitioner input reports a sectoral clearance layer before or alongside NEMA and NACOSTI, routed by category of material (KWS/KFS/KeFS, KEPHIS, DVS, MoH, NMK), and a separate ITPGRFA track through a KALRO SMTA. Separately, the regulation's own text excludes plant-breeder material under the Seeds and Plant Varieties Act and the ITPGRFA from LN 68 altogether.
         reg:
           state: inferred
           marker: "▸"
-          value: Practitioner-sourced working knowledge (A9), carrying the same status as GENE-LINK's own reading until sourced against the Gazette. Not folded into the established entries.
-          citation: Appendix B, A9
+          value: >-
+            Two statements of different provenance, both GENE-LINK's reading for now. The exclusion is on the
+            face of the instrument: reg. 4(2)(b), retrieved from the Kenya Law consolidated text on 22
+            September 2026, says these Regulations shall not apply to access to genetic resources derived from
+            plant breeders in accordance with the Seeds and Plant Varieties Act (Cap. 326) and the ITPGRFA;
+            it awaits Landscape Alliance's verification round. The routing of such material to a KALRO
+            standard material transfer agreement, and the sectoral clearance layer, are practitioner-sourced
+            working knowledge (A9) awaiting NEMA follow-up. Neither is folded into the established entries,
+            and the Kenya intake does not yet branch on material type: whether GENE-LINK serves PGRFA at all
+            is an open question on this file.
+          citation: reg. 4(2)(b); Appendix B, A9
   - id: export
     title: Export chain
     subject: government
@@ -414,7 +423,7 @@ stateMachine:
     under_review:
       label: Under review (30 working days from receipt)
       kind: waiting
-      reg: { state: "established", marker: "§", value: "The Authority has 30 working days from receipt of the application.", citation: "reg. 15" }
+      reg: { state: "established", marker: "§", value: "The Authority processes the application within 30 working days from receipt and communicates its decision in writing within the same period. The period is suspended while the application is incomplete or an issue raised by the Authority is outstanding.", citation: "reg. 14(1), 14(3), 16" }
     public_notice:
       label: Public notice and comment
       kind: waiting
@@ -430,7 +439,7 @@ stateMachine:
       label: Refused. Statutory appeal path applies
       kind: terminal
       outcome: refused
-      reg: { state: "established", marker: "§", value: "Model refusal and appeal as states. A system that only represents granted cannot carry a real caseload." }
+      reg: { state: "established", marker: "§", value: "Reasons for a refusal are given in writing, and a person aggrieved may appeal to the Tribunal. Model refusal and appeal as states. A system that only represents granted cannot carry a real caseload.", citation: "reg. 15(2), 15(3)" }
     appealed: { label: Appealed, kind: waiting }
     withdrawn: { label: Withdrawn by applicant, kind: terminal, outcome: withdrawn }
     varied:
@@ -467,7 +476,7 @@ stateMachine:
     - { from: deadline_lapsed, to: under_review, event: administrator_resumes, actor: authority }
   clocks:
     - id: determination
-      label: Determination clock
+      label: Determination clock (reg. 14(1), suspended while incomplete or an issue is outstanding, reg. 14(3))
       startsIn: under_review
       days: 30
       dayKind: working
@@ -573,9 +582,14 @@ variables:
 obligationClasses:
   - number: 1
     name: Records and retention
+    note: >-
+      Appendix B left duty_exists and what_must_be_recorded unconfirmed against the Gazette text. The Kenya
+      Law consolidated text of LN 68 (retrieved 22 September 2026) supplies both in reg. 18(2)(a) and (b).
+      They are carried as GENE-LINK's reading, not as established law, until Landscape Alliance's own
+      verification round confirms them. Nothing is built on them.
     fields:
-      duty_exists: { state: "unknown", marker: "?", note: "Partially. reg. 18 supports reporting and disclosure duties. The separate specimen-deposit wording has not been confirmed against the Gazette text.", owner: "Kenya escalation owner" }
-      what_must_be_recorded: { state: "unknown", marker: "?", note: "A holotype must remain in Kenya on export under reg. 21(5). Whether a broader duplicate-deposit duty exists is unverified.", owner: "Kenya escalation owner" }
+      duty_exists: { state: "inferred", marker: "▸", value: "Yes, as standing permit conditions. reg. 18(2)(a) requires duplicates and holotypes of all genetic resources collected to be deposited with the Authority and other relevant stakeholders; reg. 18(2)(b) requires the records of all intangible components of biological material collected to be deposited with the Authority; reg. 18(2)(e) to (g) carry the reporting duties in Class 2.", citation: "reg. 18(2)(a), (b), (e) to (g)", note: "Retrieved from the Kenya Law consolidated text on 22 September 2026. Pending Landscape Alliance's verification round before it becomes established." }
+      what_must_be_recorded: { state: "inferred", marker: "▸", value: "Duplicates and holotypes of all genetic resources collected (reg. 18(2)(a)) and the records of all intangible components of biological material collected (reg. 18(2)(b)), as standing conditions of every permit. reg. 21(5) adds, at export, a holotype deposited either with the entity granting the material transfer agreement or with a depository gazetted by the Authority. How the deposit duty applies to extracts, microbial isolates and other non-taxonomic material remains an open design question.", citation: "reg. 18(2)(a), (b); reg. 21(5)", note: "Retrieved from the Kenya Law consolidated text on 22 September 2026. Pending Landscape Alliance's verification round." }
       filing_deadline: { state: "unknown", marker: "?", note: "Not researched.", owner: "Kenya escalation owner" }
       retention_period: { state: "unknown", marker: "?", note: "Not researched.", owner: "Kenya escalation owner" }
       filed_with: { state: "established", marker: "§", value: "NEMA" }
@@ -641,12 +655,19 @@ obligationClasses:
       consequence_of_omission: { state: "unknown", marker: "?", note: "Not researched.", owner: "Kenya escalation owner" }
   - number: 8
     name: Terminal states
+    note: >-
+      Appendix B left revocation and what_must_be_surrendered unresearched. The Kenya Law consolidated text of
+      LN 68 (retrieved 22 September 2026) supplies both in reg. 19 and reg. 11(8). They are carried as
+      GENE-LINK's reading until Landscape Alliance's verification round confirms them. The regulator state
+      machine above does not yet carry suspended, cancelled or revoked states, because a state is a business
+      rule and a ▸ value must not become one without legal review. Whether it gains them is an open question
+      on this file.
     fields:
       states: { state: "established", marker: "§", value: "Granted, refused, varied. Refusal carries a statutory appeal path.", citation: "reg. 18(3)" }
       who_triggers: { state: "established", marker: "§", value: "NEMA" }
       processing_clock: { state: "established", marker: "§", value: "30 working days from receipt, with publication and comment contemplated before determination" }
-      revocation: { state: "unknown", marker: "?", note: "Not researched.", owner: "Kenya escalation owner" }
-      what_must_be_surrendered: { state: "unknown", marker: "?", note: "Not researched.", owner: "Kenya escalation owner" }
+      revocation: { state: "inferred", marker: "▸", value: "The Authority may suspend, cancel or revoke a permit where the holder contravenes the Act, the Regulations, a permit condition, or the terms of any agreement concluded pursuant to the grant (reg. 19(1)). Written notice of intention first, and a reasonable opportunity to make representations within thirty working days of that notice (reg. 19(2)); written reasons on the decision (reg. 19(3)). Where a holder contravenes the permit's terms and conditions, cancellation is mandatory: the Authority 'shall cancel' (reg. 11(8)). Three further terminal states, suspended, cancelled and revoked, each with a thirty-working-day representation clock.", citation: "reg. 19(1) to (3); reg. 11(8)", note: "Retrieved from the Kenya Law consolidated text on 22 September 2026. Pending Landscape Alliance's verification round before it becomes established or drives a state." }
+      what_must_be_surrendered: { state: "inferred", marker: "▸", value: "On notification of suspension, cancellation or revocation the permit holder shall immediately surrender to the Authority the access permit, all research results and related documents, and the accessed biological resource (reg. 19(4)). The same pattern as Malaysia s.28: results and documents go back, not only the permit.", citation: "reg. 19(4)", note: "Retrieved from the Kenya Law consolidated text on 22 September 2026. Pending Landscape Alliance's verification round." }
       agreement_nullity: { state: "unknown", marker: "?", note: "TK Act s.35(2) makes unregistered agreements null and void, but no implementing regulations were located on Kenya Law as of 13 Aug 2026, so the registration on which validity depends has no published procedure.", citation: "TK Act s.35(2)", owner: "Kenya escalation owner", drives: true }
   - number: 9
     name: Standing attribution
@@ -695,9 +716,13 @@ openQuestions:
     affects: Whether an authorised-user agreement can be made valid at all
     reg: { state: "unknown", marker: "?", citation: "TK Act s.35(2)", owner: "Cabinet Secretary", drives: true }
   - id: sectoral_clearance_layer
-    question: Whether a sectoral clearance layer and a separate ITPGRFA/KALRO SMTA track apply before NEMA and NACOSTI
-    affects: An early branch on material type in the Kenya configuration
-    reg: { state: "inferred", marker: "▸", value: "Practitioner input (A9) pending NEMA follow-up and verification against the Gazette text.", citation: "Appendix B, A9" }
+    question: Whether GENE-LINK serves plant genetic resources for food and agriculture at all, and if so through which pathway, given that reg. 4(2)(b) excludes plant-breeder material under the Seeds and Plant Varieties Act and the ITPGRFA from LN 68, and practitioner input routes it to a KALRO standard material transfer agreement
+    affects: An early branch on material type in the Kenya intake, before the PIC, MAT and NEMA sequence. Running such material through the LN 68 flow would instruct the user wrongly; the platform has no configured pathway for it, so today the honest answer is to stop and ask.
+    reg: { state: "unknown", marker: "?", note: "The exclusion is on the face of reg. 4(2)(b) (Kenya Law consolidated text, retrieved 22 September 2026, pending Landscape Alliance's verification round). The KALRO SMTA routing and the sectoral clearance layer (KWS/KFS/KeFS, KEPHIS, DVS, MoH, NMK) are practitioner input (A9) pending NEMA follow-up. Whether PGRFA is in GENE-LINK's scope is a product decision for Landscape Alliance.", citation: "reg. 4(2)(b); Appendix B, A9", owner: "Landscape Alliance for scope; NEMA for routing" }
+  - id: gazette_recheck
+    question: Whether the reg. 18(2)(a) and (b) deposit duties and the reg. 19 suspension, cancellation, revocation and surrender provisions, retrieved from the Kenya Law consolidated text, pass Landscape Alliance's verification round and become established, and whether the Kenya state machine then gains suspended, cancelled and revoked states
+    affects: Class 1 and Class 8 on this file, and the regulator state machine. Appendix B lists revoked and surrendered as real states in at least one regime (R9); reg. 19 makes them real in Kenya.
+    reg: { state: "unknown", marker: "?", note: "Carried as GENE-LINK's reading (▸) with the retrieved text and citations. A state is a business rule, and a ▸ value must not become one without legal review, so no state has been added.", citation: "reg. 18(2)(a), (b); reg. 19(1) to (4); reg. 11(8)", owner: "Landscape Alliance verification round, then the Kenya escalation owner" }
 
 # A term exists (one year), so a probe for the first expiry may be scheduled. The probe must carry
 # renewals_capped = unknown and surface it, never default it (Appendix B, Class 5 note).

@@ -59,6 +59,7 @@ scope:
     - id: scientific_collaboration
       fact: scientificCollaboration
       prompt: Genuine scientific collaboration with the Brazilian institution?
+      default: unclear
       note: >-
         Recorded as a fact for the file. It is not the decision: neither decree defines genuine
         scientific collaboration, so the judgment is a manual-review state that only the reviewer seat

@@ -6,6 +6,8 @@ import { evaluateScope } from "../engine/scope";
 import { buildPathway } from "../engine/pathway";
 import { applyLapse, fire, initialSnapshot, isGranted, tick, TransitionError } from "../engine/stateMachine";
 import { amendInstrument, instrumentFrom, renewalProbeAllowed } from "../domain/instruments";
+import { withDeclaredDefaults } from "../engine/facts";
+import { readFact } from "../engine/conditions";
 
 const countries = loadCountries(join(process.cwd(), "config", "countries"));
 const KE = countries.get("KE")!;
@@ -139,6 +141,36 @@ describe("R3: an unknown halts and escalates, it never defaults", () => {
     const loc = p.stages.find((s) => s.stage.id === "localities")!;
     expect(loc.requirements.some((r) => r.id === "per_locality_multiplier" && r.reg.state === "unknown")).toBe(true);
     expect(loc.status).toBe("active");
+  });
+
+  it("an unanswered deciding fact halts the stage that turns on it; it never removes the stage", () => {
+    // Nobody has said whether direct affectation arises. Skipping consulta previa here would be the
+    // engine answering "no" on the parties' behalf.
+    const unanswered = buildPathway(CO, facts(CO));
+    expect(unanswered.scope.kind).toBe("in_scope");
+    const consultation = unanswered.stages.find((s) => s.stage.id === "prior_consultation");
+    expect(consultation, "the stage stays on the pathway").toBeTruthy();
+    expect(consultation!.status).toBe("halted");
+    const halt = consultation!.escalations.find((e) => e.kind === "unanswered_fact")!;
+    expect(halt.requirementId).toBe("fact:directAffectation");
+    expect(halt.question).toMatch(/afectación directa/);
+    expect(unanswered.haltedStageIds).toContain("prior_consultation");
+    // A recorded "no" is an answer, and does remove the stage.
+    const answeredNo = buildPathway(CO, facts(CO, { directAffectation: "no" }));
+    expect(answeredNo.stages.map((s) => s.stage.id)).not.toContain("prior_consultation");
+  });
+
+  it("a fresh case starts every declared deciding fact in its explicit 'not yet established' option", () => {
+    for (const cfg of countries.values()) {
+      const seeded = withDeclaredDefaults(cfg, facts(cfg));
+      for (const q of cfg.scope.questions.filter((x) => x.fact !== "activity" && x.kind === "choice")) {
+        expect(readFact(seeded, q.fact), `${cfg.code} ${q.fact}`).toBe(q.default);
+      }
+      // With the defaults in place no stage is dropped for want of an answer.
+      expect(buildPathway(cfg, seeded).escalations.some((e) => e.kind === "unanswered_fact")).toBe(false);
+    }
+    // An answer already given is never overwritten by the default.
+    expect(withDeclaredDefaults(CO, facts(CO, { directAffectation: "yes" })).directAffectation).toBe("yes");
   });
 });
 

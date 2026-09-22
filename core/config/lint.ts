@@ -4,7 +4,8 @@
  *
  *  R1  no regulatory field may be a bare boolean or a bare scalar
  *  R3  every unknown names an owner, and every unknown that drives a stage is
- *      reachable by the halt logic
+ *      reachable by the halt logic; every deciding-fact question declares the
+ *      option that means "not yet established" as its default
  *  R5  every manual-review judgment names the stage it halts, and that stage exists
  *  R8  every clock has an on-lapse rule and the on-lapse target never carries a
  *      granted outcome
@@ -53,6 +54,13 @@ export function lintCountry(cfg: CountryConfig): LintIssue[] {
     if (q.kind === "choice" && q.options.length < 2) err(`scope.questions.${q.id}`, "a choice question needs at least two options");
     if (q.kind === "number" && q.options.length) err(`scope.questions.${q.id}`, "a number question carries no options");
     if (q.fact === "activity" && q.kind !== "choice") err(`scope.questions.${q.id}`, "the activity question must be a choice");
+    // R3: a country's own deciding fact must start in an explicit "not yet established" state. Left
+    // implicit (simply missing), a stage that turns on it would drop off the pathway as if the answer
+    // had been "no". The default must be one of the declared options.
+    if (q.fact !== "activity" && q.kind === "choice") {
+      if (q.default === undefined) err(`scope.questions.${q.id}`, `a deciding-fact question must declare a default, the option that means "not yet established" (R3)`);
+      else if (!q.options.some((o) => o.id === q.default)) err(`scope.questions.${q.id}`, `default ${q.default} is not one of the declared options`);
+    }
   }
   // Every condition that names a non-shared, non-typed fact must have a question that collects it.
   const declared = new Set<string>([...SHARED_FACTS, ...TYPED_FACTS, ...cfg.scope.questions.map((q) => q.fact)]);

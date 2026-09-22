@@ -44,6 +44,16 @@ export function StageCard({
           </dl>
 
           {stage.escalations.map((e) => {
+            if (e.kind === "unanswered_fact") {
+              return (
+                <div className="halt-box" key={e.id} role="status">
+                  <strong>Halted on an unanswered fact.</strong> {e.question}
+                  <div className="small" style={{ marginTop: 6 }}>
+                    This is the parties&apos; question, not a legal unknown: answer it on the facts form above and the stage resumes. The engine does not choose an answer for you.
+                  </div>
+                </div>
+              );
+            }
             const rec = escalations.find((r) => r.id === `esc_${c.id}_${e.id}`);
             return (
               <div className="halt-box" key={e.id} role="status">

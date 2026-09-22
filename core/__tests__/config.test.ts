@@ -86,6 +86,14 @@ describe("R1: three-state fields, not booleans", () => {
     expect(issues.length).toBe(1);
   });
 
+  it("a deciding-fact question with no 'not yet established' default fails to load (R3)", () => {
+    // Without it the fact is simply missing on a fresh case, and a stage that turns on it
+    // would drop off the pathway as if the answer had been "no".
+    const src = readFileSync(join(dir, "kenya.yaml"), "utf8").replace("      default: unchecked\n", "");
+    expect(src).not.toMatch(/default: unchecked/);
+    expect(() => parseCountry(src, "kenya-no-default.yaml")).toThrow(/must declare a default.*\(R3\)/);
+  });
+
   it("a clock whose lapse target is a granted state fails to load (R8)", () => {
     const src = readFileSync(join(dir, "kenya.yaml"), "utf8").replace(
       /onLapse:\n\s+to: deadline_lapsed/,
