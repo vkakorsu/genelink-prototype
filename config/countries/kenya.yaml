@@ -80,6 +80,22 @@ scope:
           label: Not endemic, rare or threatened
         - id: listed
           label: Listed (a commercial application must exclude it)
+    - id: pgrfa
+      fact: pgrfaMaterial
+      prompt: Is the material plant genetic resources for food and agriculture (crop varieties, seed) held under the Seeds and Plant Varieties Act or the ITPGRFA?
+      default: unclear
+      note: >-
+        reg. 4(2)(b) excludes access to genetic resources derived from plant breeders under the Seeds and Plant
+        Varieties Act (Cap. 326) and the ITPGRFA from these Regulations, and practitioner input (A9) routes such
+        material to a KALRO standard material transfer agreement. GENE-LINK has no configured pathway for it, so
+        a yes stops at scope and is routed; it is not run through LN 68.
+      options:
+        - id: "yes"
+          label: "Yes, PGRFA under the Seeds and Plant Varieties Act or the ITPGRFA"
+        - id: "no"
+          label: "No"
+        - id: unclear
+          label: Not yet established
     - id: localities
       fact: localities
       kind: number
@@ -102,6 +118,22 @@ scope:
           away an applicant the law admits is worse than missing a step.
         citation: reg. 11(2); reg. 11(4)
       redirect: Non-commercial route under reg. 11(2), outside GENE-LINK
+    - id: pgrfa_not_configured
+      when: { pgrfaMaterial: "yes" }
+      result: escalate
+      basis:
+        state: unknown
+        marker: "?"
+        note: >-
+          reg. 4(2)(b) excludes plant-breeder material under the Seeds and Plant Varieties Act and the ITPGRFA
+          from LN 68 (Kenya Law consolidated text, retrieved 22 September 2026, pending Landscape Alliance's
+          verification round). Practitioner input (A9) routes such material to a KALRO standard material transfer
+          agreement, pending NEMA follow-up. Whether GENE-LINK serves PGRFA at all is a product decision.
+          Running the material through the LN 68 flow would instruct the parties wrongly, so the case stops here
+          and is routed.
+        citation: reg. 4(2)(b); Appendix B, A9
+        owner: Landscape Alliance for scope; NEMA for routing, through the Kenya escalation owner
+        drives: true
     - id: dsi_only_escalate
       when: { activity: dsi_only }
       result: escalate
@@ -210,6 +242,17 @@ stages:
     needs: [Citizenship of the applicant, species status on an authoritative list, whether the resource is wildlife, whether analysis can run inside Kenya]
     gives: Eligibility to apply
     requirements:
+      - id: pgrfa_outstanding
+        text: Whether the material is plant genetic resources for food and agriculture under the Seeds and Plant Varieties Act or the ITPGRFA has not been established. reg. 4(2)(b) takes such material out of these Regulations, so eligibility waits on the answer.
+        when: { pgrfaMaterial: unclear }
+        effect: hold
+        reg:
+          state: inferred
+          marker: "▸"
+          value: reg. 4(2)(b) excludes plant-breeder material under the Seeds and Plant Varieties Act and the ITPGRFA from LN 68.
+          citation: reg. 4(2)(b)
+          note: Establish whether the material is PGRFA under the Seeds and Plant Varieties Act or the ITPGRFA, and answer it on the intake form.
+          owner: The case participants, from the material's provenance and holding record
       - id: endemic_rare_threatened_stop
         text: A commercial application must exclude endemic, rare or threatened species. No exemption route appears in the text.
         when: { speciesListed: listed }
@@ -398,9 +441,9 @@ stages:
             plant breeders in accordance with the Seeds and Plant Varieties Act (Cap. 326) and the ITPGRFA;
             it awaits Landscape Alliance's verification round. The routing of such material to a KALRO
             standard material transfer agreement, and the sectoral clearance layer, are practitioner-sourced
-            working knowledge (A9) awaiting NEMA follow-up. Neither is folded into the established entries,
-            and the Kenya intake does not yet branch on material type: whether GENE-LINK serves PGRFA at all
-            is an open question on this file.
+            working knowledge (A9) awaiting NEMA follow-up. Neither is folded into the established entries.
+            The intake asks whether the material is PGRFA: a yes stops at scope and is routed, because
+            whether GENE-LINK serves PGRFA at all is an open question on this file.
           citation: reg. 4(2)(b); Appendix B, A9
   - id: export
     title: Export chain
@@ -502,6 +545,8 @@ stateMachine:
     - { from: submitted, to: withdrawn, event: withdraw, actor: applicant }
     - { from: under_review, to: withdrawn, event: withdraw, actor: applicant }
     - { from: information_requested, to: withdrawn, event: withdraw, actor: applicant }
+    - { from: public_notice, to: withdrawn, event: withdraw, actor: applicant, reg: { state: "inferred", marker: "▸", value: "An applicant may withdraw an application at any point before the decision. General administrative law; Appendix B does not address it." } }
+    - { from: resubmitted, to: withdrawn, event: withdraw, actor: applicant, reg: { state: "inferred", marker: "▸", value: "An applicant may withdraw an application at any point before the decision. General administrative law; Appendix B does not address it." } }
     - { from: under_review, to: deadline_lapsed, event: lapse, actor: system }
     - { from: public_notice, to: deadline_lapsed, event: lapse, actor: system }
     - { from: deadline_lapsed, to: under_review, event: administrator_resumes, actor: authority }
@@ -790,7 +835,7 @@ openQuestions:
     reg: { state: "unknown", marker: "?", citation: "TK Act s.35(2)", owner: "Cabinet Secretary", drives: true }
   - id: sectoral_clearance_layer
     question: Whether GENE-LINK serves plant genetic resources for food and agriculture at all, and if so through which pathway, given that reg. 4(2)(b) excludes plant-breeder material under the Seeds and Plant Varieties Act and the ITPGRFA from LN 68, and practitioner input routes it to a KALRO standard material transfer agreement
-    affects: An early branch on material type in the Kenya intake, before the PIC, MAT and NEMA sequence. Running such material through the LN 68 flow would instruct the user wrongly; the platform has no configured pathway for it, so today the honest answer is to stop and ask.
+    affects: The early branch on material type in the Kenya intake, before the PIC, MAT and NEMA sequence. Running such material through the LN 68 flow would instruct the user wrongly and the platform has no configured pathway for it, so the intake asks, a yes escalates at scope, and an unanswered question holds eligibility.
     reg: { state: "unknown", marker: "?", note: "The exclusion is on the face of reg. 4(2)(b) (Kenya Law consolidated text, retrieved 22 September 2026, pending Landscape Alliance's verification round). The KALRO SMTA routing and the sectoral clearance layer (KWS/KFS/KeFS, KEPHIS, DVS, MoH, NMK) are practitioner input (A9) pending NEMA follow-up. Whether PGRFA is in GENE-LINK's scope is a product decision for Landscape Alliance.", citation: "reg. 4(2)(b); Appendix B, A9", owner: "Landscape Alliance for scope; NEMA for routing" }
   - id: gazette_recheck
     question: Whether the reg. 18(2)(a) and (b) deposit duties and the reg. 19 suspension, cancellation, revocation and surrender provisions, retrieved from the Kenya Law consolidated text, pass Landscape Alliance's verification round and become established, and whether the Kenya state machine then gains suspended, cancelled and revoked states

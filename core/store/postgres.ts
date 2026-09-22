@@ -9,6 +9,8 @@ import type { Store } from "./Store";
  *   audit_log          append-only. The application role has INSERT and SELECT only.
  *                      seq is a sequence, prev_hash and hash are stored, verified nightly.
  *   disclosure_log     append-only, same grants.
+ *   demand_signal      declared visit objectives, organisation-level and never personal, kept
+ *                      24 months and then aggregated (proposal Part 4.11).
  *   Row-level security on organisation-scoped tables (listings, cases, documents,
  *   agreements, instruments) keyed on the acting seat's organisation.
  *   Configuration snapshots (JSONB) recorded on every case so that a later change
@@ -37,6 +39,7 @@ export class PostgresStore implements Store {
   instruments!: Store["instruments"];
   agreements!: Store["agreements"];
   learning!: Store["learning"];
+  demandSignals!: Store["demandSignals"];
   audit!: Store["audit"];
   disclosures!: Store["disclosures"];
 }

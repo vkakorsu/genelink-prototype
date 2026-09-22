@@ -399,6 +399,8 @@ stateMachine:
     - { from: appealed, to: cancelled, event: dismiss_appeal, actor: authority }
     - { from: preparing, to: withdrawn, event: withdraw, actor: applicant }
     - { from: awaiting_assent, to: withdrawn, event: withdraw, actor: applicant }
+    - { from: information_requested, to: withdrawn, event: withdraw, actor: applicant, reg: { state: "inferred", marker: "▸", value: "An applicant may withdraw an application at any point before the decision. General administrative law; Appendix B does not address it." } }
+    - { from: resubmitted, to: withdrawn, event: withdraw, actor: applicant, reg: { state: "inferred", marker: "▸", value: "An applicant may withdraw an application at any point before the decision. General administrative law; Appendix B does not address it." } }
     - { from: awaiting_assent, to: deadline_lapsed, event: lapse, actor: system }
     - { from: deadline_lapsed, to: awaiting_assent, event: administrator_resumes, actor: authority }
   clocks:

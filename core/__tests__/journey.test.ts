@@ -168,7 +168,12 @@ describe("dry run (R2): the same journey for every configured country, no countr
       // Every country question answered with its first established option (never the "not yet
       // established" default), written where the country file says the fact lives.
       const own: Record<string, string> = {};
-      for (const q of cfg.scope.questions.filter((x) => x.fact !== "activity" && x.kind === "choice")) own[q.fact] = q.options.find((o) => o.id !== q.default)!.id;
+      // The first established answer that keeps the case in scope: a real journey to a grant does not
+      // take the branch the country routes out of its pathway (Kenya's PGRFA, Colombia's other origin).
+      for (const q of cfg.scope.questions.filter((x) => x.fact !== "activity" && x.kind === "choice")) {
+        const candidates = q.options.filter((o) => o.id !== q.default);
+        own[q.fact] = (candidates.find((o) => !cfg.scope.rules.some((r) => r.result !== "in_scope" && r.when && Object.keys(r.when).length === 1 && r.when[q.fact] !== undefined && [r.when[q.fact]].flat().includes(o.id))) ?? candidates[0]).id;
+      }
       const typed = Object.fromEntries(Object.entries(own).filter(([k]) => ["directAffectation", "speciesListed", "scientificCollaboration"].includes(k)));
       const flags = Object.fromEntries(Object.entries(own).filter(([k]) => !(k in typed)));
       const facts: CaseFacts = { purpose: "commercial", activity: activityQuestion(cfg).options[0].id, provenance: "in_situ", applicantType: "foreign_legal", exchange: "no_movement", communityHeld: "no", tkInvolved: "no", ...typed, flags };
@@ -185,7 +190,12 @@ describe("dry run (R2): the same journey for every configured country, no countr
       const path = shortestPath(sm.initial, granted, onFacts.map((t) => [t.from, t.to, t.event] as const));
       expect(path, `a declared path to a granted state exists in ${cfg.code}`).toBeTruthy();
       if (c.machine.state === sm.initial) {
-        for (const ev of path!) p.fireEvent(ADMIN, c.id, ev);
+        // Each side records its own acts: the applicant's filings by the supplier's signatory seat, the authority's by the administrator.
+        const signatory = store.memberships.list().find((m) => m.organisationId === listing!.organisationId && (m.permission === "authorised_signatory" || m.permission === "administrator"))!;
+        for (const ev of path!) {
+          const t = sm.transitions.find((x) => x.from === store.cases.get(c.id)!.machine.state && x.event === ev)!;
+          p.fireEvent(t.actor === "applicant" ? p.actorFor(signatory.id) : ADMIN, c.id, ev);
+        }
       }
       const instruments = p.instrumentsFor(c.id);
       const expected = cfg.outputs.filter((o) => o.issuedInState === store.cases.get(c.id)!.machine.state).map((o) => o.id).sort();

@@ -17,11 +17,13 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const reviews = platform.store.manualReviews.list();
   const chain = platform.verifyAudit();
   const interventions = platform.store.audit.list().filter((e) => e.actor.role === "administrator");
+  const signals = platform.store.demandSignals.list();
+  const byWant = signals.reduce<Record<string, number>>((m, s) => ({ ...m, [s.want]: (m[s.want] ?? 0) + 1 }), {});
 
   return (
     <div className="container">
       <PageHead eyebrow="Administration console (privileged, separate origin in the MVP)" title="Administration" lede="Organisation verification, seat and permission oversight, support interventions, audit review, and platform content and configuration. Every action here is recorded with a reason. Administrators watch and intervene. They are not a gate the journey waits on." />
-      <ErrorNotice error={sp.error} />
+      <ErrorNotice error={sp.error} sig={sp.sig} />
       <div className="grid cols-4" style={{ marginBottom: 16 }}>
         <div className="card flat"><div className="eyebrow">Verification queue</div><div className="serif" style={{ fontSize: "var(--step-4)" }}>{pending.length}</div></div>
         <div className="card flat"><div className="eyebrow">Open escalations</div><div className="serif" style={{ fontSize: "var(--step-4)" }}>{escalations.filter((e) => e.status === "open").length}</div><small className="mute">answered through configuration review</small></div>
@@ -37,6 +39,9 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             <div key={o.id} className="card flat" style={{ marginTop: 8 }}>
               <strong><Link href={`/organisations/${o.id}`}>{o.name}</Link></strong> <span className="small mute">· {o.kind.replace("_", " ")} · {o.country} · method {o.verification.method?.replace("_", " ")}</span>
               <p className="small">{o.description}</p>
+              {orgs.some((x) => x.id !== o.id && x.name.trim().toLowerCase() === o.name.trim().toLowerCase()) && (
+                <p className="small halt-box" role="status">Another organisation on the platform already uses this name. Check that this request is not an impersonation before verifying.</p>
+              )}
               <form action={decideVerification} className="stack">
                 <input type="hidden" name="organisationId" value={o.id} />
                 <input name="reason" type="text" placeholder="Reason, recorded in the audit chain" required />
@@ -100,6 +105,21 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           <h4 style={{ marginTop: 14 }}>Recent administrative actions</h4>
           {interventions.length === 0 && <p className="small mute">None yet.</p>}
           <ol className="timeline">{interventions.slice(-8).reverse().map((e) => <li key={e.seq}><time>{fmtTime(e.at)}</time> <strong>{e.action}</strong> {e.subject.type} {e.subject.id}<div className="mute mono" style={{ fontSize: "0.72rem" }}>{JSON.stringify(e.detail)}</div></li>)}</ol>
+        </section>
+
+        <section className="card">
+          <h3>Demand signals</h3>
+          <p className="small soft">Each &ldquo;I have, I want&rdquo; declaration is kept as a demand signal: what was sought, and by what kind of organisation. Never who. Free text is stored only after identifying content is stripped. This is how demand for the held-open screening corridor is measured.</p>
+          {signals.length === 0 && <p className="small mute">None declared since the last reset.</p>}
+          {signals.length > 0 && (
+            <>
+              <table className="data compact">
+                <thead><tr><th>Objective</th><th>Declarations</th></tr></thead>
+                <tbody>{Object.entries(byWant).sort((a, b) => b[1] - a[1]).map(([w, n]) => <tr key={w}><td>{w.replaceAll("_", " ")}</td><td>{n}</td></tr>)}</tbody>
+              </table>
+              <ol className="timeline" style={{ marginTop: 8 }}>{signals.slice(-6).reverse().map((d) => <li key={d.id}><time>{fmtTime(d.at)}</time> {d.want.replaceAll("_", " ")} · {d.organisationKind ? `${d.organisationKind.replaceAll("_", " ")} (${d.organisationCountry}), functions ${d.organisationFunctions.join(", ") || "none"}` : "anonymous visitor"}{d.have && <div className="mute">&ldquo;{d.have}&rdquo;{d.redactions ? ` · ${d.redactions} identifying item${d.redactions === 1 ? "" : "s"} removed` : ""}</div>}</li>)}</ol>
+            </>
+          )}
         </section>
       </div>
     </div>

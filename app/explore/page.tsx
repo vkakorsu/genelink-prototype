@@ -1,13 +1,23 @@
 import Link from "next/link";
 import { getPlatform } from "@/core";
 import { Empty, OpenMarker, PageHead } from "@/components/ui";
-import { getSession } from "@/lib/session";
+import { getObjective, getSession } from "@/lib/session";
+
+/** What a declared objective implies for the market side a visitor sees first. */
+const SIDE_FOR_OBJECTIVE: Record<string, { side: "offer" | "need"; why: string }> = {
+  source_from_south: { side: "offer", why: "you declared that you want to source from the South" },
+  sell_to_eu_buyer: { side: "need", why: "you declared that you want to sell to an EU buyer" },
+};
 
 export default async function ExplorePage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
   const q = (sp.q ?? "").trim().toLowerCase();
   const country = sp.country ?? "";
-  const side = sp.side ?? "";
+  // The visit objective shapes search until the visitor chooses a side themselves: an explicit
+  // choice, including "Offers and needs", always wins.
+  const objective = await getObjective();
+  const implied = sp.side === undefined && objective ? SIDE_FOR_OBJECTIVE[objective.want] : undefined;
+  const side = sp.side ?? implied?.side ?? "";
   const platform = getPlatform();
   const session = await getSession();
   const all = platform.publicListings();
@@ -56,6 +66,9 @@ export default async function ExplorePage({ searchParams }: { searchParams: Prom
         </div>
       </form>
 
+      {implied && (
+        <p className="small soft" style={{ marginTop: -6 }}>Showing {implied.side === "offer" ? "offers" : "needs"} because {implied.why}. <Link href={`/explore?side=${q ? `&q=${encodeURIComponent(q)}` : ""}${country ? `&country=${encodeURIComponent(country)}` : ""}`}>Show offers and needs</Link> · <Link href="/declare">Change the objective</Link></p>
+      )}
       {listings.length === 0 && <Empty title="No opportunities match">Try a broader function, or <Link href="/explore">clear the filters</Link>.</Empty>}
       <div className="grid cols-2">
         {listings.map((l) => (

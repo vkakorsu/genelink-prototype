@@ -43,7 +43,7 @@ describe("scope engine (A5.2): three answers, never a default", () => {
   });
 
   it("Kenya: sequence data only escalates to a named owner rather than exiting", () => {
-    const a = evaluateScope(KE, facts(KE, { activity: "dsi_only" }));
+    const a = evaluateScope(KE, facts(KE, { activity: "dsi_only", flags: { pgrfaMaterial: "no" } }));
     expect(a.kind).toBe("escalate");
     if (a.kind === "escalate") expect(a.owner).toMatch(/NEMA/);
   });

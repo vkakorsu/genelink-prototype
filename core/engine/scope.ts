@@ -56,7 +56,7 @@ export function evaluateScope(cfg: CountryConfig, facts: CaseFacts): ScopeAnswer
       basis: {
         state: "unknown",
         marker: "?",
-        note: `Scope cannot be answered until the parties establish: ${unique.map((f) => promptFor(cfg, f)).join("; ")}. The engine does not assume an answer.`,
+        note: `Scope cannot be answered until the parties establish: ${unique.map((f) => promptFor(cfg, f).replace(/[.?]$/, "")).join("; ")}. The engine does not assume an answer.`,
         owner: "The case participants, on the intake form",
         drives: true,
         executable: true,

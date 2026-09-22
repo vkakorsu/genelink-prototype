@@ -19,6 +19,7 @@ export default async function ListingPage({ params, searchParams }: { params: Pr
   const interests = platform.interestsOn(id);
   const myInterest = session.kind === "seat" ? interests.find((i) => i.fromOrganisationId === session.actor.organisation.id) : undefined;
   const cases = platform.store.cases.list().filter((c) => c.listingId === id);
+  const visibleCases = session.kind === "admin" ? cases : session.kind === "seat" ? cases.filter((c) => c.participants.some((p) => p.organisationId === session.actor.organisation.id)) : [];
   const myCase = session.kind === "seat" ? cases.find((c) => c.participants.some((p) => p.organisationId === session.actor.organisation.id)) : undefined;
   const myOrg = session.kind === "seat" ? session.actor.organisation : null;
   const myPathway = myOrg && !isOwner ? platform.providerCountryFor(raw, myOrg) : null;
@@ -42,7 +43,7 @@ export default async function ListingPage({ params, searchParams }: { params: Pr
           <OpenMarker title="What is visible before a match is a held-open decision (Appendix A). Working position rendered here." />
         </div>
       </PageHead>
-      <ErrorNotice error={sp.error} />
+      <ErrorNotice error={sp.error} sig={sp.sig} />
       <div className="two-col">
         <div className="stack">
           <section className="card">
@@ -135,11 +136,12 @@ export default async function ListingPage({ params, searchParams }: { params: Pr
               </div>
             )}
           </section>
-          {cases.length > 0 && session.kind !== "anonymous" && (
+          {/* Only the cases this viewer is party to. Even an empty heading would tell an outsider the listing has matched. */}
+          {visibleCases.length > 0 && (
             <section className="card flat">
               <h3>Cases from this listing</h3>
               <ul className="small" style={{ paddingLeft: 18, margin: 0 }}>
-                {cases.filter((c) => session.kind === "admin" || c.participants.some((p) => p.organisationId === (session as { actor: { organisation: { id: string } } }).actor.organisation.id)).map((c) => (
+                {visibleCases.map((c) => (
                   <li key={c.id}><Link href={`/cases/${c.id}`}>{c.title}</Link></li>
                 ))}
               </ul>

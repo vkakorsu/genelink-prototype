@@ -88,7 +88,7 @@ export type AmendmentOutcome =
   | { kind: "versioned"; instrument: Instrument; version: InstrumentVersion }
   | { kind: "new_instrument_required"; instrument: Instrument; policy: string; reason: string };
 
-export function amendInstrument(instrument: Instrument, summary: string, at: Date, seatId: string): AmendmentOutcome {
+export function amendInstrument(instrument: Instrument, summary: string, at: Date, seatId: string, documentText?: string): AmendmentOutcome {
   if (FROZEN_STATUSES.has(instrument.status)) {
     throw new Error(
       instrument.status === "awaiting_record"
@@ -105,7 +105,10 @@ export function amendInstrument(instrument: Instrument, summary: string, at: Dat
         kind: instrument.amendmentPolicy === "addendum" ? "addendum" : "variation",
         at: at.toISOString(),
         summary,
-        sha256: sha256(`${instrument.id}:${instrument.versions.length + 1}:${summary}`),
+        // With the signed document, the version carries the document's hash and can be verified against
+        // it later. Without one, the hash covers the summary only, and the version says so.
+        sha256: documentText ? sha256(documentText) : sha256(`${instrument.id}:${instrument.versions.length + 1}:${summary}`),
+        hashes: documentText ? "document" : "summary",
         recordedBySeatId: seatId,
       };
       return { kind: "versioned", instrument: { ...instrument, versions: [...instrument.versions, version] }, version };

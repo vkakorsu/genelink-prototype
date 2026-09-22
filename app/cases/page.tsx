@@ -9,6 +9,7 @@ export default async function CasesPage() {
   if (session.kind === "anonymous") unauthorized();
   const platform = getPlatform();
   const cases = session.kind === "admin" ? platform.store.cases.list() : platform.casesFor(session.actor.organisation.id);
+  for (const c of cases) platform.tickClocks(c.id);
 
   return (
     <div className="container">

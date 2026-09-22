@@ -6,13 +6,15 @@ import { revalidatePath } from "next/cache";
 import { ZodError } from "zod";
 import { getPlatform, resetPlatform } from "@/core";
 import { CaseFacts, TYPED_FACTS, type CountryConfig } from "@/core/config/schema";
-import type { MarketFunction } from "@/core/domain/types";
+import { VISIT_WANTS, type MarketFunction } from "@/core/domain/types";
 import { InvalidRequest, NotFound, PermissionDenied } from "@/core/platform";
 import { TransitionError } from "@/core/engine/stateMachine";
 import { ADMIN } from "@/core/seed/seed";
 import { OBJECTIVE_COOKIE, SEAT_COOKIE, getSession } from "@/lib/session";
 import { MODEL_CLAUSES } from "@/lib/clauses";
 import { redactIdentifiers } from "@/lib/redact";
+import { safeLocalPath } from "@/lib/safePath";
+import { signNotice } from "@/lib/notice";
 
 /**
  * Server actions: the only way the interface mutates state. Each one resolves the
@@ -34,14 +36,18 @@ function isRedirect(e: unknown): boolean {
 
 function back(path: string, error?: string) {
   revalidatePath(path);
-  redirect(error ? `${path}?error=${encodeURIComponent(error)}` : path);
+  redirect(error ? `${path}?error=${encodeURIComponent(error)}&sig=${signNotice(error)}` : path);
 }
 
 /** Turn any failure into one sentence the page can show. Unexpected errors are logged, never leaked. */
 function describe(e: unknown): string {
   if (e instanceof ZodError) {
-    const fields = [...new Set(e.issues.map((i) => i.path.join(".") || "form"))];
-    return `The form is incomplete: ${fields.map(friendlyField).join(", ")}. Choose an answer for each before saving.`;
+    const missing = [...new Set(e.issues.filter((i) => i.code === "invalid_type").map((i) => i.path.join(".") || "form"))];
+    const invalid = [...new Set(e.issues.filter((i) => i.code !== "invalid_type").map((i) => i.path.join(".") || "form"))];
+    return [
+      missing.length ? `The form is incomplete: ${missing.map(friendlyField).join(", ")}. Choose an answer for each before saving.` : "",
+      invalid.length ? `These answers are not among the options offered: ${invalid.map(friendlyField).join(", ")}. Reload the page and choose again.` : "",
+    ].filter(Boolean).join(" ");
   }
   if (e instanceof PermissionDenied || e instanceof InvalidRequest || e instanceof NotFound || e instanceof TransitionError) return e.message;
   if (e instanceof Error && /Unknown (output|amendment policy)|No configured pathway|Stage not on this pathway/.test(e.message)) return e.message;
@@ -164,7 +170,7 @@ export const switchPersona = wrap(
     else jar.set(SEAT_COOKIE, seat, { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production" });
     const next = text(formData, "next", 300);
     revalidatePath("/", "layout");
-    redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/");
+    redirect(safeLocalPath(next));
   },
   () => "/",
 );
@@ -177,15 +183,36 @@ export const declareObjective = wrap(
     // fragment the counter then under-reports. Identify on the full text, store 200 chars.
     const { text: redacted, redactions } = redactIdentifiers(text(formData, "have", 2000));
     const have = redacted.slice(0, 200);
-    const want = text(formData, "want", 40) || "learn";
+    const wantRaw = text(formData, "want", 40) || "learn";
+    if (!(VISIT_WANTS as readonly string[]).includes(wantRaw)) throw new InvalidRequest("Choose one of the listed objectives.");
+    const want = wantRaw as (typeof VISIT_WANTS)[number];
     const jar = await cookies();
     jar.set(OBJECTIVE_COOKIE, JSON.stringify({ have, want, redactions, declaredAt: new Date().toISOString() }), { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production" });
-    revalidatePath("/", "layout");
     const session = await getSession();
+    getPlatform().recordDemandSignal(session.kind === "anonymous" ? null : session.actor, { want, have, redactions });
+    revalidatePath("/", "layout");
     const absNext = session.kind === "anonymous" ? "/persona?next=/cases" : "/cases";
     redirect(want === "learn" ? "/learn" : want === "get_abs_compliant" ? absNext : "/explore");
   },
   () => "/declare",
+);
+
+/**
+ * Verification takes the document in a POST and hands back only its hash. A GET with the text in the
+ * query string would put a confidential agreement into server logs, browser history and referrers.
+ * A 64-character hex string is treated as a hash to look up directly.
+ */
+export const verifyDocument = wrap(
+  "verifyDocument",
+  async (formData: FormData) => {
+    if (!(formData instanceof FormData)) throw new InvalidRequest("Malformed submission. Reload the page and try again.");
+    const raw = typeof formData.get("content") === "string" ? (formData.get("content") as string) : "";
+    if (!raw.trim()) throw new InvalidRequest("Paste the document text, or its SHA-256, to check it.");
+    if (Buffer.byteLength(raw, "utf8") > 256 * 1024) throw new InvalidRequest("The text exceeds the prototype's 256 KB limit.");
+    const sha = /^\s*[0-9a-f]{64}\s*$/i.test(raw) ? raw.trim().toLowerCase() : getPlatform().verifyContent(raw).sha256;
+    redirect(`/verify?sha=${sha}`);
+  },
+  () => "/verify",
 );
 
 export const resetDemo = wrap(
@@ -241,7 +268,7 @@ export const decideVerification = wrap(
   async (fd: FormData) => {
     if (!(fd instanceof FormData)) throw new InvalidRequest("Malformed submission. Reload the page and try again.");
     const admin = await requireAdmin();
-    getPlatform().decideVerification(admin, text(fd, "organisationId", 100), text(fd, "outcome", 20) as "verified" | "declined", text(fd, "reason") || "No reason given");
+    getPlatform().decideVerification(admin, text(fd, "organisationId", 100), text(fd, "outcome", 20) as "verified" | "declined", text(fd, "reason", 500));
   },
   () => `/admin`,
   (fd) => ({ type: "organisation", id: text(fd, "organisationId", 100) || "unknown" }),
@@ -259,13 +286,18 @@ export const registerOrganisation = wrap(
     const personName = text(fd, "personName", 100);
     const orgName = text(fd, "orgName", 150);
     if (!personName || !orgName) throw new InvalidRequest("Give your name and the organisation's name.");
-    const kind = (["community_custodian", "research_institution", "company", "broker", "adviser"] as const).find((k) => k === text(fd, "kind", 40)) ?? "community_custodian";
-    const method = (["vouching", "manual_vetting"] as const).find((m) => m === text(fd, "method", 30)) ?? "vouching";
+    // A value outside the offered options is refused, not quietly replaced by a default.
+    const kind = (["community_custodian", "research_institution", "company", "broker", "adviser"] as const).find((k) => k === text(fd, "kind", 40));
+    const method = (["vouching", "manual_vetting"] as const).find((m) => m === text(fd, "method", 30));
+    if (!kind || !method) throw new InvalidRequest("Choose the organisation type and the verification route from the options offered.");
     const allowed: MarketFunction[] = ["seeking", "providing", "advising", "brokering", "custodian", "learning"];
-    const functions = fd.getAll("function").map(String).filter((f): f is MarketFunction => allowed.includes(f as MarketFunction));
-    const country = text(fd, "country", 3).toUpperCase();
-    if (!country) throw new InvalidRequest("Give the organisation's country.");
-    const r = getPlatform().registerOrganisation({ personName, orgName, kind, country, method, functions: functions.length ? functions : ["providing"] });
+    const submitted = fd.getAll("function").map(String);
+    if (submitted.some((f) => !allowed.includes(f as MarketFunction))) throw new InvalidRequest("Choose market functions from the options offered.");
+    const functions = submitted as MarketFunction[];
+    if (!functions.length) throw new InvalidRequest("Choose at least one thing the organisation does in the market.");
+    const country = text(fd, "country", 10).toUpperCase();
+    if (!/^[A-Z]{2}$/.test(country)) throw new InvalidRequest("Give the organisation's country as a two-letter code, for example KE, CO or BR.");
+    const r = getPlatform().registerOrganisation({ personName, orgName, kind, country, method, functions });
     const jar = await cookies();
     jar.set(SEAT_COOKIE, r.seatId, { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production" });
     redirect(`/organisations/${r.organisationId}`);
@@ -368,7 +400,8 @@ export const recordInstrument = onCase("recordInstrument", async (caseId, fd) =>
 
 export const amendInstrument = onCase("amendInstrument", async (caseId, fd) => {
   const actor = await requireSeat();
-  getPlatform().amendInstrument(actor, caseId, text(fd, "instrumentId", 150), text(fd, "summary", 500));
+  const content = typeof fd.get("content") === "string" ? (fd.get("content") as string) : "";
+  getPlatform().amendInstrument(actor, caseId, text(fd, "instrumentId", 150), text(fd, "summary", 500), content);
 });
 
 export const setInstrumentStatus = onCase("setInstrumentStatus", async (caseId, fd) => {

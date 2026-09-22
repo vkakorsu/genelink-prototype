@@ -47,13 +47,31 @@ export type Membership = {
   since: string;
 };
 
+export const VISIT_WANTS = ["sell_to_eu_buyer", "source_from_south", "find_broker", "get_abs_compliant", "learn", "screening_agreement"] as const;
+
 /** The transient objective a user declares for a visit. Never a fixed role. */
 export type VisitObjective = {
   have: string;
-  want: "sell_to_eu_buyer" | "source_from_south" | "find_broker" | "get_abs_compliant" | "learn" | "screening_agreement";
+  want: (typeof VISIT_WANTS)[number];
   declaredAt: string;
   /** How many identifying items (emails, phone numbers, identifiers) were removed from the free text before it was stored. */
   redactions?: number;
+};
+
+/**
+ * A declared objective, kept as a demand signal (RFP Section 6: "how the resulting demand signals
+ * are captured"). It records what was sought and by what kind of organisation, never who: no person,
+ * no seat, and the free text only after identifying content was stripped.
+ */
+export type DemandSignal = {
+  id: string;
+  at: string;
+  want: VisitObjective["want"];
+  have: string;
+  redactions: number;
+  organisationKind: Organisation["kind"] | null;
+  organisationFunctions: MarketFunction[];
+  organisationCountry: string | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -112,7 +130,7 @@ export type CaseDocument = {
   sha256: string;
   uploadedBySeatId: string;
   uploadedAt: string;
-  /** The platform checks presence and type. Never sufficiency. */
+  /** The platform records presence and a hash (type checks arrive with file storage in the MVP). Never sufficiency. */
   check: "present";
 };
 
@@ -180,6 +198,8 @@ export type InstrumentVersion = {
   at: string;
   summary: string;
   sha256: string;
+  /** What the hash covers: the document text supplied, or only the summary when no document was supplied. */
+  hashes?: "document" | "summary";
   recordedBySeatId: string;
 };
 

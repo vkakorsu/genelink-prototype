@@ -84,7 +84,11 @@ export function eventsFor(cfg: CountryConfig, state: string, facts: CaseFacts): 
 export function fire(cfg: CountryConfig, snap: MachineSnapshot, event: string, actor: string, at: Date, note?: string, facts?: CaseFacts): MachineSnapshot {
   const sm = cfg.stateMachine;
   const candidates = sm.transitions.filter((x) => x.from === snap.state && x.event === event);
-  if (!candidates.length) throw new TransitionError(`No transition from ${snap.state} on ${event} in ${cfg.name}`);
+  if (!candidates.length) {
+    const here = sm.states[snap.state]?.label ?? snap.state;
+    const offered = availableEvents(sm, snap.state).filter((t) => t.event !== "lapse").map((t) => t.event.replace(/_/g, " "));
+    throw new TransitionError(`"${event.replace(/_/g, " ")}" cannot be recorded while the case is at "${here}" in ${cfg.name}'s process. ${offered.length ? `What can be recorded from here: ${[...new Set(offered)].join(", ")}.` : "No further event is declared from here."} The page may be out of date; reload it.`);
+  }
   // Guards decide between same-named branches. Without facts (engine tests, lapses) an unguarded one is required.
   let t: Transition | undefined;
   const waiting: string[] = [];

@@ -1,5 +1,6 @@
 
 import Link from "next/link";
+import { verifiedNotice } from "@/lib/notice";
 
 export function PageHead({ eyebrow, title, lede, children }: { eyebrow?: string; title: string; lede?: string; children?: React.ReactNode }) {
   return (
@@ -16,9 +17,10 @@ export function Notice({ kind = "info", children }: { kind?: "info" | "pending" 
   return <div className={`notice ${kind}`}>{children}</div>;
 }
 
-export function ErrorNotice({ error }: { error?: string | string[] }) {
-  if (!error) return null;
-  const msg = Array.isArray(error) ? error[0] : error;
+/** Shows a refusal the server issued. A message without a valid signature is someone else's text and is not shown. */
+export function ErrorNotice({ error, sig }: { error?: string | string[]; sig?: string | string[] }) {
+  const msg = verifiedNotice(error, sig);
+  if (!msg) return null;
   return (
     <div className="notice halt" role="alert" style={{ marginBottom: 14 }}>
       <strong>Not done.</strong> {msg}

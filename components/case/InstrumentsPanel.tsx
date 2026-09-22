@@ -58,7 +58,7 @@ export function InstrumentsPanel({ cfg, c, instruments, canSign, isAdmin, seatPe
           {inst.versions.length > 0 && (
             <ol className="timeline" style={{ marginTop: 8 }}>
               {inst.versions.map((v) => (
-                <li key={v.version}><time>{fmtTime(v.at)}</time> <strong>v{v.version} · {v.kind}</strong> {v.summary} <span className="mono mute small">{v.sha256.slice(0, 16)}…</span></li>
+                <li key={v.version}><time>{fmtTime(v.at)}</time> <strong>v{v.version} · {v.kind}</strong> {v.summary} <span className="mono mute small">{v.sha256.slice(0, 16)}…</span>{v.hashes === "summary" && <span className="small mute"> · summary only: the signed document is not on file, so this version cannot be verified against one</span>}</li>
               ))}
             </ol>
           )}
@@ -68,9 +68,12 @@ export function InstrumentsPanel({ cfg, c, instruments, canSign, isAdmin, seatPe
           {caseEnded && !FROZEN_STATUSES.has(inst.status) && <p className="small soft">The case has reached &ldquo;{caseState.label}&rdquo;. No further version can be recorded against this instrument.</p>}
           {canSign && !FROZEN_STATUSES.has(inst.status) && !caseEnded && (
             <div className="row" style={{ marginTop: 8 }}>
-              <form action={amendHere} className="row">
+              <form action={amendHere} className="stack" style={{ width: "100%" }}>
                 <input type="hidden" name="instrumentId" value={inst.id} />
-                <input name="summary" type="text" placeholder={inst.amendmentPolicy === "addendum" ? "Otrosí summary" : "Describe the modification"} required style={{ minWidth: 240 }} />
+                <input name="summary" type="text" aria-label={inst.amendmentPolicy === "addendum" ? "Otrosí summary" : "Describe the modification"} placeholder={inst.amendmentPolicy === "addendum" ? "Otrosí summary" : "Describe the modification"} required />
+                {(inst.amendmentPolicy === "addendum" || inst.amendmentPolicy === "variation" || inst.amendmentPolicy === "amendment_path") && (
+                  <textarea name="content" aria-label="Signed document text" placeholder="Paste the signed document text so this version carries its hash and can be verified later (recommended)" />
+                )}
                 <button className="btn small secondary" type="submit">{inst.amendmentPolicy === "addendum" ? "Record addendum" : "Attempt modification"}</button>
               </form>
             </div>

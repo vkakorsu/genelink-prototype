@@ -17,10 +17,11 @@ export default async function CasePage({ params, searchParams }: { params: Promi
   const { id } = await params;
   const sp = await searchParams;
   const platform = getPlatform();
-  const c = platform.store.cases.get(id);
-  if (!c) notFound();
+  // Sign-in is checked before existence: an anonymous visitor must not learn which case ids exist.
   const session = await getSession();
   if (session.kind === "anonymous") unauthorized();
+  const c = platform.store.cases.get(id);
+  if (!c) notFound();
 
   const isAdmin = session.kind === "admin";
   const seat = session.kind === "seat" ? session.actor.seat : null;
@@ -36,6 +37,9 @@ export default async function CasePage({ params, searchParams }: { params: Promi
     forbidden();
   }
 
+  // Statutory clocks are evaluated when the case is read, the prototype's stand-in for the MVP's
+  // background job: a deadline that has passed is recorded as lapsed by the system, never granted.
+  platform.tickClocks(c.id);
   const cfg = platform.country(c.providerCountry);
   const pathway = platform.pathwayFor(c);
   const documents = platform.documentsFor(c.id);
@@ -67,7 +71,7 @@ export default async function CasePage({ params, searchParams }: { params: Promi
           <span className="small mute">Opened {fmtTime(c.createdAt)}{c.revealedAt ? `, identities revealed symmetrically ${fmtTime(c.revealedAt)}` : ""}</span>
         </div>
       </PageHead>
-      <ErrorNotice error={sp.error} />
+      <ErrorNotice error={sp.error} sig={sp.sig} />
 
       {(() => {
         const done = pathway.stages.filter((s) => c.stageProgress[s.stage.id] === "complete").length;
@@ -131,7 +135,7 @@ export default async function CasePage({ params, searchParams }: { params: Promi
               <p className="small"><strong>Halted at scope.</strong> Routed to {pathway.scope.owner}. The pathway below is provisional until the question is answered through configuration review.</p>
             )}
             {pathway.scope.kind === "undetermined" && (
-              <p className="small"><strong>Not yet determined.</strong> The parties have not yet established: {pathway.scope.missing.map((f) => FACT_LABEL[f] ?? cfg.scope.questions.find((q) => q.fact === f)?.prompt ?? f).join("; ")}. Answer on the intake form. The pathway below is provisional, and every stage that turns on an unanswered fact is halted rather than guessed.</p>
+              <p className="small"><strong>Not yet determined.</strong> The parties have not yet established: {pathway.scope.missing.map((f) => (cfg.scope.questions.find((q) => q.fact === f)?.prompt ?? FACT_LABEL[f] ?? f).replace(/[.?]$/, "")).join("; ")}. Answer on the intake form. The pathway below is provisional, and every stage that turns on an unanswered fact is halted rather than guessed.</p>
             )}
             <InformationNotAdvice />
           </section>
@@ -163,7 +167,14 @@ export default async function CasePage({ params, searchParams }: { params: Promi
                   canEdit={canEdit}
                   canComplete={canSign || isAdmin}
                   canJudge={canJudge}
-                  upstreamHalted={pathway.stages.slice(0, i).some((earlier) => earlier.status === "halted")}
+                  upstreamHalted={pathway.stages.slice(0, i).some((earlier) => earlier.status === "halted" || earlier.status === "stopped")}
+                  completionWaitsOn={
+                    s.stage.usesStateMachine && cfg.stateMachine.states[c.machine.state]?.kind !== "terminal"
+                      ? "the regulator's proceeding reaching its outcome, recorded under Regulator processing below"
+                      : s.stage.produces.some((o) => !instruments.some((x) => x.outputId === o && x.versions.length > 0))
+                        ? `the ${s.stage.produces.map((o) => cfg.outputs.find((x) => x.id === o)?.label ?? o).join(" and ")} being recorded on the case`
+                        : undefined
+                  }
                   learning={learning.filter((l) => l.stageIds.includes(s.stage.id) && (l.countryCodes.includes("*") || l.countryCodes.includes(cfg.code)))}
                 />
               ))}

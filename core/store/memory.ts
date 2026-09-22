@@ -41,6 +41,7 @@ export class InMemoryStore implements Store {
   instruments = new MemoryCollection<Store["instruments"] extends Collection<infer T> ? T : never>();
   agreements = new MemoryCollection<Store["agreements"] extends Collection<infer T> ? T : never>();
   learning = new MemoryCollection<Store["learning"] extends Collection<infer T> ? T : never>();
+  demandSignals = new MemoryCollection<Store["demandSignals"] extends Collection<infer T> ? T : never>();
 
   private auditLog: AuditEntry[] = [];
   private disclosureLog: Disclosure[] = [];
@@ -63,6 +64,7 @@ export class InMemoryStore implements Store {
     for (const c of [
       this.persons, this.organisations, this.memberships, this.listings, this.interests, this.cases,
       this.documents, this.escalations, this.manualReviews, this.instruments, this.agreements, this.learning,
+      this.demandSignals,
     ]) c.clear();
     this.auditLog = [];
     this.disclosureLog = [];

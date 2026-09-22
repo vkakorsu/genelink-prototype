@@ -93,7 +93,7 @@ export function seed(store: Store, countries: Map<string, CountryConfig>, baseDa
   step();
   platform.updateFacts(ines, keId, {
     purpose: "commercial", activity: "ex_situ_held", provenance: "ex_situ", applicantType: "foreign_legal", exchange: "service_shipment",
-    communityHeld: "yes", tkInvolved: "yes", speciesListed: "not_listed", localities: 2, flags: {},
+    communityHeld: "yes", tkInvolved: "yes", speciesListed: "not_listed", localities: 2, flags: { pgrfaMaterial: "no" },
   });
   step();
   platform.uploadDocument(otieno, keId, "pic", "Prior informed consent (community procedure record)", "olkalou-pic-record.pdf", "fictional PIC record content v1");
@@ -146,7 +146,7 @@ export function seed(store: Store, countries: Map<string, CountryConfig>, baseDa
   // Publication perfected the contract. The State holds the document; the platform records the copy the signatory supplies.
   const coContract = platform.recordExternalInstrument(camila, coId, "access_contract", "contrato-acceso-ANLA-2026-014.pdf", "Contrato de acceso a recursos genéticos No. 014 de 2026 (fictional). Perfected on publication.");
   step(60 * 24 * 12);
-  platform.amendInstrument(camila, coId, coContract.id, "Otrosí No. 1: adds accession IBP-A-121 to the resource scope");
+  platform.amendInstrument(camila, coId, coContract.id, "Otrosí No. 1: adds accession IBP-A-121 to the resource scope", "Otrosí No. 1 al Contrato de acceso No. 014 de 2026 (fictional). Se adiciona la accesión IBP-A-121 al alcance del contrato.");
   step(60 * 24 * 8);
   platform.changeOfIntent(camila, coId, { ...store.cases.get(coId)!.facts, exchange: "service_shipment" }, "Samples to be sent abroad for sequencing service and returned, rather than transferred with title");
   step();
@@ -167,7 +167,7 @@ export function seed(store: Store, countries: Map<string, CountryConfig>, baseDa
   const { caseId: keLapsedId } = platform.reciprocate(wanjiru, "lst_ke_antiinfl", "org_meridian");
   platform.updateFacts(wanjiru, keLapsedId, {
     purpose: "commercial", activity: "collection_research", provenance: "in_situ", applicantType: "foreign_legal", exchange: "no_movement",
-    communityHeld: "no", tkInvolved: "no", speciesListed: "not_listed", localities: 1, flags: {},
+    communityHeld: "no", tkInvolved: "no", speciesListed: "not_listed", localities: 1, flags: { pgrfaMaterial: "no" },
   });
   platform.fireEvent(wanjiru, keLapsedId, "submit", "Bundle submitted to NEMA and NACOSTI (fictional)");
   platform.fireEvent(ADMIN, keLapsedId, "acknowledge", "Acknowledged, 30 working day clock running");

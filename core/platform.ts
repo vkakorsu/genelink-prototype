@@ -2,11 +2,12 @@ import { nextEntry, verifyChain, type AuditEntry } from "./audit/chain";
 import { makeDisclosure, type Disclosure } from "./audit/disclosure";
 import { type CaseFacts, type CountryConfig, type RegValue } from "./config/schema";
 import { FROZEN_STATUSES, amendInstrument, awaitingInstrument, issueInstruments, sha256 } from "./domain/instruments";
+import { canonicalAgreementText, normaliseText } from "./domain/agreements";
 import { fullProjection, publicProjection, searchableText, type FullListing, type PublicListing } from "./domain/listings";
 import type {
-  Agreement, AgreementVersion, Case, CaseDocument, EscalationRecord, Instrument, Listing, ManualReviewRecord, MarketFunction, Membership, Organisation, Permission, Person,
+  Agreement, AgreementVersion, Case, CaseDocument, DemandSignal, EscalationRecord, Instrument, Listing, ManualReviewRecord, MarketFunction, Membership, Organisation, Permission, Person,
 } from "./domain/types";
-import { withDeclaredDefaults } from "./engine/facts";
+import { factProblems, withDeclaredDefaults } from "./engine/facts";
 import { attachedDuties, buildPathway, type Pathway } from "./engine/pathway";
 import { evaluateScope } from "./engine/scope";
 import { applyLapse, extendClock, fire, initialSnapshot, isGranted, runsIn, tick } from "./engine/stateMachine";
@@ -30,6 +31,16 @@ const rank: Record<Permission, number> = { viewer: 0, member: 1, authorised_sign
 
 /** Prototype paste limit. Real files go to object storage in the MVP; the prototype hashes pasted text. */
 export const MAX_DOCUMENT_BYTES = 256 * 1024;
+
+/**
+ * A file name is the uploader's text. Keep the last path segment, drop control characters and the
+ * characters that break a Content-Disposition header or a filesystem path, and bound the length.
+ */
+function cleanFileName(name: string): string {
+  const base = name.split(/[/\\]/).pop() ?? "";
+  const cleaned = base.replace(/[\x00-\x1f\x7f<>:"|?*]/g, "").replace(/\s+/g, " ").trim().slice(0, 120);
+  return cleaned || "document";
+}
 
 export class Platform {
   constructor(
@@ -173,9 +184,35 @@ export class Platform {
     if (!("admin" in admin)) throw new PermissionDenied("Verification decisions are administrative actions");
     const org = this.must(this.store.organisations.get(organisationId), "Organisation", organisationId);
     if (outcome !== "verified" && outcome !== "declined") throw new InvalidRequest(`Unknown verification outcome ${outcome}`);
-    org.verification = { ...org.verification, status: outcome, decidedBy: admin.admin.name, decidedAt: this.now().toISOString(), reason };
+    if (!reason.trim()) throw new InvalidRequest("A verification decision needs a reason. It is recorded in the audit chain and shown to the organisation.");
+    if (org.verification.status !== "pending") throw new InvalidRequest(`${org.name} has no pending verification request (status: ${org.verification.status}). A decision answers a request.`);
+    org.verification = { ...org.verification, status: outcome, decidedBy: admin.admin.name, decidedAt: this.now().toISOString(), reason: reason.trim() };
     this.store.organisations.put(org);
-    this.audit(admin, "organisation.verification_decided", { type: "organisation", id: organisationId }, { outcome, reason });
+    this.audit(admin, "organisation.verification_decided", { type: "organisation", id: organisationId }, { outcome, reason: reason.trim() });
+    if (outcome === "verified") this.openWaitingMatches(org);
+  }
+
+  /**
+   * Mutual interest recorded while an organisation was in verification is a match waiting at the
+   * gate. When the organisation is verified, every such match whose other side is verified opens
+   * now, so that nobody has to notice and signal again.
+   */
+  private openWaitingMatches(org: Organisation) {
+    for (const listing of this.store.listings.list()) {
+      const owner = this.store.organisations.get(listing.organisationId);
+      if (!owner || owner.verification.status !== "verified") continue;
+      const others = listing.organisationId === org.id
+        ? this.store.interests.list().filter((i) => i.toListingId === listing.id).map((i) => i.fromOrganisationId)
+        : [org.id];
+      for (const other of others) {
+        const counterparty = this.store.organisations.get(other);
+        if (!counterparty || counterparty.verification.status !== "verified") continue;
+        if (!this.mutualInterest(other, listing)) continue;
+        if (this.store.cases.list().some((c) => c.listingId === listing.id && c.participants.some((p) => p.organisationId === other))) continue;
+        if (!this.countries.has(this.providerCountryFor(listing, counterparty))) continue;
+        this.openCaseFromMatch({ system: true }, listing, other);
+      }
+    }
   }
 
   /**
@@ -195,6 +232,11 @@ export class Platform {
     method: "manual_vetting" | "vouching";
     functions: MarketFunction[];
   }): { personId: string; seatId: string; organisationId: string } {
+    // A bound on self-registration keeps a public instance from being filled until it falls over.
+    // The MVP puts sign-up behind identity checks and rate limits; this is the prototype's floor.
+    if (this.store.organisations.list().filter((o) => o.id.startsWith("org_new_")).length >= 200) {
+      throw new InvalidRequest("Registration is paused on this demonstration instance: it has reached its limit of self-registered organisations. An administrator can reset the demo.");
+    }
     const n = this.store.persons.list().length + 1;
     const personId = `p_new_${n}`;
     const organisationId = `org_new_${this.store.organisations.list().length + 1}`;
@@ -207,6 +249,27 @@ export class Platform {
     this.audit(actor, "organisation.registered", { type: "organisation", id: organisationId }, { kind: org.kind, country: org.country, path: "B" });
     this.requestVerification(actor, organisationId, input.method);
     return { personId, seatId: seat.id, organisationId };
+  }
+
+  /**
+   * A declared visit objective becomes a demand signal. The objective itself stays with the visitor
+   * (it shapes navigation and search for that visit); what the platform keeps is what was sought and
+   * by what kind of organisation, without the person.
+   */
+  recordDemandSignal(actor: Actor | null, input: { want: DemandSignal["want"]; have: string; redactions: number }): DemandSignal {
+    const org = actor && "seat" in actor ? actor.organisation : null;
+    const signal: DemandSignal = {
+      id: `dem_${this.store.demandSignals.list().length + 1}`,
+      at: this.now().toISOString(),
+      want: input.want,
+      have: input.have.slice(0, 200),
+      redactions: input.redactions,
+      organisationKind: org?.kind ?? null,
+      organisationFunctions: org?.functions ?? [],
+      organisationCountry: org?.country ?? null,
+    };
+    this.store.demandSignals.put(signal);
+    return signal;
   }
 
   // ---------------------------------------------------------- discovery
@@ -317,7 +380,10 @@ export class Platform {
     // gate; a case opens only when both organisations are verified.
     for (const org of [owner, counterparty]) {
       if (org.verification.status !== "verified") {
-        throw new PermissionDenied(`${org.name} is ${org.verification.status === "pending" ? "still in verification" : "verification-declined"}. Mutual interest is recorded, but a case opens only once both organisations are verified.`);
+        // No reveal has happened, so the other side is named by kind and country only.
+        const mine = "seat" in actor && actor.seat.organisationId === org.id;
+        const who = mine ? "Your organisation" : `The other organisation (${org.kind.replace(/_/g, " ")}, ${org.country})`;
+        throw new PermissionDenied(`${who} is ${org.verification.status === "pending" ? "still in verification" : "verification-declined"}. Mutual interest is recorded, and the case opens by itself as soon as both organisations are verified; identities are revealed then, not before.`);
       }
     }
     // On an offer the owner supplies. On a need the owner is the demand side and the counterparty supplies.
@@ -394,6 +460,8 @@ export class Platform {
     this.require(actor, "member");
     const cfg = this.country(c.providerCountry);
     const facts = withDeclaredDefaults(cfg, incoming);
+    const problems = factProblems(cfg, facts);
+    if (problems.length) throw new InvalidRequest(problems.join(" "));
     const before = evaluateScope(cfg, c.facts).kind;
     const after = evaluateScope(cfg, facts).kind;
     // Answering the intake questions for the first time is not a change of intent: before a scope
@@ -404,6 +472,7 @@ export class Platform {
     c.facts = facts;
     this.store.cases.put(c);
     this.audit(actor, "case.facts_updated", { type: "case", id: caseId }, { facts });
+    this.reopenStagesTheFactsNowBlock(c);
     this.syncEscalations(actor, c);
     return c;
   }
@@ -422,6 +491,8 @@ export class Platform {
     }
     const cfg = this.country(c.providerCountry);
     const newFacts = withDeclaredDefaults(cfg, incoming);
+    const problems = factProblems(cfg, newFacts);
+    if (problems.length) throw new InvalidRequest(problems.join(" "));
     const at = this.now().toISOString();
     c.changeOfIntent.push({
       id: `coi_${caseId}_${c.changeOfIntent.length + 1}`,
@@ -433,6 +504,7 @@ export class Platform {
     c.facts = newFacts;
     this.store.cases.put(c);
     this.audit(actor, "case.change_of_intent", { type: "case", id: caseId }, { description, policy: cfg.changeOfIntent.policy });
+    this.reopenStagesTheFactsNowBlock(c);
     // Apply to instruments already recorded. An instrument the platform is still awaiting has nothing to version.
     for (const inst of this.instrumentsFor(caseId)) {
       if (FROZEN_STATUSES.has(inst.status)) continue;
@@ -446,6 +518,21 @@ export class Platform {
     }
     this.syncEscalations(actor, c);
     return c;
+  }
+
+  /**
+   * A stage marked complete on earlier facts is not complete once new facts stop or halt it (a species
+   * check that comes back "listed", an answer that raises an open question). Its completion is reopened
+   * and the reason recorded, so the pathway never counts as done a step the law now blocks.
+   */
+  private reopenStagesTheFactsNowBlock(c: Case) {
+    for (const s of this.pathwayFor(c).stages) {
+      if ((s.status === "halted" || s.status === "stopped") && c.stageProgress[s.stage.id] === "complete") {
+        c.stageProgress[s.stage.id] = "in_progress";
+        this.audit({ system: true }, "stage.reopened", { type: "case", id: c.id }, { stageId: s.stage.id, reason: s.status === "stopped" ? "a prohibition applies on the facts now entered" : "the facts now entered raise a question this stage depends on" });
+      }
+    }
+    this.store.cases.put(c);
   }
 
   /**
@@ -548,12 +635,12 @@ export class Platform {
     if (Buffer.byteLength(content, "utf8") > MAX_DOCUMENT_BYTES) throw new InvalidRequest(`The document exceeds the prototype's ${MAX_DOCUMENT_BYTES / 1024} KB paste limit. The MVP stores files in EU object storage and hashes the upload stream.`);
     const pathway = this.pathwayFor(c);
     if (!pathway.stages.some((s) => s.documents.some((d) => d.id === requirementId))) throw new InvalidRequest(`No document requirement ${requirementId} on this pathway.`);
-    const h = sha256(content);
+    const h = sha256(normaliseText(content));
     const dup = this.documentsFor(caseId).find((d) => d.requirementId === requirementId && d.sha256 === h);
     if (dup) throw new InvalidRequest(`An identical document (${dup.fileName}) is already on file for this requirement. Same content, same hash, nothing to add.`);
-    const doc: CaseDocument = { id: `doc_${caseId}_${requirementId}_${this.store.documents.list().length + 1}`, caseId, requirementId, label, fileName, sha256: h, uploadedBySeatId: actor.seat.id, uploadedAt: this.now().toISOString(), check: "present" };
+    const doc: CaseDocument = { id: `doc_${caseId}_${requirementId}_${this.store.documents.list().length + 1}`, caseId, requirementId, label, fileName: cleanFileName(fileName), sha256: h, uploadedBySeatId: actor.seat.id, uploadedAt: this.now().toISOString(), check: "present" };
     this.store.documents.put(doc);
-    this.audit(actor, "document.uploaded", { type: "document", id: doc.id }, { requirementId, sha256: doc.sha256, check: "presence and type only, never sufficiency" });
+    this.audit(actor, "document.uploaded", { type: "document", id: doc.id }, { requirementId, sha256: doc.sha256, check: "presence recorded and hashed, never sufficiency" });
     return doc;
   }
 
@@ -581,6 +668,20 @@ export class Platform {
     if (progress === "complete" && blockedBefore.length) {
       throw new PermissionDenied(`An earlier stage is ${blockedBefore.some((s) => s.status === "stopped") ? "stopped or halted" : "halted"}: ${blockedBefore.map((s) => s.stage.title).join("; ")}. A later stage cannot be marked complete while the question it depends on is open.`);
     }
+    // A stage whose substance is the regulator's act, or an instrument the State issues, is complete
+    // when the record says so, not when a party says so.
+    if (progress === "complete") {
+      const cfg = this.country(c.providerCountry);
+      const st = cfg.stateMachine.states[c.machine.state];
+      if (stage.stage.usesStateMachine && st?.kind !== "terminal") {
+        throw new PermissionDenied(`"${stage.stage.title}" follows the regulator's own process, which is at "${st?.label ?? c.machine.state}". It is complete when the proceeding reaches its outcome, recorded under Regulator processing, not before.`);
+      }
+      const missing = stage.stage.produces.filter((o) => !this.instrumentsFor(caseId).some((i) => i.outputId === o && i.versions.length > 0));
+      if (missing.length) {
+        const labels = missing.map((o) => cfg.outputs.find((x) => x.id === o)?.label ?? o);
+        throw new PermissionDenied(`"${stage.stage.title}" ends in ${labels.join(" and ")}. It is complete once an authorised signatory has recorded ${missing.length === 1 ? "that instrument" : "those instruments"} on the case.`);
+      }
+    }
     c.stageProgress[stageId] = progress;
     this.store.cases.put(c);
     this.audit(actor, "stage.progress", { type: "case", id: caseId }, { stageId, progress });
@@ -601,6 +702,12 @@ export class Platform {
       this.audit(actor, "regulator.event_denied", { type: "case", id: caseId }, { event, reason: "authority events are recorded by an administrator on the authority's behalf" });
       throw this.denied("That event belongs to the authority. An administrator records it on the authority's behalf; your seat can record applicant events only.");
     }
+    // The reverse boundary: a filing is the parties' own act. The platform's administrator records
+    // what the authority did; it never files, resubmits, appeals or withdraws for a party.
+    if (effectiveActor === "applicant" && "admin" in actor) {
+      this.audit(actor, "regulator.event_denied", { type: "case", id: caseId }, { event, reason: "applicant filings belong to the parties' authorised signatories" });
+      throw this.denied(`"${event.replace(/_/g, " ")}" is the applicant's own act. An authorised signatory of a party to the case records it; the platform's administrator does not file for a party.`);
+    }
     // An applicant event (submit, resubmit, withdraw, appeal) is a filing before the regulator:
     // a commitment the organisation stands behind, so it takes the same seat as recording an
     // instrument. A member prepares the bundle; a signatory files it. Viewers read.
@@ -608,10 +715,37 @@ export class Platform {
       this.audit(actor, "regulator.event_denied", { type: "case", id: caseId }, { event, reason: `filing before the regulator needs an authorised signatory seat; seat is ${actor.seat.permission}` });
       throw this.denied(`Recording "${event.replace(/_/g, " ")}" is a filing before the regulator, a commitment the organisation stands behind. It needs an authorised signatory or administrator seat; your seat is ${actor.seat.permission}. This attempt has been recorded.`);
     }
+    // A filing before the regulator rests on a scope answer. While scope is undetermined (the parties
+    // have not answered purpose or activity), escalated (the law is unresolved) or out of scope, the
+    // platform will not record the applicant filing as if the basis were settled. The authority's own
+    // acts are still recorded: they are facts about the world, not the parties' claims.
+    if (effectiveActor === "applicant" && event !== "withdraw") {
+      // A prohibition that applies on the facts is established law: an application filed over it is one
+      // the law says must not be made in that form (Kenya reg. 11(4)(e)). The parties may still withdraw.
+      const stops = this.pathwayFor(c).stages.flatMap((s) => s.stops);
+      if (stops.length) {
+        this.audit(actor, "regulator.event_denied", { type: "case", id: caseId }, { event, reason: "a prohibition applies on these facts", stops: stops.map((x) => x.requirementId) });
+        throw this.denied(`Recording "${event.replace(/_/g, " ")}" is refused: a prohibition applies on these facts. ${stops.map((x) => `${x.text} (${x.reg.citation ?? "see the stage"})`).join(" ")} Change the project so it no longer applies, or withdraw.`);
+      }
+      const scope = evaluateScope(cfg, c.facts);
+      if (scope.kind !== "in_scope") {
+        this.audit(actor, "regulator.event_denied", { type: "case", id: caseId }, { event, reason: `scope is ${scope.kind.replace("_", " ")}` });
+        throw this.denied(
+          scope.kind === "undetermined"
+            ? `Recording "${event.replace(/_/g, " ")}" needs a scope answer first. Answer the intake questions (${scope.missing.join(", ")}) so the platform can say whether and how this regime applies.`
+            : scope.kind === "escalate"
+              ? `Recording "${event.replace(/_/g, " ")}" is held: scope on these facts is an open legal question routed to ${scope.owner}. The platform will not record a filing on a guessed scope.`
+              : `This case is out of scope on the facts entered, so there is no filing under this regime to record.`,
+        );
+      }
+    }
     const wasGranted = isGranted(cfg, c.machine);
     c.machine = fire(cfg, c.machine, event, effectiveActor, this.now(), note, c.facts);
     this.store.cases.put(c);
-    this.audit(actor, "regulator.event_recorded", { type: "case", id: caseId }, { event, to: c.machine.state, recordedOnBehalfOf: effectiveActor, note });
+    // Filing over halted stages is the parties' decision, and the platform records that it was taken
+    // with those questions open, so the record shows what was known to be unresolved at the time.
+    const openAtFiling = effectiveActor === "applicant" ? this.pathwayFor(c).stages.filter((s) => s.status === "halted" || s.status === "stopped").map((s) => s.stage.id) : [];
+    this.audit(actor, "regulator.event_recorded", { type: "case", id: caseId }, { event, to: c.machine.state, recordedOnBehalfOf: effectiveActor, note, ...(openAtFiling.length ? { stagesOpenAtFiling: openAtFiling } : {}) });
     if (isGranted(cfg, c.machine)) this.issueOutputs(actor, c);
     else if (wasGranted && cfg.stateMachine.states[c.machine.state]?.kind === "terminal") this.closeInstruments(actor, c, event);
     return c;
@@ -638,6 +772,9 @@ export class Platform {
     const { snap, lapsed } = tick(cfg, c.machine, now);
     c.machine = snap;
     for (const id of lapsed) {
+      // A first lapse moves the case; a second clock that no longer runs in the new state is left alone.
+      const clock = cfg.stateMachine.clocks.find((k) => k.id === id)!;
+      if (!runsIn(clock).includes(c.machine.state)) continue;
       c.machine = applyLapse(cfg, c.machine, id, now);
       this.audit({ system: true }, "clock.lapsed", { type: "case", id: caseId }, { clockId: id, to: c.machine.state, effect: "remedy_against_administrator", granted: false });
     }
@@ -723,27 +860,29 @@ export class Platform {
     if (Buffer.byteLength(content, "utf8") > MAX_DOCUMENT_BYTES) throw new InvalidRequest(`The instrument exceeds the prototype's ${MAX_DOCUMENT_BYTES / 1024} KB paste limit.`);
     if (existing && existing.versions.length > 0) throw new InvalidRequest(`${existing.label} is already recorded on this case (v${existing.versions.length}). A change is a new version under its amendment policy, not a second original.`);
     const [inst] = issueInstruments(cfg, caseId, [outputId], this.now(), actor.seat.id, "recorded_external");
-    inst.versions[0].sha256 = sha256(content);
+    inst.versions[0].sha256 = sha256(normaliseText(content));
     inst.versions[0].summary = `${inst.label} recorded from ${fileName}`;
     this.store.instruments.put(inst);
     this.audit(actor, "instrument.recorded", { type: "instrument", id: inst.id }, { outputId, fileName, sha256: inst.versions[0].sha256, origin: "recorded_external", wasAwaiting: Boolean(existing) });
     return inst;
   }
 
-  amendInstrument(actor: Actor, caseId: string, instrumentId: string, summary: string) {
+  amendInstrument(actor: Actor, caseId: string, instrumentId: string, summary: string, documentText?: string) {
     const inst = this.must(this.store.instruments.get(instrumentId), "Instrument", instrumentId);
     this.mustBelong(caseId, inst, "Instrument");
     const c = this.caseFor(inst.caseId);
     this.requireParticipant(actor, c);
     this.require(actor, "authorised_signatory");
     if (!summary.trim()) throw new InvalidRequest("Describe the modification. The summary goes into the version record.");
+    const doc = documentText?.trim() ? documentText : undefined;
+    if (doc && Buffer.byteLength(doc, "utf8") > MAX_DOCUMENT_BYTES) throw new InvalidRequest(`The document exceeds the prototype's ${MAX_DOCUMENT_BYTES / 1024} KB paste limit.`);
     const cfg = this.country(c.providerCountry);
     const st = cfg.stateMachine.states[c.machine.state];
     if (st?.kind === "terminal" && st.outcome !== "granted") throw new PermissionDenied(`The case has reached "${st.label}". No amendment can be recorded against an instrument of a case that has ended.`);
-    const out = amendInstrument(inst, summary.trim(), this.now(), "seat" in actor ? actor.seat.id : "system");
+    const out = amendInstrument(inst, summary.trim(), this.now(), "seat" in actor ? actor.seat.id : "system", doc ? normaliseText(doc) : undefined);
     if (out.kind === "versioned") {
       this.store.instruments.put(out.instrument);
-      this.audit(actor, "instrument.versioned", { type: "instrument", id: instrumentId }, { version: out.version.version, kind: out.version.kind, summary });
+      this.audit(actor, "instrument.versioned", { type: "instrument", id: instrumentId }, { version: out.version.version, kind: out.version.kind, summary, sha256: out.version.sha256, hashes: out.version.hashes });
     } else {
       this.audit(actor, "instrument.new_required", { type: "instrument", id: instrumentId }, { policy: out.policy, reason: out.reason });
     }
@@ -801,6 +940,12 @@ export class Platform {
     const { a } = this.agreementFor(actor, caseId, agreementId);
     this.require(actor, "member");
     if (a.status === "executed" || a.status === "recorded") throw new PermissionDenied("An executed agreement is immutable. Record an amendment as a new agreement or an instrument version.");
+    // Once a party has signed, the text is fixed: a new version would leave that signature on a text
+    // that is no longer current, and the other party could then sign something different.
+    if (a.executions.length) {
+      const signed = a.executions.map((e) => this.store.organisations.get(e.organisationId)?.name ?? e.organisationId).join(" and ");
+      throw new PermissionDenied(`${signed} has already signed v${a.executions[0].versionNumber}. A new version would leave that signature on a text that is no longer current. Complete execution of this version, or start a new agreement for the changed terms.`);
+    }
     if (!summary.trim()) throw new InvalidRequest("Say what changed in this version");
     const version = this.makeVersion(a.versions.length + 1, actor.seat.id, summary.trim(), clauses, origin);
     a.versions.push(version);
@@ -833,10 +978,14 @@ export class Platform {
     this.require(actor, "authorised_signatory");
     if (a.status !== "approved" && a.status !== "executed") throw new PermissionDenied("Both organisations must approve the current version before execution");
     const latest = a.versions[a.versions.length - 1];
-    if (a.executions.some((e) => e.organisationId === actor.seat.organisationId)) return a;
+    if (!a.approvals.some((ap) => ap.organisationId === actor.seat.organisationId && ap.versionNumber === latest.version)) {
+      throw new PermissionDenied(`Your organisation has not approved v${latest.version}. Execution follows approval of the same version by both organisations.`);
+    }
+    if (a.executions.some((e) => e.organisationId === actor.seat.organisationId && e.versionNumber === latest.version)) return a;
     a.executions.push({ seatId: actor.seat.id, organisationId: actor.seat.organisationId, at: this.now().toISOString(), versionNumber: latest.version, sha256: latest.sha256, method: "platform_click_to_sign", stepUpAuth: "demo" });
     const parties = c.participants.filter((p) => p.role === "demand" || p.role === "supply").map((p) => p.organisationId);
-    a.status = parties.every((p) => a.executions.some((e) => e.organisationId === p)) ? "executed" : "approved";
+    // Executed only when every party has signed the same text.
+    a.status = parties.every((p) => a.executions.some((e) => e.organisationId === p && e.versionNumber === latest.version && e.sha256 === latest.sha256)) ? "executed" : "approved";
     this.store.agreements.put(a);
     this.audit(actor, "agreement.executed", { type: "agreement", id: a.id }, { version: latest.version, sha256: latest.sha256, signatorySeat: actor.seat.id, organisationId: actor.seat.organisationId, method: "platform_click_to_sign", status: a.status });
     return a;
@@ -847,13 +996,18 @@ export class Platform {
   }
 
   private makeVersion(version: number, authorSeatId: string, summary: string, clauses: AgreementVersion["clauses"], origin: AgreementVersion["origin"]): AgreementVersion {
-    const body = clauses.map((c) => `${c.id}\n${c.title}\n${c.text}`).join("\n\n");
-    return { version, at: this.now().toISOString(), authorSeatId, summary, clauses, sha256: sha256(`v${version}\n${body}`), origin };
+    // Negotiated text arrives through a form, so it is normalised like every other pasted document.
+    const clean = clauses.map((c) => ({ ...c, title: normaliseText(c.title), text: normaliseText(c.text) }));
+    return { version, at: this.now().toISOString(), authorSeatId, summary, clauses: clean, sha256: sha256(canonicalAgreementText(version, clean)), origin };
   }
 
   /** Verification page: does this content match any recorded hash? */
   verifyContent(content: string): { sha256: string; matches: { type: string; id: string; where: string }[] } {
-    const h = sha256(content);
+    return this.verifyHash(sha256(normaliseText(content)));
+  }
+
+  /** Look a SHA-256 up in the record. The verification page passes only the hash around, never the document. */
+  verifyHash(h: string): { sha256: string; matches: { type: string; id: string; where: string }[] } {
     const matches: { type: string; id: string; where: string }[] = [];
     for (const a of this.store.agreements.list()) for (const v of a.versions) if (v.sha256 === h) matches.push({ type: "agreement", id: a.id, where: `version ${v.version}` });
     for (const i of this.store.instruments.list()) for (const v of i.versions) if (v.sha256 === h) matches.push({ type: "instrument", id: i.id, where: `version ${v.version}` });

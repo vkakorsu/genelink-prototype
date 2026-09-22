@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { getPlatform } from "@/core";
 import type { Actor } from "@/core/platform";
-import type { VisitObjective } from "@/core/domain/types";
+import { VISIT_WANTS, type VisitObjective } from "@/core/domain/types";
 import { ADMIN } from "@/core/seed/seed";
 
 /**
@@ -34,8 +34,18 @@ export async function getObjective(): Promise<VisitObjective | null> {
   const jar = await cookies();
   const v = jar.get(OBJECTIVE_COOKIE)?.value;
   if (!v) return null;
+  // The cookie is the visitor's own and may have been edited or written by an older build. Anything
+  // that is not the exact shape this build writes is ignored rather than trusted into the page.
   try {
-    return JSON.parse(v) as VisitObjective;
+    const o = JSON.parse(v) as Record<string, unknown> | null;
+    if (!o || typeof o !== "object" || Array.isArray(o)) return null;
+    if (typeof o.have !== "string" || typeof o.want !== "string" || !(VISIT_WANTS as readonly string[]).includes(o.want)) return null;
+    return {
+      have: o.have.slice(0, 200),
+      want: o.want as VisitObjective["want"],
+      declaredAt: typeof o.declaredAt === "string" ? o.declaredAt : "",
+      redactions: typeof o.redactions === "number" && Number.isFinite(o.redactions) ? o.redactions : undefined,
+    };
   } catch {
     return null;
   }

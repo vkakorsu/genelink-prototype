@@ -8,10 +8,11 @@ import { getSession } from "@/lib/session";
 export default async function CaseAuditPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const platform = getPlatform();
-  const c = platform.store.cases.get(id);
-  if (!c) notFound();
+  // Sign-in is checked before existence: an anonymous visitor must not learn which case ids exist.
   const session = await getSession();
   if (session.kind === "anonymous") unauthorized();
+  const c = platform.store.cases.get(id);
+  if (!c) notFound();
   // The trail names the participants' seats and organisations: same boundary as the case.
   let entries;
   try {

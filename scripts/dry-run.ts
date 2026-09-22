@@ -41,7 +41,11 @@ line();
 // answered with its first established option, read from the file, so the script knows no country.
 const declared: Record<string, string | number> = {};
 for (const q of cfg.scope.questions.filter((x) => x.fact !== "activity")) {
-  declared[q.fact] = q.kind === "number" ? (q.min ?? 1) : q.options.find((o) => o.id !== q.default)?.id ?? q.options[0].id;
+  // The first established answer that keeps the journey inside the country's pathway: an answer the
+  // file routes out at scope (a single-fact exit or escalation) is skipped for the walk.
+  const exits = (id: string) => cfg.scope.rules.some((r) => r.result !== "in_scope" && r.when && Object.keys(r.when).length === 1 && [r.when[q.fact] ?? []].flat().includes(id));
+  const established = q.options.filter((o) => o.id !== q.default);
+  declared[q.fact] = q.kind === "number" ? (q.min ?? 1) : (established.find((o) => !exits(o.id)) ?? established[0] ?? q.options[0]).id;
 }
 const facts: CaseFacts = withDeclaredDefaults(cfg, {
   purpose: "commercial",

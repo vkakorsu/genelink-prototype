@@ -195,6 +195,17 @@ export function buildPathway(cfg: CountryConfig, facts: CaseFacts): Pathway {
     });
   }
 
+  // A scope that is undetermined or escalated holds the intake stage: the pathway below it is
+  // provisional, and nothing can be completed on the strength of a scope nobody has settled.
+  const scopeHold = escalations.find((e) => e.stageId === "intake" && e.requirementId === scope.ruleId && (scope.kind === "undetermined" || scope.kind === "escalate"));
+  if (scopeHold) {
+    const intake = stages.find((s) => s.stage.id === "intake") ?? stages[0];
+    if (intake && intake.status !== "informational") {
+      intake.escalations.unshift(scopeHold);
+      if (intake.status === "active") intake.status = "halted";
+    }
+  }
+
   // Out of scope: the pathway is the exit, nothing else applies.
   if (scope.kind === "out_of_scope") {
     return { countryCode: cfg.code, scope, stages: [], eligibility: [], escalations: [], haltedStageIds: [], stoppedStageIds: [] };

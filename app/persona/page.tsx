@@ -2,10 +2,11 @@ import { getPlatform } from "@/core";
 import { registerOrganisation, switchPersona } from "@/app/actions";
 import { PageHead, Notice } from "@/components/ui";
 import { getSession } from "@/lib/session";
+import { safeLocalPath } from "@/lib/safePath";
 
 export default async function PersonaPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
-  const next = sp.next ?? "/";
+  const next = safeLocalPath(sp.next);
   const platform = getPlatform();
   const session = await getSession();
   const persons = platform.store.persons.list().filter((p) => p.id !== "person_admin");

@@ -220,7 +220,7 @@ stages:
     documents:
       - id: protocolizacion
         label: Consultation record (currently required document, validated against the live checklist)
-        reg: { state: "unknown", marker: "?", note: "See consultation_document.", owner: "Colombia escalation owner" }
+        reg: { state: "unknown", marker: "?", note: "Which document this is remains the open question above. Validate against the live ANLA VITAL checklist before uploading.", owner: "Colombia escalation owner" }
   - id: intangible_component
     title: Intangible component (associated traditional knowledge)
     subject: community
@@ -411,6 +411,14 @@ stateMachine:
     - { from: filed, to: withdrawn, event: withdraw, actor: applicant }
     - { from: evaluated, to: withdrawn, event: withdraw, actor: applicant }
     - { from: negotiating, to: withdrawn, event: withdraw, actor: applicant }
+    # Desistimiento: withdrawal is open wherever the application is still pending.
+    - { from: returned_incomplete, to: withdrawn, event: withdraw, actor: applicant, reg: { state: "inferred", marker: "▸", value: "An applicant may withdraw an application at any point before the decision. General administrative law; Appendix B does not address it." } }
+    - { from: resubmitted, to: withdrawn, event: withdraw, actor: applicant, reg: { state: "inferred", marker: "▸", value: "An applicant may withdraw an application at any point before the decision. General administrative law; Appendix B does not address it." } }
+    - { from: information_requested, to: withdrawn, event: withdraw, actor: applicant, reg: { state: "inferred", marker: "▸", value: "An applicant may withdraw an application at any point before the decision. General administrative law; Appendix B does not address it." } }
+    - { from: admitted, to: withdrawn, event: withdraw, actor: applicant, reg: { state: "inferred", marker: "▸", value: "An applicant may withdraw an application at any point before the decision. General administrative law; Appendix B does not address it." } }
+    - { from: published, to: withdrawn, event: withdraw, actor: applicant, reg: { state: "inferred", marker: "▸", value: "An applicant may withdraw an application at any point before the decision. General administrative law; Appendix B does not address it." } }
+    - { from: accepted, to: withdrawn, event: withdraw, actor: applicant, reg: { state: "inferred", marker: "▸", value: "An applicant may withdraw an application at any point before the decision. General administrative law; Appendix B does not address it." } }
+    - { from: notification_overdue, to: withdrawn, event: withdraw, actor: applicant, reg: { state: "inferred", marker: "▸", value: "An applicant may withdraw an application at any point before the decision. General administrative law; Appendix B does not address it." } }
     - { from: admitted, to: deadline_lapsed, event: lapse, actor: system }
     - { from: published, to: deadline_lapsed, event: lapse, actor: system }
     - { from: evaluated, to: deadline_lapsed, event: lapse, actor: system }

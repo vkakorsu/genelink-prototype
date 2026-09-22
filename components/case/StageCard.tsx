@@ -6,7 +6,7 @@ import { markStage, uploadDocument, decideManualReview } from "@/app/actions";
 import { fmtTime } from "@/components/ui";
 
 export function StageCard({
-  stage, c, documents, escalations, manualReviews, canEdit, canComplete, canJudge, learning, upstreamHalted,
+  stage, c, documents, escalations, manualReviews, canEdit, canComplete, canJudge, learning, upstreamHalted, completionWaitsOn,
 }: {
   stage: ResolvedStage;
   c: Case;
@@ -18,6 +18,8 @@ export function StageCard({
   canJudge: boolean;
   learning: { id: string; title: string; status: string }[];
   upstreamHalted: boolean;
+  /** Set when the stage is complete only once the record says so (a regulator outcome, a recorded instrument). */
+  completionWaitsOn?: string;
 }) {
   const progress = c.stageProgress[stage.stage.id] ?? "not_started";
   const cls = stage.status === "halted" || stage.status === "stopped" ? "halted" : stage.status === "informational" ? "informational" : progress === "complete" ? "complete" : "";
@@ -131,7 +133,7 @@ export function StageCard({
                         <td><RegBlock reg={d.reg} compact /></td>
                         <td>
                           {onFile.length === 0 && <span className="mute">Missing</span>}
-                          {onFile.map((f) => <div key={f.id} className="small"><strong>{f.fileName}</strong> <span className="mono mute">{f.sha256.slice(0, 12)}…</span><div className="mute">present, {fmtTime(f.uploadedAt)}. Presence and type checked, never sufficiency.</div></div>)}
+                          {onFile.map((f) => <div key={f.id} className="small"><strong>{f.fileName}</strong> <span className="mono mute">{f.sha256.slice(0, 12)}…</span><div className="mute">present, {fmtTime(f.uploadedAt)}. Presence recorded and hashed; the platform never judges sufficiency. File-type checks arrive with real file storage in the MVP.</div></div>)}
                         </td>
                         <td>
                           {canEdit ? (
@@ -165,13 +167,16 @@ export function StageCard({
             <form action={markHere} className="row" style={{ marginTop: 10 }}>
               <input type="hidden" name="stageId" value={stage.stage.id} />
               <span className="small mute">Progress is a human action:</span>
-              {(["not_started", "in_progress", "complete"] as const).filter((p) => p !== progress && (p !== "complete" || (canComplete && !upstreamHalted))).map((p) => (
+              {(["not_started", "in_progress", "complete"] as const).filter((p) => p !== progress && (p !== "complete" || (canComplete && !upstreamHalted && !completionWaitsOn))).map((p) => (
                 <button key={p} className="btn ghost small" type="submit" name="progress" value={p}>Mark {p.replace("_", " ")}</button>
               ))}
             </form>
           )}
           {stage.status === "active" && canEdit && !canComplete && progress !== "complete" && (
             <p className="small mute" style={{ marginTop: 6 }}>Your seat can record work in progress. Marking a stage complete is a claim the organisation stands behind, so it takes an authorised signatory or administrator seat.</p>
+          )}
+          {stage.status === "active" && canComplete && !upstreamHalted && completionWaitsOn && progress !== "complete" && (
+            <p className="small mute" style={{ marginTop: 6 }}>Complete when the record says so: this stage waits on {completionWaitsOn}.</p>
           )}
           {stage.status === "active" && canComplete && upstreamHalted && progress !== "complete" && (
             <p className="small mute" style={{ marginTop: 6 }}>An earlier stage is halted. This one can be prepared, but it cannot be marked complete until the open question is answered through configuration review.</p>

@@ -1,7 +1,8 @@
 import type { CountryConfig } from "@/core/config/schema";
 import type { Case } from "@/core/domain/types";
-import { eventsFor, runsIn } from "@/core/engine/stateMachine";
-import { promptFor } from "@/core/engine/scope";
+import { eventsFor, runsIn, tick } from "@/core/engine/stateMachine";
+import { evaluateScope, promptFor } from "@/core/engine/scope";
+import { buildPathway } from "@/core/engine/pathway";
 import { extendClock, fireEvent, tickClocks } from "@/app/actions";
 import { EvidenceChip } from "@/components/Evidence";
 import { fmtTime, stateHeadline } from "@/components/ui";
@@ -10,9 +11,17 @@ export function MachinePanel({ cfg, c, canAct, canPrepare, isAdmin }: { cfg: Cou
   const sm = cfg.stateMachine;
   const current = sm.states[c.machine.state];
   const options = eventsFor(cfg, c.machine.state, c.facts).filter((o) => o.transition.event !== "lapse");
-  const events = options.filter((o) => o.status === "available").map((o) => o.transition);
+  const scope = evaluateScope(cfg, c.facts);
+  // Applicant filings wait on a settled scope; the core refuses them otherwise, so they are not offered.
+  const stops = buildPathway(cfg, c.facts).stages.flatMap((s) => s.stops);
+  const filingHeld = scope.kind !== "in_scope" || stops.length > 0;
+  const events = options.filter((o) => o.status === "available").map((o) => o.transition).filter((t) => !(filingHeld && t.actor === "applicant" && t.event !== "withdraw"));
+  const openStages = buildPathway(cfg, c.facts).stages.filter((s) => s.status === "halted" || s.status === "stopped");
   const guarded = options.filter((o) => o.status === "unresolved");
   const clocks = sm.clocks;
+  // Days left are computed for now, on every render, not read from the last administrator check.
+  // Nothing is written: a lapse is still applied only when a clock is checked.
+  const live = tick(cfg, c.machine, new Date()).snap.clocks;
   const extendable = clocks.filter((k) => {
     const st = c.machine.clocks[k.id];
     return k.extendableDays && st?.startedAt && !st.lapsed && (runsIn(k).includes(c.machine.state) || k.suspendsIn.includes(c.machine.state)) && (st.extendedDays ?? 0) < k.extendableDays;
@@ -54,7 +63,7 @@ export function MachinePanel({ cfg, c, canAct, canPrepare, isAdmin }: { cfg: Cou
                   {st?.startedAt && !st.lapsed && (st.suspended
                     ? `suspended since ${fmtTime(st.suspendedAt ?? null, false)}: this time does not count`
                     : running
-                      ? `deadline ${fmtTime(st.deadline, false)}${st.daysRemaining !== null ? ` · ${st.daysRemaining} ${k.dayKind} day${st.daysRemaining === 1 ? "" : "s"} left at last check` : ""}`
+                      ? `deadline ${fmtTime(st.deadline, false)}${live[k.id]?.daysRemaining != null ? ` · ${live[k.id].daysRemaining! < 0 ? `past the deadline by ${-live[k.id].daysRemaining!} ${k.dayKind} day${live[k.id].daysRemaining === -1 ? "" : "s"}, not yet recorded as lapsed` : `${live[k.id].daysRemaining} ${k.dayKind} day${live[k.id].daysRemaining === 1 ? "" : "s"} left`}` : ""}`
                       : `no longer running (state moved on before ${fmtTime(st.deadline, false)})`)}
                   {st?.lapsed && "lapsed · remedy against administrator"}
                   {st?.beyondCalendar && <span className="mute"> · beyond the holiday calendar ({cfg.calendar?.coversThrough}), weekends only</span>}
@@ -95,6 +104,14 @@ export function MachinePanel({ cfg, c, canAct, canPrepare, isAdmin }: { cfg: Cou
 
       <div style={{ marginTop: 12 }}>
         <h4>Record what happened</h4>
+        {filingHeld && options.some((o) => o.transition.actor === "applicant" && o.transition.event !== "withdraw") && (
+          <p className="small halt-box" role="status">{stops.length && scope.kind === "in_scope"
+            ? `Filing is refused while a prohibition applies on these facts: ${stops.map((x) => x.text).join(" ")}`
+            : `Filing is held until scope is settled (${scope.kind.replace("_", " ")}). ${scope.kind === "undetermined" ? "Answer the intake questions first." : scope.kind === "escalate" ? "Scope on these facts is an open legal question routed to its owner." : "The case is out of scope on the facts entered."}`}</p>
+        )}
+        {!filingHeld && openStages.length > 0 && events.some((t) => t.actor === "applicant" && t.event !== "withdraw") && (
+          <p className="small mute">Filing now proceeds with {openStages.length} stage{openStages.length === 1 ? "" : "s"} still open ({openStages.map((s) => s.stage.title).join("; ")}). That is the parties&apos; decision to take; the audit record notes which questions were open when it was filed.</p>
+        )}
         {events.length === 0 && guarded.length === 0 && <p className="small mute">Terminal state. No further events are declared.</p>}
         {guarded.map((o) => (
           <div key={`${o.transition.event}-${o.transition.to}`} className="halt-box small" role="status">
@@ -107,7 +124,8 @@ export function MachinePanel({ cfg, c, canAct, canPrepare, isAdmin }: { cfg: Cou
             : "Your seat can view but not record regulator events."}</p>
         )}
         {events.length > 0 && canAct && (() => {
-          const mine = events.filter((t) => isAdmin || t.actor === "applicant");
+          // Each side records its own acts: the administrator the authority's, a party's signatory the applicant's.
+          const mine = events.filter((t) => (isAdmin ? t.actor !== "applicant" : t.actor === "applicant"));
           const held = events.length - mine.length;
           return (
             <form action={fireEvent.bind(null, c.id)} className="stack">
@@ -120,7 +138,7 @@ export function MachinePanel({ cfg, c, canAct, canPrepare, isAdmin }: { cfg: Cou
                 ))}
               </div>
               {mine.length === 0 && <p className="small mute">Your seat has no applicant act at this stage. The next events belong to the authority.</p>}
-              {held > 0 && <p className="small mute">{held} authority or system event{held === 1 ? " is" : "s are"} not shown to your seat.</p>}
+              {held > 0 && <p className="small mute">{isAdmin ? `${held} applicant event${held === 1 ? " is" : "s are"} the parties' to record and not offered to the administrator.` : `${held} authority or system event${held === 1 ? " is" : "s are"} not shown to your seat.`}</p>}
               <p className="small mute">The platform records the regulator&apos;s acts. It does not perform them. Authority and system events are recorded by an administrator on the authority&apos;s behalf{isAdmin ? "" : ". Your seat can record applicant events only, and a denied attempt is written to the audit chain"}.</p>
             </form>
           );

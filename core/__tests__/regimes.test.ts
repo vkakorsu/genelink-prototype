@@ -154,7 +154,7 @@ describe("suspension stops the clock; resumption moves the deadline (Kenya reg. 
 
 describe("Kenya reg. 11(4)(e): a listed species stops the pathway; an unchecked one holds it", () => {
   it("a listed species stops the eligibility stage, and nothing on or after it can be completed", () => {
-    const pw = buildPathway(KE, f(KE, { activity: "collection_research", speciesListed: "listed", localities: 1 }));
+    const pw = buildPathway(KE, f(KE, { activity: "collection_research", speciesListed: "listed", localities: 1, flags: { pgrfaMaterial: "no" } }));
     const elig = pw.stages.find((s) => s.stage.id === "eligibility")!;
     expect(elig.status).toBe("stopped");
     expect(elig.stops[0].reg.citation).toBe("reg. 11(4)(e)");

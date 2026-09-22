@@ -2,6 +2,7 @@ import type { Agreement, Case, Organisation } from "@/core/domain/types";
 import { approveAgreement, createAgreement, executeAgreement, reviseAgreement } from "@/app/actions";
 import { MODEL_CLAUSES } from "@/lib/clauses";
 import { fmtTime } from "@/components/ui";
+import { canonicalAgreementText } from "@/core/domain/agreements";
 
 export function AgreementsPanel({ c, agreements, orgs, mySeat, canEdit, canSign, seatPermission }: {
   c: Case;
@@ -28,13 +29,17 @@ export function AgreementsPanel({ c, agreements, orgs, mySeat, canEdit, canSign,
       {agreements.map((a) => {
         const latest = a.versions[a.versions.length - 1];
         const myApproved = mySeat ? a.approvals.some((ap) => ap.organisationId === mySeat.organisationId && ap.versionNumber === latest.version) : false;
-        const myExecuted = mySeat ? a.executions.some((e) => e.organisationId === mySeat.organisationId) : false;
+        const myExecuted = mySeat ? a.executions.some((e) => e.organisationId === mySeat.organisationId && e.versionNumber === latest.version) : false;
         return (
           <div key={a.id} className="card flat" style={{ marginTop: 10 }}>
             <div className="row between">
               <div><strong>{a.title}</strong><div className="small mute">v{latest.version} · {latest.summary} · {latest.origin.replace(/_/g, " ")} · <span className="mono">{latest.sha256.slice(0, 16)}…</span></div></div>
               <span className={`status-pill ${a.status === "executed" || a.status === "recorded" ? "complete" : a.status === "approved" ? "active" : "in_progress"}`}>{a.status.replace("_", " ")}</span>
             </div>
+            <p className="small" style={{ margin: "4px 0" }}>
+              <a download={`${a.id}-v${latest.version}.txt`} href={`data:text/plain;charset=utf-8,${encodeURIComponent(canonicalAgreementText(latest.version, latest.clauses))}`}>Download the exact text of v{latest.version}</a>
+              <span className="mute"> · the text this version&apos;s hash covers. Anyone holding it can check it on <a href="/verify">Verify</a>. SHA-256 <span className="mono">{latest.sha256}</span></span>
+            </p>
             <details className="fold">
               <summary>Clauses ({latest.clauses.length})</summary>
               {latest.clauses.map((cl) => (
@@ -75,7 +80,10 @@ export function AgreementsPanel({ c, agreements, orgs, mySeat, canEdit, canSign,
               {canSign && a.status !== "approved" && a.status !== "executed" && (
                 <span className="small mute">Execution unlocks when both organisations have approved v{latest.version}.</span>
               )}
-              {canEdit && a.status !== "executed" && (
+              {canEdit && a.status !== "executed" && a.executions.length > 0 && (
+                <span className="small mute">The text is fixed: a party has signed v{a.executions[0].versionNumber}. Changed terms need a new agreement.</span>
+              )}
+              {canEdit && a.status !== "executed" && a.executions.length === 0 && (
                 <details className="fold">
                   <summary className="small">Revise (on or off platform)</summary>
                   <form action={reviseHere} className="stack">

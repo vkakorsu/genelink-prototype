@@ -4,6 +4,7 @@ import type {
   Agreement,
   Case,
   CaseDocument,
+  DemandSignal,
   EscalationRecord,
   Instrument,
   InterestSignal,
@@ -41,6 +42,7 @@ export interface Store {
   instruments: Collection<Instrument>;
   agreements: Collection<Agreement>;
   learning: Collection<LearningResource>;
+  demandSignals: Collection<DemandSignal>;
   /** Append-only. Implementations must not expose update or delete for these. */
   audit: { list(): AuditEntry[]; append(e: AuditEntry): void };
   disclosures: { list(): Disclosure[]; append(d: Disclosure): void; nextSeq(): number };

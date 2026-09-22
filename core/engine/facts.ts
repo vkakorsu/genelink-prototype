@@ -19,3 +19,30 @@ export function withDeclaredDefaults(cfg: CountryConfig, facts: CaseFacts): Case
   }
   return out;
 }
+
+/**
+ * Facts from an interface are checked against the country file before anything reads them. An
+ * activity or a country-declared answer that is not one of the file's options is refused: an
+ * undeclared activity would match no scope rule and fall through to the unconditional one, so a
+ * made-up answer would come back "in scope". Returns one sentence per problem; empty means valid.
+ */
+export function factProblems(cfg: CountryConfig, facts: CaseFacts): string[] {
+  const problems: string[] = [];
+  for (const q of cfg.scope.questions) {
+    const v = readFact(facts, q.fact);
+    if (v === undefined) continue;
+    if (q.kind === "number") {
+      const n = Number(v);
+      if (!Number.isInteger(n) || (q.min !== undefined && n < q.min) || (q.max !== undefined && n > q.max)) {
+        problems.push(`"${q.prompt}" must be a whole number${q.min !== undefined ? ` from ${q.min}` : ""}${q.max !== undefined ? ` to ${q.max}` : ""}.`);
+      }
+      continue;
+    }
+    if (!q.options.some((o) => o.id === String(v))) problems.push(`"${String(v).slice(0, 40)}" is not one of the answers ${cfg.name}'s file declares for "${q.prompt}".`);
+  }
+  const declared = new Set(cfg.scope.questions.map((q) => q.fact));
+  for (const k of Object.keys(facts.flags ?? {})) {
+    if (!declared.has(k)) problems.push(`"${k.slice(0, 40)}" is not a question ${cfg.name}'s file declares.`);
+  }
+  return problems;
+}
