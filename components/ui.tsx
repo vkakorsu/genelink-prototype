@@ -75,6 +75,13 @@ export function fmt(iso?: string | null) {
   return d.toISOString().slice(0, 10);
 }
 
+/** A statutory deadline: the last day on the authority's calendar, which runs to its end in the authority's time zone. */
+export function fmtDeadline(iso: string | null | undefined, timeZone: string) {
+  if (!iso) return "";
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
+  return `end of ${day}, ${timeZone}`;
+}
+
 export function fmtTime(iso?: string | null, labelScenario = true) {
   if (!iso) return "";
   const t = new Date(iso);

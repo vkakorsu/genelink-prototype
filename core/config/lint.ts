@@ -85,6 +85,9 @@ export function lintCountry(cfg: CountryConfig): LintIssue[] {
       if (r.effect === "stop" && r.reg.state !== "established") err(`stages.${stage.id}.requirements.${r.id}`, "a stop is an established prohibition. A reading or an open question halts and escalates instead (R3, R4)");
       if (r.effect === "stop" && !r.when) err(`stages.${stage.id}.requirements.${r.id}`, "an unconditional stop would close the pathway for every case. Say on which facts it applies");
       if (r.effect === "hold" && !r.when) err(`stages.${stage.id}.requirements.${r.id}`, "a hold waits on a fact. Say which answer leaves it outstanding");
+      // ⊘ is established as a fact about the text (uncommenced, draft, spent, struck down), so the
+      // stop check above would pass it. It must never be enforced automatically (A3).
+      if (r.effect && !r.reg.executable) err(`stages.${stage.id}.requirements.${r.id}`, `a not-executable (⊘) value can never ${r.effect} a stage. It is shown, never enforced automatically (A3)`);
     }
   }
 

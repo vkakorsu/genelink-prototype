@@ -7,6 +7,8 @@
 schemaVersion: 1
 code: KE
 name: Kenya
+# NEMA counts its days in Nairobi. A deadline runs to the end of its last day there.
+timeZone: Africa/Nairobi
 legalInstruments:
   - Legal Notice 68 of 2025 (Environmental Management and Co-ordination (Access to Biological Resources and Benefit Sharing) (No. 2) Regulations, 2025)
   - Protection of Traditional Knowledge and Cultural Expressions Act 2016
@@ -421,6 +423,15 @@ stages:
         text: NEMA access permit fee for a foreign commercial applicant.
         when: { applicantType: [foreign_legal, foreign_natural] }
         reg: { state: "established", marker: "§", value: "KSh 1,000,000 per locality. The commercial fee table draws no corporate or individual distinction.", citation: "Second Schedule" }
+      - id: nema_fee_citizen
+        text: NEMA access permit fee for a Kenyan commercial applicant.
+        when: { applicantType: [national_legal, national_natural] }
+        reg:
+          state: inferred
+          marker: "▸"
+          value: KSh 500,000 per locality, the Citizens column of the Second Schedule's fee for commercialisation. The table draws no corporate or individual distinction; reading a Kenyan-registered company as falling in the Citizens column is GENE-LINK's reading.
+          citation: Second Schedule
+          note: Retrieved from the Kenya Law consolidated text on 23 September 2026. Appendix B records the foreign fee only. Pending Landscape Alliance's verification round.
       - id: nacosti_fee
         text: NACOSTI research licence fee.
         reg:
@@ -493,15 +504,15 @@ stateMachine:
   initial: preparing
   states:
     preparing: { label: Preparing application bundle, kind: active }
-    submitted: { label: Submitted to NEMA and NACOSTI, kind: waiting }
+    submitted: { label: Submitted to NEMA and NACOSTI. The 30 working days run from receipt, kind: waiting }
     under_review:
       label: Under review (30 working days from receipt)
       kind: waiting
-      reg: { state: "established", marker: "§", value: "The Authority processes the application within 30 working days from receipt and communicates its decision in writing within the same period. The period is suspended while the application is incomplete or an issue raised by the Authority is outstanding.", citation: "reg. 14(1), 14(3), 16" }
+      reg: { state: "established", marker: "§", value: "The Authority processes the application within 30 working days from the date of the receipt and communicates its decision in writing within the same period. The period does not run while the application is incomplete or an issue raised by the Authority is outstanding.", citation: "reg. 14(1), 14(3), 16", note: "Appendix B establishes the 30 working days from receipt. The suspension and the written decision are the verbatim wording of the same regulations (Kenya Law consolidated text, retrieved 22 September 2026)." }
     public_notice:
       label: Public notice and comment
       kind: waiting
-      reg: { state: "established", marker: "§", value: "The regulations contemplate publication and comments before determination. Publication is at the Authority's discretion ('may') and at the applicant's cost, so determination can also follow review directly.", citation: "reg. 13; reg. 15(1)" }
+      reg: { state: "established", marker: "§", value: "The regulations contemplate publication and comments before determination. Publication is at the Authority's discretion ('may') and at the applicant's cost, so determination can also follow review directly.", citation: "reg. 13; reg. 15(1)", note: "Appendix B establishes publication and comment as contemplated before determination. That publication is discretionary and at the applicant's cost is the verbatim wording of reg. 13 (Kenya Law consolidated text, retrieved 22 September 2026)." }
     information_requested: { label: Further information required, kind: active }
     resubmitted: { label: Resubmitted, kind: waiting }
     granted:
@@ -513,7 +524,7 @@ stateMachine:
       label: Refused. Statutory appeal path applies
       kind: terminal
       outcome: refused
-      reg: { state: "established", marker: "§", value: "Reasons for a refusal are given in writing, and a person aggrieved may appeal to the Tribunal. Model refusal and appeal as states. A system that only represents granted cannot carry a real caseload.", citation: "reg. 15(2), 15(3)" }
+      reg: { state: "established", marker: "§", value: "Reasons for a refusal are given in writing, and a person aggrieved may appeal to the Tribunal. Model refusal and appeal as states. A system that only represents granted cannot carry a real caseload.", citation: "reg. 15(2), 15(3)", note: "Appendix B establishes that refusal carries a statutory appeal path. The written reasons and the Tribunal are the verbatim wording of reg. 15 (Kenya Law consolidated text, retrieved 22 September 2026)." }
     appealed: { label: Appealed, kind: waiting }
     withdrawn: { label: Withdrawn by applicant, kind: terminal, outcome: withdrawn }
     varied:
@@ -547,19 +558,30 @@ stateMachine:
     - { from: information_requested, to: withdrawn, event: withdraw, actor: applicant }
     - { from: public_notice, to: withdrawn, event: withdraw, actor: applicant, reg: { state: "inferred", marker: "▸", value: "An applicant may withdraw an application at any point before the decision. General administrative law; Appendix B does not address it." } }
     - { from: resubmitted, to: withdrawn, event: withdraw, actor: applicant, reg: { state: "inferred", marker: "▸", value: "An applicant may withdraw an application at any point before the decision. General administrative law; Appendix B does not address it." } }
+    - { from: submitted, to: deadline_lapsed, event: lapse, actor: system }
     - { from: under_review, to: deadline_lapsed, event: lapse, actor: system }
     - { from: public_notice, to: deadline_lapsed, event: lapse, actor: system }
+    - { from: resubmitted, to: deadline_lapsed, event: lapse, actor: system }
     - { from: deadline_lapsed, to: under_review, event: administrator_resumes, actor: authority }
   clocks:
     - id: determination
       label: Determination clock (reg. 14(1) and 16, 30 working days from receipt; suspended while incomplete or an issue is outstanding, reg. 14(3))
-      startsIn: under_review
+      # "From the date of the receipt": the clock starts when the bundle reaches NEMA, not when NEMA
+      # acknowledges it. The platform records receipt as the submit event.
+      startsIn: submitted
       # Publication and comment (reg. 13) sit inside the 30 working days, not after them.
-      runsIn: [under_review, public_notice]
+      runsIn: [submitted, under_review, public_notice, resubmitted]
       days: 30
       dayKind: working
-      # Suspended from the Authority's request until the Authority has the completed application again.
-      suspendsIn: [information_requested, resubmitted]
+      # Suspended from the Authority's request until the application is completed or the issue addressed,
+      # which is the resubmission, not the Authority's later acknowledgement of it.
+      suspendsIn: [information_requested]
+      basis:
+        state: established
+        marker: "§"
+        value: The Authority shall process an application within thirty working days from the date of the receipt of that application. Where the application is incomplete or the Authority has raised an issue, the period does not run until the application has been completed or the issue addressed. Counted in working days on the Kenyan calendar, the day of receipt excluded, to the end of the thirtieth day in Nairobi.
+        citation: reg. 14(1), 14(3)
+        note: Appendix B establishes 30 working days from receipt. The suspension is the verbatim wording of reg. 14(3) (Kenya Law consolidated text, retrieved 22 September 2026). Excluding the day of receipt and running to the end of the last day follow the Interpretation and General Provisions Act (Cap. 2) s.57.
       onLapse:
         to: deadline_lapsed
         effect: remedy_against_administrator
@@ -621,8 +643,15 @@ outputs:
     term:
       state: established
       marker: "§"
-      value: One year
-      citation: reg. 17(2)
+      value: One year from the date of issue
+      citation: reg. 17(1)
+      note: Appendix B cites reg. 17(2) for the term and the renewal together. The one-year validity is reg. 17(1); the renewal "for a further period of one year only" is reg. 17(2) (Kenya Law consolidated text, retrieved 23 September 2026).
+    transferable:
+      state: inferred
+      marker: "▸"
+      value: Not transferable
+      citation: reg. 17(1)
+      note: reg. 17(1) says an access permit "shall not be transferable". Not recorded in Appendix B; retrieved from the Kenya Law consolidated text on 23 September 2026, pending Landscape Alliance's verification round.
     renewalsCapped:
       state: unknown
       marker: "?"
@@ -690,7 +719,7 @@ variables:
   orderOfConsent: { state: "established", marker: "§", value: "Consent, mutually agreed terms and a benefit-sharing agreement accompany the application itself.", citation: "reg. 11(4)" }
   applicantHolds: { state: "established", marker: "§", value: "Two instruments from two issuers, a NEMA access permit and a NACOSTI research licence, with different fees and durations.", citation: "A5.4" }
   clocks: { state: "established", marker: "§", value: "30 working days from receipt, with publication and comment contemplated before determination.", citation: "A5.5" }
-  durationRenewal: { state: "established", marker: "§", value: "One year, renewable. Whether renewals are capped is unresolved (see outputs).", citation: "reg. 17(2)" }
+  durationRenewal: { state: "established", marker: "§", value: "One year, renewable. Whether renewals are capped is unresolved (see outputs).", citation: "reg. 17(1), 17(2)" }
   transferExport: { state: "established", marker: "§", value: "A Sixth Schedule agreement filed with NEMA. A holotype remains in Kenya. Declaration at the port of departure.", citation: "reg. 21" }
   postPermitLifecycle: { state: "established", marker: "§", value: "Duties carried in permit conditions.", citation: "reg. 18(2)" }
 
@@ -746,7 +775,7 @@ obligationClasses:
     note: Kenya is the case the three-state enum exists for. A renewal-probe service must carry renewals_capped = unknown and surface it.
     fields:
       term_exists: { state: "established", marker: "§", value: "Yes" }
-      term_length: { state: "established", marker: "§", value: "One year", citation: "reg. 17(2)" }
+      term_length: { state: "established", marker: "§", value: "One year from the date of issue", citation: "reg. 17(1)" }
       renewal_length: { state: "established", marker: "§", value: "A further period of one year", citation: "reg. 17(2)" }
       renewals_capped: { state: "unknown", marker: "?", note: "Two opposite inferences drawn from the same sentence. Neither is established.", citation: "reg. 17(2)", owner: "NEMA question", drives: true }
       notice_window: { state: "unknown", marker: "?", note: "Not researched.", owner: "Kenya escalation owner" }

@@ -260,6 +260,12 @@ export const Clock = z.strictObject({
   runsIn: z.array(z.string()).optional(),
   days: z.number().int().positive(),
   dayKind: z.enum(["calendar", "working"]),
+  /**
+   * The rule that says when the clock starts and what it counts (Kenya reg. 14(1): "from the date of
+   * the receipt"). It decides when a lapse is recorded against the administrator, so it carries its
+   * evidence class like any rule that drives a decision (R4).
+   */
+  basis: RegValue,
   /** Total days the authority may add, counted in the clock's own dayKind (Colombia Art. 29: up to 60 working days). */
   extendableDays: z.number().int().positive().optional(),
   /** The rule behind the extension. Required when extendableDays is set. */
@@ -406,6 +412,18 @@ export const CountryConfig = z.strictObject({
   name: z.string(),
   /** A short label the interface shows next to the name, e.g. "dry run". Presentation only. */
   tag: z.string().optional(),
+  /**
+   * The IANA time zone the authority counts its days in. A statutory day is a date on the authority's
+   * calendar, and a deadline runs to the end of its last day there, not to an instant in UTC.
+   */
+  timeZone: z.string().refine((tz) => {
+    try {
+      new Intl.DateTimeFormat("en-CA", { timeZone: tz });
+      return true;
+    } catch {
+      return false;
+    }
+  }, { message: "not an IANA time zone the runtime recognises (for example Africa/Nairobi)" }),
   legalInstruments: z.array(z.string()).min(1),
   operativeInstrumentStatus: RegValue,
   nagoyaParty: RegValue,

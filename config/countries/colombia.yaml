@@ -5,6 +5,8 @@
 schemaVersion: 1
 code: CO
 name: Colombia
+# MADS counts its días hábiles in Bogotá. A deadline runs to the end of its last day there.
+timeZone: America/Bogota
 legalInstruments:
   - Decisión Andina 391
   - Decreto 1076/2015
@@ -434,8 +436,14 @@ stateMachine:
       days: 30
       dayKind: working
       extendableDays: 60
-      extension: { state: "established", marker: "§", value: "Dicho plazo será prorrogable hasta por sesenta días hábiles, a juicio de la Autoridad Nacional Competente. At the authority's discretion, up to 60 working days in total.", citation: "D391 Art. 29" }
+      extension: { state: "established", marker: "§", value: "Dicho plazo será prorrogable hasta por sesenta días hábiles, a juicio de la Autoridad Nacional Competente. At the authority's discretion it may add up to 60 working days to the 30, whether in one extension or several, so evaluation can run to about 90 working days in all, not 60.", citation: "D391 Art. 29" }
       suspendsIn: [information_requested]
+      basis:
+        state: established
+        marker: "§"
+        value: "Dentro de los treinta días hábiles siguientes al registro, la Autoridad Nacional Competente evaluará la solicitud. The 30 working days run from registration of the application in the public register (Art. 27), so the Art. 28 publication falls inside them. Counted on the Colombian calendar, the day of registration excluded, to the end of the thirtieth día hábil in Bogotá."
+        citation: D391 Arts. 27, 29
+        note: Appendix B establishes the 30 working days. That they run from registration is the verbatim wording of Art. 29 in the published text of Decisión 391. Holidays are removed from the count under Ley 4 de 1913 Art. 62.
       onLapse:
         to: deadline_lapsed
         effect: remedy_against_administrator
@@ -445,6 +453,12 @@ stateMachine:
       startsIn: accepted
       days: 5
       dayKind: working
+      basis:
+        state: established
+        marker: "§"
+        value: La aceptación de la solicitud y propuesta de proyecto será notificada al solicitante dentro de los cinco días hábiles siguientes de producida ésta. The five working days run from the acceptance and bind the notice, not the decision.
+        citation: D391 Art. 30
+        note: Appendix B establishes five days to notify an acceptance. That they are días hábiles is the verbatim wording of Art. 30 in the published text of Decisión 391.
       onLapse:
         to: notification_overdue
         effect: remedy_against_administrator
@@ -461,7 +475,9 @@ calendar:
     value: >-
       Holiday dates follow Ley 51 de 1983 (Ley Emiliani) and Ley 2578 de 2026. Ley 4 de 1913 Art. 62 removes
       holidays from periods counted in days. Treating Saturday as a non-working day for días hábiles is
-      GENE-LINK's reading of administrative practice, to confirm with MADS.
+      GENE-LINK's reading of administrative practice, to confirm with MADS. Ley 2578 de 2026 (1 June 2026)
+      faces a pending claim of unconstitutionality; its holiday is counted while the law is in force and
+      comes out of this list if the Constitutional Court strikes it down.
     citation: Ley 51 de 1983; Ley 2578 de 2026; Ley 4 de 1913 Art. 62
   holidays:
     - { date: "2026-01-01", name: Año Nuevo }
@@ -558,8 +574,14 @@ variables:
 obligationClasses:
   - number: 1
     name: Records and retention
+    note: >-
+      Appendix B leaves this class unresearched. Decisión 391 Art. 17 lists, among the conditions access and
+      accessory contracts include, the mandatory deposit of duplicates of all collected material in institutions
+      the authority designates (17(g)) and the duty to inform the authority of research results (17(h)). Whether a
+      given contract carries them is read from the contract. Carried as GENE-LINK's reading until Landscape
+      Alliance's verification round.
     fields:
-      duty_exists: { state: "unknown", marker: "?", note: "Not researched.", owner: "Colombia escalation owner" }
+      duty_exists: { state: "inferred", marker: "▸", value: "Contract-borne. D391 Art. 17 names the mandatory deposit of duplicates of all collected material in institutions the authority designates, and informing the authority of research results, among the conditions an access contract includes. The duty is in the contract, not in a statute the platform can read.", citation: "D391 Art. 17(g), (h)", note: "Retrieved from the published text of Decisión 391 on 23 September 2026. Pending Landscape Alliance's verification round." }
       what_must_be_recorded: { state: "unknown", marker: "?", note: "Not researched.", owner: "Colombia escalation owner" }
       retention_period: { state: "unknown", marker: "?", note: "Not researched.", owner: "Colombia escalation owner" }
       filed_with: { state: "unknown", marker: "?", note: "Not researched.", owner: "Colombia escalation owner" }

@@ -51,7 +51,7 @@ describe("working-day calendars are configuration (R2)", () => {
     const s = walk(KE, [["submit", "applicant"], ["acknowledge", "authority"]]);
     const t = tick(KE, s, new Date("2026-11-02T10:00:00Z")).snap.clocks.determination;
     expect(t.daysRemaining).toBe(30);
-    expect(workingDaysBetween(new Date("2026-11-02T10:00:00Z"), new Date(t.deadline!), KE.calendar)).toBe(30);
+    expect(workingDaysBetween(new Date("2026-11-02T10:00:00Z"), new Date(t.deadline!), KE.calendar, KE.timeZone)).toBe(30);
   });
 });
 
@@ -72,7 +72,7 @@ describe("Colombia: D391 Arts. 29 and 30 as written", () => {
     const first = s.clocks.evaluation.deadline!;
     s = extendClock(CO, s, "evaluation", 40, new Date("2026-12-01T09:00:00Z"), "Resolución de prórroga (fictional)");
     expect(s.clocks.evaluation.extendedDays).toBe(40);
-    expect(workingDaysBetween(new Date(first), new Date(s.clocks.evaluation.deadline!), CO.calendar)).toBe(40);
+    expect(workingDaysBetween(new Date(first), new Date(s.clocks.evaluation.deadline!), CO.calendar, CO.timeZone)).toBe(40);
     expect(s.history.at(-1)!.event).toBe("extend_clock");
     // One day past the original deadline is inside the extension: no lapse.
     expect(tick(CO, s, new Date(new Date(first).getTime() + 86_400_000)).lapsed).toEqual([]);
@@ -126,19 +126,21 @@ describe("Colombia: D391 Arts. 29 and 30 as written", () => {
 });
 
 describe("suspension stops the clock; resumption moves the deadline (Kenya reg. 14(3), Brazil Art. 28)", () => {
-  it("time spent answering a request does not count against the authority's 30 working days", () => {
+  it("time spent answering a request does not count against the authority's 30 working days, and the count resumes on the answer, not on its acknowledgement", () => {
     const t0 = new Date("2026-11-02T09:00:00Z");
     let s = walk(KE, [["submit", "applicant"], ["acknowledge", "authority"]], t0);
     const original = new Date(s.clocks.determination.deadline!);
     s = fire(KE, s, "request_information", "authority", new Date("2026-11-09T09:00:00Z"));
     expect(s.clocks.determination.suspended).toBe(true);
-    // Two weeks later the applicant answers and the authority acknowledges receipt.
+    // Eleven days later the applicant answers. reg. 14(3) suspends the period only "until the application has
+    // been completed or the issue raised by the Authority has been addressed": the answer resumes it.
     s = fire(KE, s, "resubmit", "applicant", new Date("2026-11-20T09:00:00Z"));
-    expect(s.clocks.determination.suspended).toBe(true);
-    s = fire(KE, s, "acknowledge", "authority", new Date("2026-11-23T09:00:00Z"));
     expect(s.clocks.determination.suspended).toBe(false);
     const moved = new Date(s.clocks.determination.deadline!);
-    expect(workingDaysBetween(original, moved, KE.calendar)).toBe(workingDaysBetween(new Date("2026-11-09T09:00:00Z"), new Date("2026-11-23T09:00:00Z"), KE.calendar));
+    expect(workingDaysBetween(original, moved, KE.calendar, KE.timeZone)).toBe(workingDaysBetween(new Date("2026-11-09T09:00:00Z"), new Date("2026-11-20T09:00:00Z"), KE.calendar, KE.timeZone));
+    // The authority's later acknowledgement does not move it again.
+    s = fire(KE, s, "acknowledge", "authority", new Date("2026-11-23T09:00:00Z"));
+    expect(s.clocks.determination.deadline).toBe(moved.toISOString());
     // So a check one day past the original deadline is not a lapse.
     expect(tick(KE, s, new Date(original.getTime() + 86_400_000)).lapsed).toEqual([]);
   });
@@ -202,17 +204,17 @@ describe("Brazil: the Art. 27 branch is the parties' fact, never the engine's pi
     const options = eventsFor(BR, "preparing", facts).filter((o) => o.transition.event === "complete_form");
     // "Not yet established" is not an answer that rules both branches out: one entry, waiting on the fact.
     expect(options.map((o) => [o.status, o.missing])).toEqual([["unresolved", ["art27Area"]]]);
-    expect(() => fire(BR, initialSnapshot(BR, new Date()), "complete_form", "system", new Date(), undefined, facts)).toThrow(/depends on a fact nobody has answered yet \(art27Area\)/);
+    expect(() => fire(BR, initialSnapshot(BR, new Date()), "complete_form", "applicant", new Date(), undefined, facts)).toThrow(/depends on a fact nobody has answered yet \(art27Area\)/);
     const reg = buildPathway(BR, facts).stages.find((s) => s.stage.id === "registration")!;
     expect(reg.status).toBe("halted");
   });
 
   it("an Art. 27 area moves the cadastro to awaiting assent; anywhere else issues the receipt at once", () => {
     const at = new Date();
-    const yes = fire(BR, initialSnapshot(BR, at), "complete_form", "system", at, undefined, f(BR, { activity: "research_development", flags: { art27Area: "yes" } }));
+    const yes = fire(BR, initialSnapshot(BR, at), "complete_form", "applicant", at, undefined, f(BR, { activity: "research_development", flags: { art27Area: "yes" } }));
     expect(yes.state).toBe("awaiting_assent");
     expect(yes.clocks.art28_assent.startedAt).toBeTruthy();
-    const no = fire(BR, initialSnapshot(BR, at), "complete_form", "system", at, undefined, f(BR, { activity: "research_development", flags: { art27Area: "no" } }));
+    const no = fire(BR, initialSnapshot(BR, at), "complete_form", "applicant", at, undefined, f(BR, { activity: "research_development", flags: { art27Area: "no" } }));
     expect(no.state).toBe("receipt_issued");
   });
 

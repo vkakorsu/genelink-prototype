@@ -1,12 +1,19 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { loadCountries } from "../config/load";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
+import { ConfigError, loadCountries, parseCountry } from "../config/load";
+import { lintCountry } from "../config/lint";
 import { InMemoryStore } from "../store/memory";
 import { seed, ADMIN } from "../seed/seed";
 import { InvalidRequest, MAX_DOCUMENT_BYTES, NotFound, PermissionDenied, Platform } from "../platform";
 import { verifyChain } from "../audit/chain";
 import { redactIdentifiers } from "../../lib/redact";
-import type { CaseFacts } from "../config/schema";
+import type { CaseFacts, CountryConfig } from "../config/schema";
+import { evaluateScope } from "../engine/scope";
+import { buildPathway } from "../engine/pathway";
+import { withDeclaredDefaults } from "../engine/facts";
+import { fire, initialSnapshot, isWorkingDay, localDate, tick } from "../engine/stateMachine";
 
 /**
  * Defects found by multi-session, two-sided testing of the live prototype, each pinned here so
@@ -597,6 +604,135 @@ describe("a manual-review judgment attaches to the stage its declaration names (
     // And no other stage carries it.
     for (const s of pathway.stages) {
       if (s.stage.id !== "registrant") expect(s.manualReviews.map((m) => m.id)).not.toContain("genuine_scientific_collaboration");
+    }
+  });
+});
+
+/**
+ * Defects found in the final audit of the three country files against their Appendix B flow
+ * diagrams and the primary texts (Kenya Law's LN 68, Decisión 391, Planalto's Decreto 8.772),
+ * 23 September 2026. Each is pinned here so it cannot come back.
+ */
+describe("final audit against the diagrams and primary texts", () => {
+  const KE = countries.get("KE")!;
+  const CO = countries.get("CO")!;
+  const BR = countries.get("BR")!;
+  const brFacts = (over: Partial<CaseFacts> = {}): CaseFacts =>
+    withDeclaredDefaults(BR, { purpose: "commercial", activity: "research_development", provenance: "in_situ", applicantType: "foreign_legal", exchange: "no_movement", communityHeld: "no", tkInvolved: "no", flags: { art27Area: "no" }, ...over });
+
+  it("Brazil: a foreign natural person is barred from every access activity, database comparison inside R&D included (Lei Art. 11 §1)", () => {
+    for (const activity of ["research_development", "database_extraction_in_rd"]) {
+      const answer = evaluateScope(BR, brFacts({ applicantType: "foreign_natural", activity }));
+      expect(answer.kind, activity).toBe("out_of_scope");
+      expect(answer.ruleId, activity).toBe("foreign_natural_person_barred");
+      expect(answer.basis.citation).toMatch(/Art\. 11 §1/);
+      expect(buildPathway(BR, brFacts({ applicantType: "foreign_natural", activity })).stages, activity).toEqual([]);
+    }
+    // Reading a database is not access at all, whoever reads it: the answer is "not access", not "prohibited".
+    expect(evaluateScope(BR, brFacts({ applicantType: "foreign_natural", activity: "database_reading" })).ruleId).toBe("database_reading_not_access");
+    // Exploiting a finished product is not access, and the diagram routes it past the registrant question.
+    // Whether a foreign natural person may notify as manufacturer or importer is open: routed, never guessed.
+    const exploitation = evaluateScope(BR, brFacts({ applicantType: "foreign_natural", activity: "economic_exploitation" }));
+    expect(exploitation.kind).toBe("escalate");
+    // A Brazilian natural person doing the same database work is in scope.
+    expect(evaluateScope(BR, brFacts({ applicantType: "national_natural", activity: "database_extraction_in_rd" })).kind).toBe("in_scope");
+  });
+
+  it("Brazil: completing the SisGen form is the registrant's filing, recorded by its signatory; the administrator cannot file, and an out-of-scope case has nothing to file", () => {
+    const p = fresh();
+    const luana = p.actorFor("seat_luana_iam");
+    p.signalInterest(p.actorFor("seat_amara_meridian"), "lst_br_metabolite");
+    const { caseId } = p.reciprocate(luana, "lst_br_metabolite", "org_meridian");
+    p.updateFacts(luana, caseId, brFacts());
+    // The platform's administrator records the authority's acts; it never files for a party.
+    expect(() => p.fireEvent(ADMIN, caseId, "complete_form")).toThrow(/applicant's own act/);
+    // A foreign natural person has no route (Lei Art. 11 §1), so there is no filing to record.
+    p.updateFacts(luana, caseId, brFacts({ applicantType: "foreign_natural" }));
+    expect(() => p.fireEvent(luana, caseId, "complete_form")).toThrow(/out of scope/);
+    expect(p.store.cases.get(caseId)!.machine.state).toBe("preparing");
+    p.updateFacts(luana, caseId, brFacts());
+    p.fireEvent(luana, caseId, "complete_form", "Form completed (fictional)");
+    expect(p.store.cases.get(caseId)!.machine.state).toBe("receipt_issued");
+    expect(p.instrumentsFor(caseId).map((i) => i.outputId)).toEqual(["sisgen_receipt"]);
+    // Filed while the R5 collaboration judgment is still pending: the record says which stage was open.
+    const filed = p.store.audit.list().find((e) => e.action === "regulator.event_recorded" && e.subject.id === caseId)!;
+    expect(filed.detail.stagesOpenAtFiling).toEqual(["registrant"]);
+    expect(verifyChain(p.store.audit.list()).ok).toBe(true);
+  });
+
+  it("a clock never lapses while its final day is still running where the authority sits (Kenya: the end of the thirtieth working day in Nairobi)", () => {
+    // Received Thursday 1 October 2026 at 10:00 in Nairobi. Thirty working days, skipping Mashujaa Day
+    // (Tuesday 20 October), end on Friday 13 November.
+    const at = new Date("2026-10-01T07:00:00Z");
+    const s = fire(KE, initialSnapshot(KE, at), "submit", "applicant", at);
+    expect(localDate(new Date(s.clocks.determination.deadline!), KE.timeZone)).toBe("2026-11-13");
+    // 10:01 and 23:00 in Nairobi on 13 November: the last day is still running, nothing has lapsed.
+    for (const t of ["2026-11-13T07:01:00Z", "2026-11-13T20:00:00Z"]) {
+      const r = tick(KE, s, new Date(t));
+      expect(r.lapsed, t).toEqual([]);
+      expect(r.snap.clocks.determination.daysRemaining, t).toBe(0);
+      expect(r.snap.clocks.determination.pastDeadline, t).toBe(false);
+    }
+    // One second after midnight in Nairobi it has.
+    const late = tick(KE, s, new Date("2026-11-13T21:00:01Z"));
+    expect(late.lapsed).toEqual(["determination"]);
+    expect(late.snap.clocks.determination.pastDeadline).toBe(true);
+  });
+
+  it("days are dates on the authority's calendar: an evening and a morning admission in Bogotá on the same day share one deadline", () => {
+    const admitted = (at: Date) => fire(CO, fire(CO, initialSnapshot(CO, at), "submit", "applicant", at), "admit", "authority", at).clocks.evaluation.deadline!;
+    const evening = admitted(new Date("2026-10-03T01:00:00Z")); // Friday 2 October, 20:00 in Bogotá (already Saturday in UTC)
+    const morning = admitted(new Date("2026-10-02T15:00:00Z")); // Friday 2 October, 10:00 in Bogotá
+    expect(evening).toBe(morning);
+    // Thirty días hábiles from Friday 2 October skip 12 October, 2 November and 16 November: Wednesday 18 November.
+    expect(localDate(new Date(evening), CO.timeZone)).toBe("2026-11-18");
+    // A holiday is matched on the local date: 20:00 in Bogotá on Monday 7 December is a working day,
+    // though the UTC date is already the Inmaculada Concepción holiday.
+    const eve = new Date("2026-12-08T01:00:00Z");
+    expect(isWorkingDay(eve, CO.calendar, CO.timeZone)).toBe(true);
+    expect(isWorkingDay(eve, CO.calendar)).toBe(false);
+  });
+
+  it("Kenya: the thirty working days run from receipt of the bundle, not from NEMA's acknowledgement (reg. 14(1))", () => {
+    const at = new Date("2026-10-01T07:00:00Z");
+    const submitted = fire(KE, initialSnapshot(KE, at), "submit", "applicant", at);
+    expect(submitted.clocks.determination.startedAt).toBe(at.toISOString());
+    // An acknowledgement a week later does not move the deadline.
+    const acknowledged = fire(KE, submitted, "acknowledge", "authority", new Date("2026-10-08T07:00:00Z"));
+    expect(acknowledged.clocks.determination.deadline).toBe(submitted.clocks.determination.deadline);
+    // An acknowledgement that never comes does not stop the count: the clock can lapse while the bundle sits with NEMA.
+    expect(tick(KE, submitted, new Date("2026-11-14T09:00:00Z")).lapsed).toEqual(["determination"]);
+    expect(KE.stateMachine.clocks[0].basis.citation).toMatch(/14\(1\)/);
+  });
+
+  it("Brazil: the Art. 28 assent clock counts to the latest day the sixty days can end, 5 + 60 days from the form, to the end of that day in Brasília", () => {
+    const at = new Date("2026-10-01T13:00:00Z"); // 10:00 in Brasília
+    const s = fire(BR, initialSnapshot(BR, at), "complete_form", "applicant", at, undefined, brFacts({ flags: { art27Area: "yes" } }));
+    expect(s.state).toBe("awaiting_assent");
+    expect(localDate(new Date(s.clocks.art28_assent.deadline!), BR.timeZone)).toBe("2026-12-05");
+    // Sixty days after the form is not a lapse: the authority may have been notified only on day five.
+    expect(tick(BR, s, new Date("2026-11-30T20:00:00Z")).lapsed).toEqual([]);
+    expect(tick(BR, s, new Date("2026-12-06T03:00:01Z")).lapsed).toEqual(["art28_assent"]);
+    // The outer bound is GENE-LINK's reading, and says so.
+    expect(BR.stateMachine.clocks[0].basis.marker).toBe("▸");
+  });
+
+  it("a not-executable (⊘) value can never stop or hold a stage", () => {
+    const cfg: CountryConfig = structuredClone(KE);
+    const req = cfg.stages.find((s) => s.id === "eligibility")!.requirements.find((r) => r.id === "endemic_rare_threatened_stop")!;
+    req.reg = { ...req.reg, marker: "⊘", executable: false };
+    expect(lintCountry(cfg).some((i) => i.severity === "error" && /not-executable/.test(i.message))).toBe(true);
+  });
+
+  it("every clock carries the rule that says when it starts, and every country names the time zone it counts in", () => {
+    const raw = parseYaml(readFileSync(join(process.cwd(), "config", "countries", "kenya.yaml"), "utf8"));
+    const noBasis = structuredClone(raw);
+    delete noBasis.stateMachine.clocks[0].basis;
+    expect(() => parseCountry(stringifyYaml(noBasis), "kenya-no-basis.yaml")).toThrow(ConfigError);
+    const badZone = { ...structuredClone(raw), timeZone: "Africa/Atlantis" };
+    expect(() => parseCountry(stringifyYaml(badZone), "kenya-bad-zone.yaml")).toThrow(/IANA time zone/);
+    for (const cfg of countries.values()) {
+      for (const c of cfg.stateMachine.clocks) expect(c.basis.citation, `${cfg.code}/${c.id}`).toBeTruthy();
     }
   });
 });

@@ -19,6 +19,9 @@ type Clock = z.infer<typeof ClockSchema>;
  *  - a suspended clock does not count: when it resumes, its deadline moves forward by
  *    the time spent suspended
  *  - an extension is an authority act, recorded in the history, capped by the file
+ *  - days are dates on the authority's calendar, in the country's time zone. The day of the
+ *    triggering event is not counted, and a deadline runs to the end of its last day there:
+ *    a clock never lapses while its final day is still running where the authority sits
  */
 
 export type MachineSnapshot = {
@@ -35,8 +38,10 @@ export type ClockStatus = {
   /** When the current suspension began. Cleared on resume, when the deadline moves forward. */
   suspendedAt?: string | null;
   lapsed: boolean;
-  /** Remaining days, counted in the clock's own dayKind. Negative once past the deadline. */
+  /** Remaining days after today, counted in the clock's own dayKind. Zero on the final day; negative once past it. */
   daysRemaining: number | null;
+  /** The deadline's last day has ended. Set by tick; the lapse itself is applied only while the clock runs. */
+  pastDeadline?: boolean;
   /** Days the authority has added under the clock's extension power, in the clock's dayKind. */
   extendedDays?: number;
   /** The deadline falls after the date the country's holiday list is maintained through. */
@@ -138,14 +143,15 @@ export function fire(cfg: CountryConfig, snap: MachineSnapshot, event: string, a
     clocks: { ...snap.clocks },
   };
   const cal = cfg.calendar;
+  const tz = cfg.timeZone;
   for (const c of sm.clocks) {
     const status = next.clocks[c.id];
     if (!status) continue;
     // A lapsed clock whose running states are re-entered (an administrator resumes) starts afresh
     // from the resumption. The old deadline is history, recorded in the snapshot's history.
     if (status.lapsed && runsIn(c).includes(t.to)) {
-      const deadline = addDays(at, c.days, c.dayKind, cal);
-      next.clocks[c.id] = { ...freshClock(c.id), startedAt: at.toISOString(), deadline: deadline.toISOString(), daysRemaining: c.days, beyondCalendar: beyond(deadline, c, cal), restartedAfterLapse: { at: at.toISOString(), missedDeadline: status.deadline } };
+      const deadline = addDays(at, c.days, c.dayKind, cal, tz);
+      next.clocks[c.id] = { ...freshClock(c.id), startedAt: at.toISOString(), deadline: deadline.toISOString(), daysRemaining: c.days, beyondCalendar: beyond(deadline, c, cal, tz), restartedAfterLapse: { at: at.toISOString(), missedDeadline: status.deadline } };
       continue;
     }
     if (!status.startedAt || status.lapsed) continue;
@@ -153,13 +159,14 @@ export function fire(cfg: CountryConfig, snap: MachineSnapshot, event: string, a
     if (c.suspendsIn.includes(entering)) {
       next.clocks[c.id] = { ...status, suspended: true, suspendedAt: status.suspended ? status.suspendedAt : at.toISOString() };
     } else if (status.suspended && runsIn(c).includes(entering)) {
-      // Resume: the time spent suspended does not count. Move the deadline forward by exactly that time.
+      // Resume: the days spent suspended do not count. Move the deadline forward by exactly those days,
+      // counted in the clock's own kind on the authority's calendar.
       const pausedFrom = new Date(status.suspendedAt ?? at.toISOString());
       const deadline = new Date(status.deadline!);
       const moved = c.dayKind === "working"
-        ? addDays(deadline, workingDaysBetween(pausedFrom, at, cal), "working", cal)
-        : new Date(deadline.getTime() + (at.getTime() - pausedFrom.getTime()));
-      next.clocks[c.id] = { ...status, suspended: false, suspendedAt: null, deadline: moved.toISOString(), beyondCalendar: beyond(moved, c, cal) };
+        ? addDays(deadline, workingDaysBetween(pausedFrom, at, cal, tz), "working", cal, tz)
+        : addDays(deadline, calendarDaysBetween(pausedFrom, at, tz), "calendar", cal, tz);
+      next.clocks[c.id] = { ...status, suspended: false, suspendedAt: null, deadline: moved.toISOString(), beyondCalendar: beyond(moved, c, cal, tz) };
     } else {
       next.clocks[c.id] = { ...status, suspended: false, suspendedAt: null };
     }
@@ -171,8 +178,8 @@ function startClocksFor(cfg: CountryConfig, snap: MachineSnapshot, at: Date): Ma
   for (const c of cfg.stateMachine.clocks) {
     const status = snap.clocks[c.id];
     if (c.startsIn === snap.state && status && !status.startedAt) {
-      const deadline = addDays(at, c.days, c.dayKind, cfg.calendar);
-      snap.clocks[c.id] = { ...status, startedAt: at.toISOString(), deadline: deadline.toISOString(), daysRemaining: c.days, beyondCalendar: beyond(deadline, c, cfg.calendar) };
+      const deadline = addDays(at, c.days, c.dayKind, cfg.calendar, cfg.timeZone);
+      snap.clocks[c.id] = { ...status, startedAt: at.toISOString(), deadline: deadline.toISOString(), daysRemaining: c.days, beyondCalendar: beyond(deadline, c, cfg.calendar, cfg.timeZone) };
     }
   }
   return snap;
@@ -182,16 +189,18 @@ function startClocksFor(cfg: CountryConfig, snap: MachineSnapshot, at: Date): Ma
 export function tick(cfg: CountryConfig, snap: MachineSnapshot, now: Date): { snap: MachineSnapshot; lapsed: string[] } {
   const lapsed: string[] = [];
   const clocks = { ...snap.clocks };
+  const tz = cfg.timeZone;
   for (const c of cfg.stateMachine.clocks) {
     const s = clocks[c.id];
     if (!s?.deadline || s.suspended || s.lapsed) continue;
     const deadline = new Date(s.deadline);
-    const remaining = c.dayKind === "working"
-      ? (now <= deadline ? workingDaysBetween(now, deadline, cfg.calendar) : -workingDaysBetween(deadline, now, cfg.calendar))
-      : Math.ceil((deadline.getTime() - now.getTime()) / DAY);
-    // Lapsed means strictly past the deadline instant while the clock is running. The deadline day itself still counts.
-    const isLapsed = now.getTime() > deadline.getTime() && runsIn(c).includes(snap.state);
-    clocks[c.id] = { ...s, daysRemaining: remaining, lapsed: isLapsed };
+    // The deadline is the last instant of its final day on the authority's calendar, so "past" means
+    // that day has ended there. On the final day itself the count is zero and nothing has lapsed.
+    const past = now.getTime() > deadline.getTime();
+    const between = (a: Date, b: Date) => (c.dayKind === "working" ? workingDaysBetween(a, b, cfg.calendar, tz) : calendarDaysBetween(a, b, tz));
+    const remaining = past ? -between(deadline, now) || 0 : between(now, deadline);
+    const isLapsed = past && runsIn(c).includes(snap.state);
+    clocks[c.id] = { ...s, daysRemaining: remaining, pastDeadline: past, lapsed: isLapsed };
     if (isLapsed) lapsed.push(c.id);
   }
   return { snap: { ...snap, clocks }, lapsed };
@@ -226,11 +235,11 @@ export function extendClock(cfg: CountryConfig, snap: MachineSnapshot, clockId: 
   if (used + days > clock.extendableDays) {
     throw new TransitionError(`${clock.label} may be extended by at most ${clock.extendableDays} ${clock.dayKind} days in total; ${used} already used, ${clock.extendableDays - used} remain.`);
   }
-  const deadline = addDays(new Date(s.deadline), days, clock.dayKind, cfg.calendar);
+  const deadline = addDays(new Date(s.deadline), days, clock.dayKind, cfg.calendar, cfg.timeZone);
   return {
     ...snap,
     history: [...snap.history, { from: snap.state, to: snap.state, event: "extend_clock", actor: "authority", at: at.toISOString(), note: `${clock.label} extended by ${days} ${clock.dayKind} days (${used + days} of ${clock.extendableDays} used).${note ? ` ${note}` : ""}` }],
-    clocks: { ...snap.clocks, [clockId]: { ...s, deadline: deadline.toISOString(), extendedDays: used + days, beyondCalendar: beyond(deadline, clock, cfg.calendar) } },
+    clocks: { ...snap.clocks, [clockId]: { ...s, deadline: deadline.toISOString(), extendedDays: used + days, beyondCalendar: beyond(deadline, clock, cfg.calendar, cfg.timeZone) } },
   };
 }
 
@@ -239,51 +248,113 @@ export function isGranted(cfg: CountryConfig, snap: MachineSnapshot): boolean {
 }
 
 // ------------------------------------------------------------------ calendar arithmetic
+//
+// A statutory day is a date on the authority's calendar. Every count below works on
+// YYYY-MM-DD dates in the country's time zone, and only the final deadline is turned
+// back into an instant: the last millisecond of its last day there. The time zone
+// defaults to UTC for callers that pass none (tests of the arithmetic itself).
 
-function isoDay(d: Date): string {
+const formatters = new Map<string, Intl.DateTimeFormat>();
+function formatter(timeZone: string): Intl.DateTimeFormat {
+  let f = formatters.get(timeZone);
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
+    formatters.set(timeZone, f);
+  }
+  return f;
+}
+
+function wallClock(t: number, timeZone: string): { y: number; m: number; d: number; h: number; mi: number; s: number } {
+  const parts = Object.fromEntries(formatter(timeZone).formatToParts(new Date(t)).map((p) => [p.type, p.value]));
+  return { y: +parts.year, m: +parts.month, d: +parts.day, h: +parts.hour % 24, mi: +parts.minute, s: +parts.second };
+}
+
+/** The calendar date (YYYY-MM-DD) an instant falls on in a time zone. */
+export function localDate(d: Date, timeZone = "UTC"): string {
+  const w = wallClock(d.getTime(), timeZone);
+  return `${String(w.y).padStart(4, "0")}-${String(w.m).padStart(2, "0")}-${String(w.d).padStart(2, "0")}`;
+}
+
+/** The zone's offset from UTC at an instant, in milliseconds (positive east of Greenwich). */
+function offsetMs(t: number, timeZone: string): number {
+  const w = wallClock(t, timeZone);
+  return Date.UTC(w.y, w.m - 1, w.d, w.h, w.mi, w.s) - (t - (((t % 1000) + 1000) % 1000));
+}
+
+function shiftDate(ymd: string, days: number): string {
+  const d = new Date(`${ymd}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
 
-/** ISO weekday, 1 = Monday ... 7 = Sunday, on the UTC calendar date. */
-function isoWeekday(d: Date): number {
-  const w = d.getUTCDay();
+/** ISO weekday of a calendar date, 1 = Monday ... 7 = Sunday. A date's weekday does not depend on a time zone. */
+function isoWeekdayOf(ymd: string): number {
+  const w = new Date(`${ymd}T00:00:00Z`).getUTCDay();
   return w === 0 ? 7 : w;
 }
 
-export function isWorkingDay(d: Date, cal?: WorkingCalendar): boolean {
+function isWorkingDate(ymd: string, cal?: WorkingCalendar): boolean {
   const weekend = cal?.weekend ?? [6, 7];
-  if (weekend.includes(isoWeekday(d))) return false;
-  if (cal && cal.holidays.some((h) => h.date === isoDay(d))) return false;
+  if (weekend.includes(isoWeekdayOf(ymd))) return false;
+  if (cal && cal.holidays.some((h) => h.date === ymd)) return false;
   return true;
 }
 
-/** Add days. Working days skip the country's weekend and gazetted holidays; without a calendar, weekends only. */
-export function addDays(from: Date, days: number, kind: "calendar" | "working", cal?: WorkingCalendar): Date {
-  const d = new Date(from);
-  if (kind === "calendar") {
-    d.setUTCDate(d.getUTCDate() + days);
-    return d;
-  }
-  let remaining = days;
-  while (remaining > 0) {
-    d.setUTCDate(d.getUTCDate() + 1);
-    if (isWorkingDay(d, cal)) remaining--;
-  }
-  return d;
+/** The first instant of a calendar date in a time zone. Refined once so an offset change on that date is honoured. */
+function startOfLocalDay(ymd: string, timeZone: string): number {
+  const utcMidnight = Date.parse(`${ymd}T00:00:00Z`);
+  const guess = utcMidnight - offsetMs(utcMidnight, timeZone);
+  return utcMidnight - offsetMs(guess, timeZone);
 }
 
-/** Working days after `from` up to and including `to`'s date. Zero when `to` is not after `from`. */
-export function workingDaysBetween(from: Date, to: Date, cal?: WorkingCalendar): number {
+/** The last instant of a calendar date in a time zone. A deadline runs to the end of its last day. */
+export function endOfLocalDay(ymd: string, timeZone = "UTC"): Date {
+  return new Date(startOfLocalDay(shiftDate(ymd, 1), timeZone) - 1);
+}
+
+/** Whether the date an instant falls on, in the given time zone, is a working day on the country's calendar. */
+export function isWorkingDay(d: Date, cal?: WorkingCalendar, timeZone = "UTC"): boolean {
+  return isWorkingDate(localDate(d, timeZone), cal);
+}
+
+/**
+ * Add days to the date an instant falls on and return the end of the resulting day. The day of
+ * the event itself is not counted. Working days skip the country's weekend and gazetted holidays;
+ * without a calendar, weekends only.
+ */
+export function addDays(from: Date, days: number, kind: "calendar" | "working", cal?: WorkingCalendar, timeZone = "UTC"): Date {
+  let ymd = localDate(from, timeZone);
+  if (kind === "calendar") {
+    ymd = shiftDate(ymd, days);
+  } else {
+    let remaining = days;
+    while (remaining > 0) {
+      ymd = shiftDate(ymd, 1);
+      if (isWorkingDate(ymd, cal)) remaining--;
+    }
+  }
+  return endOfLocalDay(ymd, timeZone);
+}
+
+/** Working days after `from`'s date up to and including `to`'s date, on the given zone's calendar. Zero when `to` is not after `from`. */
+export function workingDaysBetween(from: Date, to: Date, cal?: WorkingCalendar, timeZone = "UTC"): number {
   if (to <= from) return 0;
-  const d = new Date(from);
+  const last = localDate(to, timeZone);
+  let ymd = localDate(from, timeZone);
   let n = 0;
-  while (isoDay(d) < isoDay(to)) {
-    d.setUTCDate(d.getUTCDate() + 1);
-    if (isWorkingDay(d, cal)) n++;
+  while (ymd < last) {
+    ymd = shiftDate(ymd, 1);
+    if (isWorkingDate(ymd, cal)) n++;
   }
   return n;
 }
 
-function beyond(deadline: Date, c: Clock, cal?: WorkingCalendar): boolean {
-  return c.dayKind === "working" && !!cal && isoDay(deadline) > cal.coversThrough;
+/** Calendar days from `from`'s date to `to`'s date, on the given zone's calendar. Zero when `to` is not after `from`. */
+export function calendarDaysBetween(from: Date, to: Date, timeZone = "UTC"): number {
+  if (to <= from) return 0;
+  return Math.round((Date.parse(`${localDate(to, timeZone)}T00:00:00Z`) - Date.parse(`${localDate(from, timeZone)}T00:00:00Z`)) / DAY);
+}
+
+function beyond(deadline: Date, c: Clock, cal: WorkingCalendar | undefined, timeZone: string): boolean {
+  return c.dayKind === "working" && !!cal && localDate(deadline, timeZone) > cal.coversThrough;
 }

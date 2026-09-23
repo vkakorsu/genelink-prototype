@@ -188,7 +188,10 @@ export function seed(store: Store, countries: Map<string, CountryConfig>, baseDa
     communityHeld: "no", tkInvolved: "no", scientificCollaboration: "unclear", flags: { art27Area: "no" },
   });
   step();
-  platform.fireEvent({ system: true }, brId, "complete_form", "SisGen form completed. Receipt issued automatically.");
+  // Completing the form is the registrant's own filing, recorded by its authorised signatory. It is filed
+  // with the R5 collaboration judgment still pending, and the audit entry records that stage as open at
+  // filing: the parties decide when to file, and the platform shows what was unresolved when they did.
+  platform.fireEvent(luana, brId, "complete_form", "SisGen form completed. Receipt issued automatically.");
   step();
 
   // A signal with no reciprocation: the negative control for anonymisation-until-match.

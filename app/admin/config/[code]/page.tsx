@@ -86,7 +86,8 @@ export default async function ConfigPage({ params }: { params: Promise<{ code: s
           {cfg.stateMachine.clocks.map((k) => (
             <div key={k.id}>
               <RegBlock reg={k.onLapse.reg} text={`${k.label}: ${k.days} ${k.dayKind} days, starts in ${k.startsIn}, runs in ${(k.runsIn?.length ? k.runsIn : [k.startsIn]).join(", ")}${k.suspendsIn.length ? `, suspended in ${k.suspendsIn.join(", ")}` : ""}, lapses to ${k.onLapse.to}`} compact />
-              {k.extension && <RegBlock reg={k.extension} text={`Extension power: up to ${k.extendableDays} ${k.dayKind} days in total, recorded as the authority's act`} compact />}
+              <RegBlock reg={k.basis} text={`When it starts and what it counts (days on the ${cfg.timeZone} calendar, to the end of the last day)`} compact />
+              {k.extension && <RegBlock reg={k.extension} text={`Extension power: the authority may add up to ${k.extendableDays} ${k.dayKind} days to the ${k.days}, in one extension or several, each recorded as its act`} compact />}
             </div>
           ))}
           {cfg.stateMachine.transitions.some((t) => t.when) && (

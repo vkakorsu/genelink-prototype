@@ -5,7 +5,7 @@ import { evaluateScope, promptFor } from "@/core/engine/scope";
 import { buildPathway } from "@/core/engine/pathway";
 import { extendClock, fireEvent, tickClocks } from "@/app/actions";
 import { EvidenceChip } from "@/components/Evidence";
-import { fmtTime, stateHeadline } from "@/components/ui";
+import { fmtDeadline, fmtTime, stateHeadline } from "@/components/ui";
 
 export function MachinePanel({ cfg, c, canAct, canPrepare, isAdmin, decided }: { cfg: CountryConfig; c: Case; canAct: boolean; canPrepare: boolean; isAdmin: boolean; decided: ReadonlySet<string> }) {
   const sm = cfg.stateMachine;
@@ -53,6 +53,13 @@ export function MachinePanel({ cfg, c, canAct, canPrepare, isAdmin, decided }: {
           {clocks.map((k) => {
             const st = c.machine.clocks[k.id];
             const running = runsIn(k).includes(c.machine.state);
+            const lv = live[k.id];
+            const days = (n: number) => `${n} ${k.dayKind} day${n === 1 ? "" : "s"}`;
+            // The deadline runs to the end of its last day where the authority sits, so the final day is
+            // "today", not "zero left", and "past" means that day has ended there.
+            const left = lv?.daysRemaining == null ? "" : lv.pastDeadline
+              ? ` · past the deadline${lv.daysRemaining < 0 ? ` by ${days(-lv.daysRemaining)}` : ""}, not yet recorded as lapsed`
+              : lv.daysRemaining === 0 ? " · today is the final day" : ` · ${days(lv.daysRemaining)} left after today`;
             return (
               <div key={k.id} className={`clock ${st?.lapsed ? "lapsed" : st?.suspended ? "suspended" : ""}`}>
                 <span>
@@ -64,18 +71,24 @@ export function MachinePanel({ cfg, c, canAct, canPrepare, isAdmin, decided }: {
                   {st?.startedAt && !st.lapsed && (st.suspended
                     ? `suspended since ${fmtTime(st.suspendedAt ?? null, false)}: this time does not count`
                     : running
-                      ? `deadline ${fmtTime(st.deadline, false)}${live[k.id]?.daysRemaining != null ? ` · ${live[k.id].daysRemaining! < 0 ? `past the deadline by ${-live[k.id].daysRemaining!} ${k.dayKind} day${live[k.id].daysRemaining === -1 ? "" : "s"}, not yet recorded as lapsed` : `${live[k.id].daysRemaining} ${k.dayKind} day${live[k.id].daysRemaining === 1 ? "" : "s"} left`}` : ""}`
-                      : `no longer running (state moved on before ${fmtTime(st.deadline, false)})`)}
+                      ? `deadline ${fmtDeadline(st.deadline, cfg.timeZone)}${left}`
+                      : `no longer running (state moved on before ${fmtDeadline(st.deadline, cfg.timeZone)})`)}
                   {st?.lapsed && "lapsed · remedy against administrator"}
                   {st?.beyondCalendar && <span className="mute"> · beyond the holiday calendar ({cfg.calendar?.coversThrough}), weekends only</span>}
                   {st?.restartedAfterLapse && !st.lapsed && (
                     <span className="mute" style={{ display: "block" }}>
-                      <EvidenceChip reg={{ state: "inferred", marker: "[GL]", value: "GENE-LINK tracking deadline", note: "No source sets a new statutory deadline after a lapse.", drives: false, executable: true }} short /> Restarted when the authority resumed on {fmtTime(st.restartedAfterLapse.at, false)}. The statutory deadline{st.restartedAfterLapse.missedDeadline ? ` (${fmtTime(st.restartedAfterLapse.missedDeadline, false)})` : ""} was recorded as lapsed, and the remedy against the administrator stands. The date above is GENE-LINK&apos;s tracking aid, not a deadline the law sets.
+                      <EvidenceChip reg={{ state: "inferred", marker: "[GL]", value: "GENE-LINK tracking deadline", note: "No source sets a new statutory deadline after a lapse.", drives: false, executable: true }} short /> Restarted when the authority resumed on {fmtTime(st.restartedAfterLapse.at, false)}. The statutory deadline{st.restartedAfterLapse.missedDeadline ? ` (${fmtDeadline(st.restartedAfterLapse.missedDeadline, cfg.timeZone)})` : ""} was recorded as lapsed, and the remedy against the administrator stands. The date above is GENE-LINK&apos;s tracking aid, not a deadline the law sets.
                     </span>
                   )}
                 </span>
               </div>
             );
+          })}
+          {clocks.map((k) => {
+            const name = k.label.split(" (")[0];
+            // Lower-case an ordinary first word ("Determination clock"), never a citation ("Art. 28 assent clock").
+            const inline = /^[A-Z][a-z]/.test(name) && !/^Art\b/.test(name) ? name[0].toLowerCase() + name.slice(1) : name;
+            return <p key={`basis-${k.id}`} className="small mute">How the {inline} counts: <EvidenceChip reg={k.basis} short /> {k.basis.value} <span className="mono">{k.basis.citation}</span></p>;
           })}
           <p className="small mute">On lapse: <EvidenceChip reg={clocks[0].onLapse.reg} short /> {clocks[0].onLapse.reg.value}</p>
           {cfg.calendar && clocks.some((k) => k.dayKind === "working") && (

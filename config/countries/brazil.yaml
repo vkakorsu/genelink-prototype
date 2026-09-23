@@ -7,6 +7,8 @@ schemaVersion: 1
 code: BR
 name: Brazil
 tag: dry run
+# Federal authorities count in Brasília time (America/Sao_Paulo carries it). A deadline runs to the end of its last day there.
+timeZone: America/Sao_Paulo
 legalInstruments:
   - Lei 13.123/2015
   - Decreto 8.772/2016
@@ -123,10 +125,41 @@ scope:
         citation: Decreto Art. 107 VI
         note: >-
           Provenance caveat carried from Appendix B: the consolidated Art. 107 text could not be retrieved from
-          Planalto or the DOU on 13 Aug 2026. The wording is verbatim from three federal university compliance
-          offices (USP, UFSM, FURG), which agree. Whether Art. 107 also carries §1 and §2 is an open question
-          on this file. A change of method that brings the work inside R&D is a change of intent.
+          Planalto or the DOU on 13 Aug 2026, and the wording was taken from three federal university compliance
+          offices (USP, UFSM, FURG), which agree. Planalto's consolidated text, retrieved 23 September 2026, now
+          carries Art. 107 with the same wording: a caput, items I to VII (the consolidation prints two items
+          numbered VI, the database item and the extract-processing item), and a parágrafo único, with no §1 or
+          §2. That answers the structure question on the primary source; it stays open on this file until
+          Landscape Alliance's verification round confirms it. A change of method that brings the work inside
+          R&D is a change of intent.
       redirect: Not access while outside R&D. Nothing is filed. Recorded basis kept on the case.
+    # The bar sits after the two not-access rules (reading a database is not access, whoever reads it) and
+    # before every rule that answers "this is access": first match wins, so an access rule placed above it
+    # would let a foreign natural person through.
+    - id: foreign_natural_person_barred
+      when: { applicantType: foreign_natural, activity: [research_development, database_extraction_in_rd] }
+      result: out_of_scope
+      basis:
+        state: established
+        marker: "§"
+        value: É vedado o acesso ao patrimônio genético ou ao conhecimento tradicional associado por pessoa natural estrangeira. No route exists. The journey ends here.
+        citation: Lei Art. 11 §1
+      redirect: Prohibited. No route exists for a foreign natural person.
+    - id: foreign_natural_person_exploitation
+      when: { applicantType: foreign_natural, activity: economic_exploitation }
+      result: escalate
+      basis:
+        state: unknown
+        marker: "?"
+        note: >-
+          Lei Art. 11 §1 bars access by a foreign natural person. Economic exploitation of a finished product is not
+          access, and the diagram routes it straight to notification and benefit sharing without the Art. 12
+          registrant question, while Lei Art. 17 §7 makes an importer jointly liable. Whether a foreign natural
+          person may be the manufacturer or importer that notifies and shares benefits is not established. Neither
+          "prohibited" nor "in scope" is safe to show, so the case stops at scope and is routed.
+        citation: Lei Art. 11 §1; Art. 17 §7
+        owner: Legal review, routed to the Brazil escalation owner
+        drives: true
     - id: database_extraction_in_rd
       when: { activity: database_extraction_in_rd }
       result: in_scope
@@ -135,15 +168,6 @@ scope:
         marker: "§"
         value: This is access. Comparison or extraction inside research and technological development falls back under Lei Art. 2 I, which defines the protected thing as informação de origem genética. Proceed to registration.
         citation: Lei Art. 2 I; Decreto Art. 107 VI
-    - id: foreign_natural_person_barred
-      when: { applicantType: foreign_natural }
-      result: out_of_scope
-      basis:
-        state: established
-        marker: "§"
-        value: É vedado o acesso por pessoa natural estrangeira. No route exists. The journey ends here.
-        citation: Lei Art. 11 §1
-      redirect: Prohibited. No route exists for a foreign natural person.
     - id: national_natural_permitted
       when: { applicantType: national_natural }
       result: in_scope
@@ -173,7 +197,7 @@ eligibility:
   - id: art27_areas
     text: Where the material is in the border strip, oceanic islands, jurisdictional waters, the continental shelf or the EEZ and a foreign nexus exists, prior assent from the Conselho de Defesa Nacional or the Comando da Marinha is required and the cadastro moves to awaiting assent.
     when: { art27Area: "yes" }
-    reg: { state: "established", marker: "§", value: "Filling in the SisGen form is the request. SisGen notifies within 5 days, the authority has 60 days, suspended while information is outstanding. Assent is revocable and a change of ownership must be reported within 30 days.", citation: "Decreto Arts. 27, 28, 29", note: "Decreto Art. 28 gives sixty days (sessenta dias) and the appendix's flow text agrees." }
+    reg: { state: "established", marker: "§", value: "Filling in the SisGen form is the request. SisGen notifies within 5 days, the authority has 60 days, suspended while information is outstanding. Assent is revocable and a change of ownership must be reported within 30 days.", citation: "Decreto Arts. 27, 28, 29", note: "Decreto Art. 28 gives sixty days (sessenta dias), counted from SisGen's notification of the authority, which follows the form within five days; the appendix's flow text agrees on both figures. The platform's clock counts 65 days from the form for that reason (see the clock's basis)." }
 
 consentOrder:
   state: established
@@ -280,7 +304,7 @@ stages:
           owner: The case participants, from the collection record
       - id: receipt_automatic
         text: The receipt issues automatically on completing the form. No waiting.
-        reg: { state: "established", marker: "§", value: "Decreto Art. 23 §2.", citation: "Decreto Art. 23 §2" }
+        reg: { state: "established", marker: "§", value: "SisGen issues the receipt automatically on completion of the form (caput). The user need not wait for verification to finish before the downstream acts (§2).", citation: "Decreto Art. 23, caput and §2" }
       - id: verification_open
         text: Receipt issued is not registration complete. A pending state resolves to verified, correction required or cancelled.
         reg: { state: "established", marker: "§", value: "Decreto Arts. 36 to 40.", citation: "Decreto Arts. 36 to 40" }
@@ -297,9 +321,9 @@ stages:
     gives: A lawful transfer
     requirements:
       - id: remessa
-        text: Remessa, where title passes, requires a Termo de Transferência de Material with mandatory clauses, Brazilian law and forum, the recipient is not deemed a provider, any onward transfer needs its own TTM carrying the same clauses.
+        text: Remessa, where title passes, requires a Termo de Transferência de Material with mandatory clauses, Brazilian law and a Brazilian forum (arbitration agreed between the parties admitted), the recipient is not deemed a provider, a clause authorising or barring onward transfer, and any authorised onward transfer needs its own TTM carrying the same clauses.
         when: { exchange: title_transfer }
-        reg: { state: "established", marker: "§", value: "Decreto Art. 25 §§2 to 3.", citation: "Decreto Art. 25" }
+        reg: { state: "established", marker: "§", value: "The TTM's clauses are set by Art. 25 §1: Brazilian law and a Brazilian forum, arbitration agreed between the parties admitted; the recipient is not deemed a provider; the recipient requires a TTM with the same obligations from any third party; and a clause that authorises or bars passing the sample to third parties. Where passing it on is authorised, each onward transfer needs its own TTM with the §1 clauses (§§2 to 3).", citation: "Decreto Art. 25 §1 III and IV, §§2 to 3", note: "Appendix B cites Art. 25 §§2 to 3 for the clauses. The clauses themselves are §1 III, and §1 III(a) admits arbitration (Planalto consolidated text, retrieved 23 September 2026)." }
       - id: envio
         text: Envio, for a service abroad with return or destruction, is exempt from the written instrument where the sample goes purely for sequencing. §8 preserves only the return-or-destroy and prohibition clauses. The instrument is the Decreto, not Lei Art. 24.
         when: { exchange: service_shipment }
@@ -338,7 +362,7 @@ stages:
     gives: Duties recorded on the registration, not run by the MVP
     requirements:
       - id: journey_does_not_end
-        text: Registration is acquisition. The continuing duties, annual FNRB payment, the annual update duty, the standing attribution duty, onward-transfer control and the Art. 27 ownership-change report, live in the obligation classes.
+        text: Registration is acquisition. The continuing duties, annual FNRB payment, the duty to update the registration whenever its information changes (at least once a year), the standing attribution duty, onward-transfer control and the Art. 27 ownership-change report, live in the obligation classes.
         reg: { state: "inferred", marker: "▸", value: "Not in the pathway." }
 
 stateMachine:
@@ -369,20 +393,23 @@ stateMachine:
       reg: { state: "unknown", marker: "?", note: "Whether an appeal is available against cancellation is not established.", owner: "Brazil escalation owner" }
     withdrawn: { label: Withdrawn by registrant, kind: terminal, outcome: withdrawn }
     deadline_lapsed:
-      label: Art. 28 clock lapsed. Remedy against the administrator, no assent.
+      label: Art. 28 clock lapsed (65 days from the form, the latest the 60 days can end). Remedy against the administrator, no assent.
       kind: halted
       outcome: lapsed
   transitions:
+    # Completing the SisGen form is the registrant's own filing. What SisGen does next (issue the receipt at
+    # once, or hold the cadastro for Art. 27 assent) is automatic, but the act that triggers it is the
+    # applicant's, recorded by the registrant's authorised signatory, never by the platform's administrator.
     - from: preparing
       to: receipt_issued
       event: complete_form
-      actor: system
+      actor: applicant
       when: { art27Area: "no" }
-      reg: { state: "established", marker: "§", value: "Automatic on form completion.", citation: "Decreto Art. 23 §2" }
+      reg: { state: "established", marker: "§", value: "Concluído o preenchimento do formulário, o SisGen emitirá automaticamente o comprovante de cadastro de acesso. The receipt issues automatically on completing the form.", citation: "Decreto Art. 23, caput" }
     - from: preparing
       to: awaiting_assent
       event: complete_form
-      actor: system
+      actor: applicant
       when: { art27Area: "yes" }
       reg: { state: "established", marker: "§", value: "In an Art. 27 area with a foreign nexus the completed form is the request for assent, and the cadastro cannot conclude until assent is given.", citation: "Decreto Art. 27 §§2, 5, 7" }
     - { from: awaiting_assent, to: information_requested, event: request_information, actor: authority }
@@ -405,12 +432,27 @@ stateMachine:
     - { from: deadline_lapsed, to: awaiting_assent, event: administrator_resumes, actor: authority }
   clocks:
     - id: art28_assent
-      label: Art. 28 assent clock (60 days, suspended while information is outstanding)
+      label: Art. 28 assent clock (SisGen notifies within 5 days, then 60 days to decide; counted as 65 days from the form, suspended while information is outstanding)
       startsIn: awaiting_assent
-      days: 60
+      # The 60 days run from SisGen's notification of the authority, which may come up to five days after
+      # the form. The platform does not see the notification date, so it counts to the latest day the 60 can
+      # end: 5 + 60 = 65 days from the form. A lapse recorded earlier would accuse the administrator of a
+      # deadline that may not yet have passed.
+      days: 65
       dayKind: calendar
       # Suspended from the request until the authority has the information again.
       suspendsIn: [information_requested, resubmitted]
+      basis:
+        state: inferred
+        marker: "▸"
+        value: >-
+          Prestadas as informações, o SisGen, no prazo de cinco dias, notificará a Secretaria-Executiva do Conselho
+          de Defesa Nacional ou o Comando da Marinha, que deverá se manifestar no prazo de sessenta dias. The 60
+          days run from the notification, not from the form. Counting 65 calendar days from the form is GENE-LINK's
+          outer bound, because the notification date is not visible to the platform: the lapse can be late by up
+          to five days, never early. The suspension until the requested information is delivered is Art. 28 §1.
+        citation: Decreto Art. 28, caput and §1
+        note: Planalto consolidated text of Decreto 8.772/2016, retrieved 23 September 2026. Appendix B states the 5 and 60 days. Where the notification date is recorded, the clock should count 60 days from it; that is a schema question for the MVP.
       onLapse:
         to: deadline_lapsed
         effect: remedy_against_administrator
@@ -434,7 +476,7 @@ outputs:
     renewalsCapped:
       state: established
       marker: "§"
-      value: Not applicable. No term exists. Do not encode as "never expires, never renews", an annual update duty and change-triggered re-registration both operate.
+      value: Not applicable. No term exists. Do not encode as "never expires, never renews", an update duty (whenever the information changes, at least once a year) and change-triggered re-registration both operate.
       citation: Decreto Art. 20 §§2 to 3; Art. 22 §5
     fee:
       state: established
@@ -462,7 +504,7 @@ variables:
   clocks: { state: "established", marker: "§", value: "The registration receipt is instantaneous. Where Art. 27 defence assent applies, SisGen notifies within 5 days and the authority has 60 days, suspended while information is outstanding. Two clocks of very different character in one journey.", citation: "Decreto Arts. 23, 28" }
   durationRenewal: { state: "established", marker: "§", value: "No term at all. Cancellation exists, lapse by time does not. A renewal probe should never be scheduled.", citation: "A5.6" }
   transferExport: { state: "established", marker: "§", value: "Two regimes. Remessa, where title passes, requires a TTM with mandatory clauses. Envio, for services abroad, is exempt from the written instrument where the sample goes purely for sequencing.", citation: "Decreto Arts. 24, 25" }
-  postPermitLifecycle: { state: "established", marker: "§", value: "Duties carried in the statute and the registration, annual FNRB payment, annual update, standing attribution, onward-transfer control, Art. 27 ownership-change report.", citation: "Decreto Arts. 20, 29, 49" }
+  postPermitLifecycle: { state: "established", marker: "§", value: "Duties carried in the statute and the registration, annual FNRB payment, updating the registration when its information changes (at least yearly), standing attribution, onward-transfer control, Art. 27 ownership-change report.", citation: "Decreto Arts. 20, 29, 49" }
 
 obligationClasses:
   - number: 1
@@ -478,7 +520,7 @@ obligationClasses:
     name: Periodic reporting
     fields:
       duty_exists: { state: "established", marker: "§", value: "Yes" }
-      frequency: { state: "established", marker: "§", value: "Annual", citation: "Decreto Art. 20 §§2 to 3" }
+      frequency: { state: "established", marker: "§", value: "Whenever the information given to SisGen changes in fact or in law, the registration or notification is updated, at least once a year (§2). The update must also add any intellectual-property application or patent licence (§3). A change-driven duty with a yearly floor, not an unconditional annual report.", citation: "Decreto Art. 20 §§2 to 3", note: "Appendix B records the duty as annual. The verbatim text makes it conditional on a change of information: \"havendo modificações de fato ou de direito ... pelo menos uma vez por ano\" (Planalto consolidated text, retrieved 23 September 2026)." }
       report_contents: { state: "unknown", marker: "?", note: "The duty is sourced, its content is not.", owner: "Brazil escalation owner" }
       submitted_to: { state: "inferred", marker: "▸", value: "CGen via SisGen, inferred from the registration channel" }
       default_alterable: { state: "unknown", marker: "?", note: "Not established.", owner: "Brazil escalation owner" }
@@ -512,13 +554,13 @@ obligationClasses:
     fields:
       term_exists: { state: "established", marker: "§", value: "No. Neither instrument sets a term." }
       on_lapse: { state: "established", marker: "§", value: "No lapse by time. Cancellation exists, expiry does not." }
-      caveat: { state: "unknown", marker: "?", note: "Do not encode as \"never expires, never renews\". No fixed term appears in either instrument, but an annual update duty and change-triggered re-registration both operate.", owner: "Brazil escalation owner" }
+      caveat: { state: "unknown", marker: "?", note: "Do not encode as \"never expires, never renews\". No fixed term appears in either instrument, but an update duty (whenever the information changes, at least once a year) and change-triggered re-registration both operate.", owner: "Brazil escalation owner" }
   - number: 6
     name: Transfer control
     fields:
       regimes: { state: "established", marker: "§", value: "Two, not one. Remessa (title passes) and envio (service abroad, returned or destroyed).", citation: "Lei Art. 2 XIII, XXX; Decreto Arts. 24, 25" }
       instrument_remessa: { state: "established", marker: "§", value: "Termo de Transferência de Material", citation: "Decreto Art. 25" }
-      mandatory_clauses: { state: "established", marker: "§", value: "Brazilian law and Brazilian forum. The recipient is not deemed a provider. Onward transfer needs its own TTM carrying the same clauses.", citation: "Decreto Art. 25 §§2 to 3" }
+      mandatory_clauses: { state: "established", marker: "§", value: "Brazilian law and a Brazilian forum, arbitration agreed between the parties admitted. The recipient is not deemed a provider. A clause authorising or barring onward transfer. Where onward transfer is authorised, it needs its own TTM carrying the same clauses.", citation: "Decreto Art. 25 §1 III and IV, §§2 to 3", note: "Appendix B cites §§2 to 3; the clauses are §1 III (Planalto consolidated text, retrieved 23 September 2026)." }
       instrument_envio: { state: "established", marker: "§", value: "Exempt from the written instrument where the sample goes abroad purely for sequencing. §8 preserves only the return-or-destroy and prohibition clauses.", citation: "Decreto Art. 24 §7, §8" }
       applies_to_results_or_data: { state: "unknown", marker: "?", note: "Not established for Brazil. The Brazilian position has not been checked.", owner: "Brazil escalation owner" }
   - number: 7
@@ -568,7 +610,7 @@ openQuestions:
   - id: art107_structure
     question: The structure of the database-reading exclusion
     affects: The sequence-data route, which is materially wider than earlier drafts showed. Both database routes are configured on the operative wording three institutional sources agree on; the provenance caveat is carried on each
-    reg: { state: "unknown", marker: "?", note: "The operative wording is sourced from three concurring institutional sources. The consolidated primary text could not be retrieved.", citation: "Decreto Art. 107", owner: "Brazil escalation owner", drives: true }
+    reg: { state: "unknown", marker: "?", note: "Appendix B sourced the operative wording from three concurring institutional sources because the consolidated primary text could not be retrieved. Planalto's consolidated Decreto 8.772, retrieved 23 September 2026, now shows Art. 107 with the same wording: caput, items I to VII (VI printed twice) and a parágrafo único, no §1 or §2. A finding for Landscape Alliance's verification round, which decides whether this question closes.", citation: "Decreto Art. 107", owner: "Brazil escalation owner", drives: true }
   - id: genuine_collaboration
     question: Whether genuine scientific collaboration exists (no statutory test)
     affects: Which instrument applies. A mandatory eligibility question with no test. On a case, the reviewer's recorded manual-review judgment (R5) answers it for that case alone and the registrant stage resumes; the question stays open here for every other case.
