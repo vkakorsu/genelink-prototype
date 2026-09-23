@@ -44,7 +44,7 @@ export interface Store {
   learning: Collection<LearningResource>;
   demandSignals: Collection<DemandSignal>;
   /** Append-only. Implementations must not expose update or delete for these. */
-  audit: { list(): AuditEntry[]; append(e: AuditEntry): void };
+  audit: { list(): AuditEntry[]; append(e: AuditEntry): void; last(): AuditEntry | undefined; count(): number };
   disclosures: { list(): Disclosure[]; append(d: Disclosure): void; nextSeq(): number };
   /** Demo-only: reset to the seed. A production store does not implement this. */
   reset?(): void;

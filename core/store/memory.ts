@@ -51,6 +51,8 @@ export class InMemoryStore implements Store {
     append: (e: AuditEntry) => {
       this.auditLog.push(e);
     },
+    last: () => this.auditLog.at(-1),
+    count: () => this.auditLog.length,
   };
   disclosures = {
     list: () => this.disclosureLog.slice(),

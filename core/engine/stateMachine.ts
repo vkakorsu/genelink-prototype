@@ -3,6 +3,7 @@ import type { z } from "zod";
 import type { Clock as ClockSchema, Transition as TransitionSchema } from "../config/schema";
 import { evaluate, unresolvedFields } from "./conditions";
 import { establishedOnly } from "./facts";
+import { TransitionError } from "../errors";
 type Transition = z.infer<typeof TransitionSchema>;
 type Clock = z.infer<typeof ClockSchema>;
 
@@ -50,7 +51,7 @@ export type ClockStatus = {
   restartedAfterLapse?: { at: string; missedDeadline: string | null };
 };
 
-export class TransitionError extends Error {}
+export { TransitionError };
 
 const DAY = 86_400_000;
 

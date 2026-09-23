@@ -24,7 +24,9 @@ export async function getSession(): Promise<Session> {
   if (!v) return { kind: "anonymous" };
   if (v === "admin") return { kind: "admin", actor: ADMIN };
   const platform = getPlatform();
-  if (!platform.store.memberships.get(v)) return { kind: "anonymous" };
+  // A revoked seat signs nobody in, even with its cookie still in the browser.
+  const m = platform.store.memberships.get(v);
+  if (!m || m.revoked) return { kind: "anonymous" };
   const actor = platform.actorFor(v);
   if (!("seat" in actor)) return { kind: "anonymous" };
   return { kind: "seat", actor, seatId: v };

@@ -30,7 +30,7 @@ export default async function CasePage({ params, searchParams }: { params: Promi
     // A refused view is a denied attempt too: the interface promises they are written to the chain.
     // Guarded so a repeat render of this page does not write the same entry twice.
     if (session.kind === "seat") {
-      const last = platform.store.audit.list().at(-1);
+      const last = platform.store.audit.last();
       const alreadyLogged = last?.action === "access.denied" && last.subject.id === id && last.actor.seatId === session.actor.seat.id && (last.detail as { operation?: string }).operation === "case.view";
       if (!alreadyLogged) platform.recordDenied(session.actor, "case.view", { type: "case", id }, "Your seat's organisation is not a participant in this case");
     }
@@ -93,6 +93,14 @@ export default async function CasePage({ params, searchParams }: { params: Promi
               {!outOfScope && next && <span className="small"><strong>Next:</strong> {(machineKind === "terminal" || machineKind === "halted") ? "GENE-LINK-side · " : ""}{next.stage.title}{next.status === "halted" ? (next.escalations.length && next.escalations.every((e) => e.kind === "unanswered_fact") && !next.manualReviews.length ? " (waiting on answers on the intake form)" : " (halted, routed to its owner)") : next.status === "stopped" ? " (stopped: a prohibition applies on these facts)" : ""}</span>}
               {!outOfScope && !next && pathway.stages.length > 0 && <span className="small mute">All stages complete.</span>}
             </div>
+            {(() => {
+              // What the last recorded act said, where it said anything: a return for incompleteness or an
+              // information request is only useful to the applicant if the reason is in front of them.
+              const last = c.machine.history.at(-1);
+              if (!last?.note || last.to !== c.machine.state) return null;
+              const who = last.actor === "authority" ? "The authority's last act" : last.actor === "system" ? "Last recorded by the clock" : "The applicant's last filing";
+              return <p className="small last-act" style={{ marginTop: 8, marginBottom: 0 }}><strong>{who}:</strong> {last.event.replace(/_/g, " ")}, {fmtTime(last.at)}. <q>{last.note}</q></p>;
+            })()}
             {(machineKind === "terminal" || machineKind === "halted") && done < pathway.stages.length && (
               <p className="small mute" style={{ marginTop: 6, marginBottom: 0 }}>Two tracks, deliberately separate. The regulator line is the authority&apos;s own legal record: it ran its course on the proceeding events. The pathway tracks GENE-LINK-side work and still carries an open question; a proceeding outcome never silently completes platform work.</p>
             )}
@@ -181,7 +189,7 @@ export default async function CasePage({ params, searchParams }: { params: Promi
             </section>
           )}
 
-          {pathway.scope.kind !== "out_of_scope" && <MachinePanel cfg={cfg} c={c} canAct={canSign || isAdmin} canPrepare={canEdit} isAdmin={isAdmin} decided={platform.decidedReviews(c.id)} />}
+          {pathway.scope.kind !== "out_of_scope" && <MachinePanel cfg={cfg} c={c} canAct={canSign || isAdmin} canPrepare={canEdit} isAdmin={isAdmin} decided={platform.decidedReviews(c.id)} viewerCountry={session.kind === "seat" ? session.actor.organisation.country : null} localParty={c.participants.map((p) => orgs.get(p.organisationId)).find((o) => o?.country === cfg.code)?.name ?? null} />}
           {pathway.scope.kind !== "out_of_scope" && <InstrumentsPanel cfg={cfg} c={c} instruments={instruments} canSign={canSign} isAdmin={isAdmin} seatPermission={seat?.permission ?? null} />}
           {pathway.scope.kind !== "out_of_scope" && <AgreementsPanel c={c} agreements={agreements} orgs={orgs} mySeat={seat} canEdit={canEdit} canSign={canSign} seatPermission={seat?.permission ?? null} />}
 

@@ -68,11 +68,13 @@ export function seed(store: Store, countries: Map<string, CountryConfig>, baseDa
   const platform = new Platform(store, countries, () => new Date(t));
   const step = (minutes = 30) => (t += minutes * 60_000);
 
-  for (const p of persons) store.persons.put(p);
-  for (const o of organisations) store.organisations.put(o);
-  for (const m of memberships) store.memberships.put(m);
-  for (const l of listings) store.listings.put(l);
-  for (const l of learning) store.learning.put(l);
+  // Copies, never the constants themselves: the platform updates records in place (a seat revoked, a
+  // listing withdrawn, a verification decided), and "Reset demo data" must find the seed as written.
+  for (const p of persons) store.persons.put(structuredClone(p));
+  for (const o of organisations) store.organisations.put(structuredClone(o));
+  for (const m of memberships) store.memberships.put(structuredClone(m));
+  for (const l of listings) store.listings.put(structuredClone(l));
+  for (const l of learning) store.learning.put(structuredClone(l));
 
   const ines = platform.actorFor("seat_ines_nordlicht");
   const tobias = platform.actorFor("seat_tobias_nordlicht");

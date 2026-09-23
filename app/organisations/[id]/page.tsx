@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPlatform } from "@/core";
-import { requestVerification } from "@/app/actions";
+import { createListing, decideVerification, inviteColleague, requestVerification, revokeSeat } from "@/app/actions";
+import { FUNCTION_CODES } from "@/core/domain/listings";
 import { ErrorNotice, Notice, PageHead, fmtTime } from "@/components/ui";
 import { getSession } from "@/lib/session";
 
@@ -17,6 +18,9 @@ export default async function OrganisationPage({ params, searchParams }: { param
   const seats = platform.store.memberships.list().filter((m) => m.organisationId === id);
   const isMember = session.kind === "seat" && session.actor.organisation.id === id;
   const isAdminSeat = isMember && session.actor.seat.permission === "administrator";
+  const canPublish = isMember && (session.actor.seat.permission === "administrator" || session.actor.seat.permission === "authorised_signatory");
+  const activeAdmins = seats.filter((s) => !s.revoked && s.permission === "administrator").length;
+  const configured = Array.from(platform.countries.values());
   const listings = platform.store.listings.list().filter((l) => l.organisationId === id);
   // Identity is revealed by a match, not by knowing an organisation's address. The description,
   // credentials, verification reasoning and the link from an organisation to its listings would
@@ -58,20 +62,106 @@ export default async function OrganisationPage({ params, searchParams }: { param
           {(isMember || session.kind === "admin") && (
             <section className="card">
               <h3>Seats</h3>
-              <p className="small soft">What a person may do on this organisation&apos;s behalf is a property of their seat. Four fixed levels in the MVP: administrator, authorised signatory, member, viewer.</p>
+              <p className="small soft">What a person may do on this organisation&apos;s behalf is a property of their seat. Four fixed levels: administrator, authorised signatory, member, viewer.</p>
               <table className="data compact">
-                <thead><tr><th>Person</th><th>Seat permission</th><th>Since</th><th>Invited by</th></tr></thead>
+                <thead><tr><th>Person</th><th>Seat permission</th><th>Since</th><th>Invited by</th>{isAdminSeat && <th><span className="sr-only">Revoke</span></th>}</tr></thead>
                 <tbody>
-                  {seats.map((s) => { const p = platform.store.persons.get(s.personId)!; return <tr key={s.id}><td>{p.name}<div className="mute small">{p.email}{p.orcid ? ` · ORCID ${p.orcid}` : ""}</div></td><td><strong>{s.permission.replace("_", " ")}</strong></td><td className="small">{s.since}</td><td className="small mute">{s.invitedBy ?? "founding seat"}</td></tr>; })}
+                  {seats.map((s) => {
+                    const p = platform.store.persons.get(s.personId)!;
+                    const lastAdmin = s.permission === "administrator" && activeAdmins <= 1;
+                    return (
+                      <tr key={s.id} className={s.revoked ? "mute" : undefined}>
+                        <td>{p.name}<div className="mute small">{p.email}{p.orcid ? ` · ORCID ${p.orcid}` : ""}</div></td>
+                        <td><strong>{s.permission.replace("_", " ")}</strong>{s.revoked && <div className="small">revoked {fmtTime(s.revoked.at)}: {s.revoked.reason}</div>}</td>
+                        <td className="small">{s.since}</td>
+                        <td className="small mute">{s.invitedBy ?? "founding seat"}</td>
+                        {isAdminSeat && (
+                          <td>
+                            {!s.revoked && !lastAdmin && (
+                              <details className="fold">
+                                <summary>Revoke</summary>
+                                <form action={revokeSeat.bind(null, id)} className="stack">
+                                  <input type="hidden" name="seatId" value={s.id} />
+                                  <input name="reason" type="text" aria-label={`Reason for revoking the seat of ${p.name}`} placeholder="Reason, recorded in the audit chain" required />
+                                  <button className="btn small danger" type="submit">Revoke this seat</button>
+                                </form>
+                              </details>
+                            )}
+                            {!s.revoked && lastAdmin && <span className="small mute">Only administrator</span>}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
-              <p className="small mute">Seat provisioning by email invitation is minimal in the MVP by design. It is an administrator action recorded in the audit chain.</p>
+              {isAdminSeat && (
+                <details className="fold" style={{ marginTop: 10 }}>
+                  <summary>Give a colleague a seat</summary>
+                  <form action={inviteColleague.bind(null, id)} className="stack">
+                    <div className="field"><label htmlFor="inviteName">Colleague&apos;s name</label><input id="inviteName" name="name" type="text" minLength={2} maxLength={100} placeholder="Fictional person" required /></div>
+                    <div className="field"><label htmlFor="invitePermission">Seat permission</label>
+                      <select id="invitePermission" name="permission" defaultValue="member">
+                        <option value="viewer">Viewer: reads the organisation&apos;s cases</option>
+                        <option value="member">Member: prepares facts, documents and drafts</option>
+                        <option value="authorised_signatory">Authorised signatory: files, approves, signs, records instruments</option>
+                        <option value="administrator">Administrator: all of that, and manages seats</option>
+                      </select>
+                    </div>
+                    <button className="btn small" type="submit">Create the seat</button>
+                    <p className="small mute">In the MVP the invitation goes to the colleague&apos;s email and they accept it with a passkey. The prototype holds no email address, so the seat exists at once and appears on the sign-in page. The invitation and any revocation are recorded in the audit chain.</p>
+                  </form>
+                </details>
+              )}
+              {!isAdminSeat && isMember && <p className="small mute">Seats are given and revoked by the organisation&apos;s administrator seat, and each change is recorded in the audit chain.</p>}
             </section>
           )}
-          {!publicView && listings.length > 0 && (
+          {!publicView && (listings.length > 0 || canPublish) && (
             <section className="card flat">
               <h3>Listings</h3>
-              <ul className="small" style={{ paddingLeft: 18 }}>{listings.map((l) => <li key={l.id}><Link href={`/listings/${l.id}`}>{l.glId}</Link> · {l.resourceClass}</li>)}</ul>
+              {listings.length === 0 && <p className="small mute">Nothing published yet.</p>}
+              <ul className="small" style={{ paddingLeft: 18 }}>{listings.map((l) => <li key={l.id} style={{ padding: "4px 0" }}><Link href={`/listings/${l.id}`}>{l.glId}</Link> · {l.side} · {l.resourceClass}{l.withdrawn && <span className="mute"> · withdrawn {fmtTime(l.withdrawn.at)}</span>}</li>)}</ul>
+              {canPublish && org.verification.status !== "declined" && (
+                <details className="fold" style={{ marginTop: 8 }}>
+                  <summary>Publish an offer or a need</summary>
+                  <form action={createListing.bind(null, id)} className="stack">
+                    <fieldset>
+                      <legend>Side</legend>
+                      <div className="radio-list">
+                        <label><input type="radio" name="side" value="offer" defaultChecked={org.functions.some((f) => f === "providing" || f === "custodian")} required /> Offer: your organisation supplies material or data</label>
+                        <label><input type="radio" name="side" value="need" defaultChecked={!org.functions.some((f) => f === "providing" || f === "custodian")} /> Need: your organisation is looking for a supplier</label>
+                      </div>
+                    </fieldset>
+                    <div className="field"><label htmlFor="provenanceCountry">Provider country</label>
+                      <select id="provenanceCountry" name="provenanceCountry" defaultValue={configured.some((c) => c.code === org.country) ? org.country : "any"}>
+                        {configured.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+                        <option value="any">Any provenance with a lawful pathway (needs only)</option>
+                      </select>
+                      <p className="small mute">A match opens a case under the provider country&apos;s rules, so an offer names a country with a configured pathway: {configured.map((c) => c.name).join(", ")}.</p>
+                    </div>
+                    <fieldset>
+                      <legend>Functions (one to three)</legend>
+                      <div className="radio-list">{FUNCTION_CODES.map((f) => <label key={f}><input type="checkbox" name="functionCode" value={f} style={{ width: "auto" }} /> {f}</label>)}</div>
+                      <p className="small mute">An illustrative subset of GENE-LINK&apos;s 48-code function taxonomy. The MVP loads the full list from configuration.</p>
+                    </fieldset>
+                    <p className="small halt-box">The next four fields are public: anyone can read and search them before a match. Do not name the organisation, the species or the locality here. Email addresses and phone numbers are removed.</p>
+                    <div className="field"><label htmlFor="resourceClass">What is offered or sought</label><input id="resourceClass" name="resourceClass" type="text" maxLength={120} placeholder="e.g. Plant metabolite extracts (ex situ)" required /></div>
+                    <div className="field"><label htmlFor="publicSummary">Public summary</label><textarea id="publicSummary" name="publicSummary" maxLength={400} required /></div>
+                    <div className="field"><label htmlFor="indicativeScale">Indicative scale</label><input id="indicativeScale" name="indicativeScale" type="text" maxLength={120} placeholder="e.g. Gram quantities for screening" /></div>
+                    <div className="field"><label htmlFor="publicTaxon">Taxon as published</label><input id="publicTaxon" name="publicTaxon" type="text" maxLength={160} placeholder="e.g. Lamiaceae (family level); leave blank to withhold" /></div>
+                    <p className="small soft">Revealed only to a counterparty when a match opens a case:</p>
+                    <div className="field"><label htmlFor="speciesDetail">Species and accession detail</label><textarea id="speciesDetail" name="speciesDetail" maxLength={1000} /></div>
+                    <div className="field"><label htmlFor="localityDetail">Locality detail</label><textarea id="localityDetail" name="localityDetail" maxLength={1000} /></div>
+                    <div className="field"><label htmlFor="fullDescription">Full description</label><textarea id="fullDescription" name="fullDescription" maxLength={1000} /></div>
+                    <div className="field"><label htmlFor="dsiExposure">DSI exposure</label>
+                      <select id="dsiExposure" name="dsiExposure" defaultValue="none"><option value="none">None</option><option value="possible">Possible</option><option value="likely">Likely</option></select>
+                      <p className="small mute">Flags and informs a counterparty. It never asserts a resolved DSI or Cali Fund obligation.</p>
+                    </div>
+                    <button className="btn small" type="submit">Publish the listing</button>
+                    <p className="small mute">Publishing is a statement on the organisation&apos;s behalf, so it takes an authorised signatory or administrator seat. It is recorded in the audit chain.{org.verification.status !== "verified" ? " Until the organisation is verified, the listing shows as verification pending and any match waits at the gate." : ""}</p>
+                  </form>
+                </details>
+              )}
             </section>
           )}
         </div>
@@ -81,6 +171,17 @@ export default async function OrganisationPage({ params, searchParams }: { param
             <p className="small soft">Verification is on the organisation, not the person. Path A: ORCID or institutional email. Path B: institutional email plus manual vetting or vouching for community seed banks, IPLC holders and smaller institutions.</p>
             {org.verification.status === "verified" && <Notice kind="ok">Verified by {org.verification.decidedBy} on {fmtTime(org.verification.decidedAt)}.{publicView ? " The evidence behind the decision is shown to the organisation and its matched counterparties." : ` Reason: ${org.verification.reason}`}</Notice>}
             {org.verification.status === "pending" && <Notice kind="pending">Pending an administrator decision with a recorded reason. Method: {org.verification.method?.replace("_", " ")}.</Notice>}
+            {session.kind === "admin" && org.verification.status === "pending" && (
+              <form action={decideVerification} className="stack" style={{ marginTop: 8 }}>
+                <input type="hidden" name="organisationId" value={org.id} />
+                <input type="hidden" name="from" value="organisation" />
+                <input name="reason" type="text" aria-label={`Reason for the verification decision on ${org.name}`} placeholder="Reason, recorded in the audit chain" required />
+                <div className="row">
+                  <button className="btn small" type="submit" name="outcome" value="verified">Verify</button>
+                  <button className="btn small danger" type="submit" name="outcome" value="declined">Decline</button>
+                </div>
+              </form>
+            )}
             {org.verification.status === "declined" && <Notice kind="halt">Declined{publicView ? "" : `: ${org.verification.reason}`}. A declined organisation cannot signal interest or be signalled back to until a new request is decided.</Notice>}
             {isAdminSeat && org.verification.status !== "verified" && org.verification.status !== "pending" && (
               <form action={requestVerification.bind(null, id)} className="stack" style={{ marginTop: 8 }}>

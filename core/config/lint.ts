@@ -90,6 +90,11 @@ export function lintCountry(cfg: CountryConfig): LintIssue[] {
       if (r.effect && !r.reg.executable) err(`stages.${stage.id}.requirements.${r.id}`, `a not-executable (⊘) value can never ${r.effect} a stage. It is shown, never enforced automatically (A3)`);
     }
   }
+  // Naming who files refuses every other party's filing, so it rests on settled, executable law only.
+  const filer = cfg.stateMachine.applicantFiledBy;
+  if (filer && (filer.reg.state === "unknown" || !filer.reg.executable)) {
+    err("stateMachine.applicantFiledBy", "who may file is enforced against every party, so it needs an established or inferred, executable value. An open question here would refuse filings on a guess (R3)");
+  }
 
   // R8: clocks
   const states = cfg.stateMachine.states;

@@ -59,7 +59,7 @@ export async function Shell({ children }: { children: React.ReactNode }) {
             <details className="fold" style={{ marginLeft: "auto" }}>
               <summary className="small">Reset demo data</summary>
               <form action={resetDemo} className="row">
-                <label className="small" style={{ fontWeight: 400 }}><input type="checkbox" name="confirm" value="1" required style={{ width: "auto" }} /> Wipe every change anyone has made on this instance and re-seed it</label>
+                <label className="small" style={{ fontWeight: 400 }}><input type="checkbox" name="confirm" value="1" required style={{ width: "auto" }} /> Wipe every change anyone has made on this instance and {process.env.GENELINK_SEED === "none" ? "start it empty again" : "re-seed it"}</label>
                 <button className="btn ghost small" type="submit">Reset now</button>
               </form>
             </details>

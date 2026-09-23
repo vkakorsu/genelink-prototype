@@ -12,11 +12,17 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   const countries = Array.from(platform.countries.values());
   const cases = platform.store.cases.list();
   const halted = cases.filter((c) => platform.pathwayFor(c).haltedStageIds.length > 0).length;
-  const audit = platform.store.audit.list().length;
+  const audit = platform.store.audit.count();
+  // The tour points at the seeded cases. On an instance without them (a fresh database, no seed) those
+  // steps are left out rather than linking to pages that do not exist, and the tour starts from nothing.
+  const has = (id: string) => !!platform.store.cases.get(id);
+  const seeded = ["case_1_ke", "case_2_co", "case_3_ke", "case_4_br"].some(has);
 
   return (
     <div className="container">
-      {sp.reset && <Notice kind="ok"><strong>Demo data re-seeded.</strong> Seeded cases, personas and configuration are restored; anything created in this session has been removed.</Notice>}
+      {sp.reset && (process.env.GENELINK_SEED === "none"
+        ? <Notice kind="ok"><strong>Instance reset.</strong> This instance starts empty (no seed data): everything created on it has been removed, and configuration is reloaded.</Notice>
+        : <Notice kind="ok"><strong>Demo data re-seeded.</strong> Seeded cases, personas and configuration are restored; anything created in this session has been removed.</Notice>)}
       <section className="hero" style={{ marginBottom: 20 }}>
         <div className="eyebrow">Value first. Results and content before commitment.</div>
         <h1>From discovery to an ABS-compliant draft agreement, across countries whose rules do not agree.</h1>
@@ -51,10 +57,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
           <li><Link href="/persona">Choose a persona.</Link> Notice that a person holds seats, a seat carries a permission, and an organisation holds market functions. Three entities, not one role field. Amara Okoro holds seats in two organisations.</li>
           <li><Link href="/declare">Declare your journey for this visit.</Link> I have, I want. No fixed buyer or seller box.</li>
           <li><Link href="/explore">Explore</Link> the anonymised projections. Open a listing as an outsider and then as a counterparty after mutual interest to see the reveal.</li>
-          <li><Link href="/persona?next=/cases/case_1_ke">Open the Kenya case as Dr Ines Halvorsen</Link>. Two stages are halted: the Fifth Schedule rate status and the traditional knowledge registration procedure. Both are unresolved in Appendix B. Both route to a named owner slot.</li>
-          <li><Link href="/persona?next=/cases/case_2_co">Open the Colombia case as Dr Ines Halvorsen</Link>. Prior consultation sits before the application. The access contract is one record with an addendum history. The proceeding went through returned incomplete and information requested on the way.</li>
-          <li><Link href="/persona?next=/cases/case_3_ke">Open the second Kenya case as Amara Okoro at Meridian</Link>. Ines is not a participant; a non-participant hits the permission boundary. The 30 working day clock lapsed. The case sits in deadline lapsed with a remedy against the administrator. No permit issued.</li>
-          <li><Link href="/persona?next=/cases/case_4_br">Open the Brazil case</Link>. The dry run: configuration written after the engine, a declaratory receipt with verification still open, and a manual review state for a judgment no system can make.</li>
+          {!seeded && <li><Link href="/persona">Register an organisation</Link> (Path B), then <strong>publish an offer or a need</strong> from its organisation page. A second organisation signals interest, the owner signals back, and when both are verified the case opens under the provider country&apos;s rules. An organisation&apos;s administrator gives colleagues their seats from the same page.</li>}
+          {platform.store.organisations.get("org_lbnpi") && <li><Link href="/persona?next=/organisations/org_lbnpi">Open Lake Basin&apos;s organisation page as Dr Wanjiru Kamau</Link>, its administrator. Publish an offer or a need, give a colleague a seat, or revoke one. Each is recorded in the audit chain, and the new seat appears on the sign-in page.</li>}
+          {has("case_1_ke") && <li><Link href="/persona?next=/cases/case_1_ke">Open the Kenya case as Dr Ines Halvorsen</Link>. Two stages are halted: the Fifth Schedule rate status and the traditional knowledge registration procedure. Both are unresolved in Appendix B. Both route to a named owner slot.</li>}
+          {has("case_2_co") && <li><Link href="/persona?next=/cases/case_2_co">Open the Colombia case as Dr Ines Halvorsen</Link>. Prior consultation sits before the application. The access contract is one record with an addendum history. The proceeding went through returned incomplete and information requested on the way.</li>}
+          {has("case_3_ke") && <li><Link href="/persona?next=/cases/case_3_ke">Open the second Kenya case as Amara Okoro at Meridian</Link>. Ines is not a participant; a non-participant hits the permission boundary. The 30 working day clock lapsed. The case sits in deadline lapsed with a remedy against the administrator. No permit issued.</li>}
+          {has("case_4_br") && <li><Link href="/persona?next=/cases/case_4_br">Open the Brazil case</Link>. The dry run: configuration written after the engine, a declaratory receipt with verification still open, and a manual review state for a judgment no system can make.</li>}
           <li><Link href="/disclosures">What GENE-LINK told me.</Link> Every requirement statement, with its evidence class and time.</li>
           <li><Link href="/persona?seat=admin&next=/admin">Sign in as administrator.</Link> Verification queue, escalations, manual reviews, configuration viewer, audit chain.</li>
         </ol>

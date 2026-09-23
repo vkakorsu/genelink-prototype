@@ -288,6 +288,7 @@ legend { font-size: var(--step--1); font-weight: 600; color: var(--ink-soft); pa
 .trig dd { margin: 0; }
 .halt-box { border: 2px dotted var(--ev-unknown); background: var(--ev-unknown-bg); border-radius: var(--radius); padding: 10px 12px; margin: 10px 0; }
 .halt-box strong { color: var(--ev-unknown); }
+.last-act { border-left: 3px solid var(--subj-government); background: var(--subj-government-bg); padding: 6px 10px; border-radius: 0 var(--radius) var(--radius) 0; }
 
 /* Tables */
 table.data { width: 100%; border-collapse: collapse; font-size: var(--step--1); background: var(--paper); }

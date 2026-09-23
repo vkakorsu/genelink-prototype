@@ -1,16 +1,17 @@
-import { nextEntry, verifyChain, type AuditEntry } from "./audit/chain";
+import { nextEntry, verifyChain, type AuditEntry, type VerificationResult } from "./audit/chain";
+import { InvalidRequest, NotFound, PermissionDenied, errorKind } from "./errors";
 import { makeDisclosure, type Disclosure } from "./audit/disclosure";
 import { type CaseFacts, type CountryConfig, type RegValue } from "./config/schema";
 import { AMENDABLE_POLICIES, FROZEN_STATUSES, amendInstrument, awaitingInstrument, issueInstruments, sha256 } from "./domain/instruments";
 import { canonicalAgreementText, normaliseText } from "./domain/agreements";
-import { fullProjection, publicProjection, searchableText, type FullListing, type PublicListing } from "./domain/listings";
+import { FUNCTION_CODES, fullProjection, publicProjection, searchableText, type FullListing, type PublicListing } from "./domain/listings";
 import type {
   Agreement, AgreementVersion, Case, CaseDocument, DemandSignal, EscalationRecord, Instrument, Listing, ManualReviewRecord, MarketFunction, Membership, Organisation, Permission, Person,
 } from "./domain/types";
 import { factProblems, factsFingerprint, withDeclaredDefaults } from "./engine/facts";
 import { attachedDuties, buildPathway, type Pathway } from "./engine/pathway";
 import { evaluateScope } from "./engine/scope";
-import { applyLapse, extendClock, fire, initialSnapshot, isGranted, runsIn, tick } from "./engine/stateMachine";
+import { applyLapse, extendClock, fire, initialSnapshot, isGranted, localDate, runsIn, tick } from "./engine/stateMachine";
 import type { Store } from "./store/Store";
 
 /**
@@ -22,15 +23,21 @@ import type { Store } from "./store/Store";
 
 export type Actor = { seat: Membership; person: Person; organisation: Organisation } | { system: true } | { admin: { personId: string; name: string } };
 
-export class PermissionDenied extends Error {}
-export class NotFound extends Error {}
-/** A request the platform understood and refused. Interfaces answer 4xx, never 500. */
-export class InvalidRequest extends Error {}
+export { PermissionDenied, NotFound, InvalidRequest, errorKind } from "./errors";
 
 const rank: Record<Permission, number> = { viewer: 0, member: 1, authorised_signatory: 2, administrator: 3 };
 
 /** Prototype paste limit. Real files go to object storage in the MVP; the prototype hashes pasted text. */
 export const MAX_DOCUMENT_BYTES = 256 * 1024;
+
+/** Self-registered organisations one demonstration instance holds before registration pauses. */
+export const MAX_SELF_REGISTRATIONS = 1000;
+
+/**
+ * Demand signals kept in memory. The prototype keeps the most recent ones and a running count per
+ * objective, so the counts stay whole while memory stays bounded. The MVP keeps every signal in Postgres.
+ */
+export const MAX_DEMAND_SIGNALS_KEPT = 2000;
 
 /**
  * A file name is the uploader's text. Keep the last path segment, drop control characters and the
@@ -40,6 +47,10 @@ function cleanFileName(name: string): string {
   const base = name.split(/[/\\]/).pop() ?? "";
   const cleaned = base.replace(/[\x00-\x1f\x7f<>:"|?*]/g, "").replace(/\s+/g, " ").trim().slice(0, 120);
   return cleaned || "document";
+}
+
+function disclosureKey(personId: string, caseId: string | null, context: string, statement: string) {
+  return JSON.stringify([personId, caseId, context, statement]);
 }
 
 export class Platform {
@@ -67,8 +78,7 @@ export class Platform {
   }
 
   private audit(actor: Actor, action: string, subject: { type: string; id: string }, detail: Record<string, unknown> = {}): AuditEntry {
-    const existing = this.store.audit.list();
-    const entry = nextEntry(existing.length ? existing[existing.length - 1] : null, {
+    const entry = nextEntry(this.store.audit.last() ?? null, {
       at: this.now().toISOString(),
       actor: "system" in actor
         ? { seatId: null, personId: null, organisationId: null, role: "system" }
@@ -83,9 +93,21 @@ export class Platform {
     return entry;
   }
 
-  verifyAudit() {
-    return verifyChain(this.store.audit.list());
+  /**
+   * Verify the audit chain. Every request to /health and the console asks, so the result is kept as a
+   * checkpoint: entries appended since the last check are verified from it, and the whole chain is
+   * rehashed again at least once a minute, so an alteration anywhere is still found within that minute.
+   */
+  verifyAudit(): VerificationResult {
+    const chain = this.store.audit.list();
+    const at = Date.now();
+    const cp = this.checkpoint;
+    const resumable = cp && at - cp.fullAt < 60_000 && chain.length >= cp.length && (cp.length === 0 || chain[cp.length - 1]?.hash === cp.hash);
+    const r = resumable ? verifyChain(chain, cp.length, cp.length ? cp.hash : undefined) : verifyChain(chain);
+    this.checkpoint = r.ok ? { length: chain.length, hash: chain.at(-1)?.hash ?? "", fullAt: resumable ? cp.fullAt : at } : undefined;
+    return r;
   }
+  private checkpoint?: { length: number; hash: string; fullAt: number };
 
   /** A denial that already wrote its own audit record. Marked so the interface layer does not log it twice. */
   private denied(message: string): PermissionDenied {
@@ -120,8 +142,12 @@ export class Platform {
   disclose(person: Person, seat: Membership | null, caseId: string | null, countryCode: string | null, statement: string, reg: RegValue, context: string): Disclosure {
     const d = makeDisclosure({ personId: person.id, seatId: seat?.id ?? null, caseId, countryCode, statement, reg, context }, this.now(), this.store.disclosures.nextSeq());
     this.store.disclosures.append(d);
+    this.disclosed?.add(disclosureKey(person.id, caseId, context, statement));
     return d;
   }
+
+  /** Index of what each person has been told, so a repeat view checks in constant time, not by scanning the log. */
+  private disclosed?: Set<string>;
 
   disclosuresFor(personId: string) {
     return this.store.disclosures.list().filter((d) => d.personId === personId).reverse();
@@ -129,8 +155,8 @@ export class Platform {
 
   /** Record a statement once per person, case and context. Re-rendering a page is not a new disclosure. */
   discloseOnce(person: Person, seat: Membership | null, caseId: string | null, countryCode: string | null, statement: string, reg: RegValue, context: string): Disclosure | null {
-    const dup = this.store.disclosures.list().find((d) => d.personId === person.id && d.caseId === caseId && d.context === context && d.statement === statement);
-    if (dup) return null;
+    this.disclosed ??= new Set(this.store.disclosures.list().map((d) => disclosureKey(d.personId, d.caseId, d.context, d.statement)));
+    if (this.disclosed.has(disclosureKey(person.id, caseId, context, statement))) return null;
     return this.disclose(person, seat, caseId, countryCode, statement, reg, context);
   }
 
@@ -149,16 +175,25 @@ export class Platform {
   }
 
   // ------------------------------------------------------------ identity
+  /** A person's seats that can still act. Revoked seats stay on the record but are not offered. */
   seatsFor(personId: string) {
-    return this.store.memberships.list().filter((m) => m.personId === personId);
+    return this.store.memberships.list().filter((m) => m.personId === personId && !m.revoked);
   }
 
   actorFor(seatId: string): Actor {
     const seat = this.store.memberships.get(seatId);
     if (!seat) throw new Error("Unknown seat");
+    if (seat.revoked) throw new PermissionDenied("This seat was revoked by the organisation's administrator. It can no longer act for the organisation.");
     const person = this.store.persons.get(seat.personId)!;
     const organisation = this.store.organisations.get(seat.organisationId)!;
     return { seat, person, organisation };
+  }
+
+  /** An id not yet used in a collection: `${prefix}${n}` counting up from its size. */
+  private nextId(prefix: string, taken: (id: string) => boolean, from: number): string {
+    let n = from;
+    while (taken(`${prefix}${n}`)) n++;
+    return `${prefix}${n}`;
   }
 
   inviteSeat(actor: Actor, organisationId: string, person: Person, permission: Permission): Membership {
@@ -166,6 +201,54 @@ export class Platform {
     const m: Membership = { id: `seat_${person.id}_${organisationId}`, personId: person.id, organisationId, permission, since: this.now().toISOString(), invitedBy: "seat" in actor ? actor.seat.id : undefined };
     this.store.memberships.put(m);
     this.audit(actor, "seat.invited", { type: "membership", id: m.id }, { permission });
+    return m;
+  }
+
+  /**
+   * An organisation's administrator gives a colleague a seat with one of the four fixed permissions.
+   * In the MVP the invitation goes to the colleague's email and is accepted with a passkey; the
+   * prototype holds no email address, so the seat exists at once and is offered on the sign-in page.
+   */
+  inviteColleague(actor: Actor, organisationId: string, input: { name: string; permission: Permission }): Membership {
+    if (!("seat" in actor)) throw new PermissionDenied("Seats are provisioned by the organisation's own administrator seat.");
+    const org = this.must(this.store.organisations.get(organisationId), "Organisation", organisationId);
+    if (actor.seat.organisationId !== organisationId || actor.seat.permission !== "administrator") {
+      this.audit(actor, "seat.invite_denied", { type: "organisation", id: organisationId }, { reason: `seat is ${actor.seat.permission} of ${actor.seat.organisationId}` });
+      throw this.denied(`Only an administrator seat of ${actor.seat.organisationId === organisationId ? "this organisation" : "the organisation itself"} can give someone a seat. Your seat is ${actor.seat.permission.replace("_", " ")}. This attempt has been recorded.`);
+    }
+    const name = input.name.replace(/\s+/g, " ").trim();
+    if (name.length < 2 || name.length > 100) throw new InvalidRequest("Give the colleague's name, between 2 and 100 characters.");
+    const permissions: Permission[] = ["administrator", "authorised_signatory", "member", "viewer"];
+    if (!permissions.includes(input.permission)) throw new InvalidRequest("Choose one of the four seat permissions offered: administrator, authorised signatory, member or viewer.");
+    const active = this.store.memberships.list().filter((m) => m.organisationId === organisationId && !m.revoked);
+    if (active.length >= 50) throw new InvalidRequest(`${org.name} already has 50 active seats, the prototype's limit. Revoke a seat before adding another.`);
+    const person: Person = { id: this.nextId("p_new_", (id) => !!this.store.persons.get(id), this.store.persons.list().length + 1), name, email: "not held in this demo", country: org.country, onboardingPath: actor.person.onboardingPath, badges: [] };
+    this.store.persons.put(person);
+    return this.inviteSeat(actor, organisationId, person, input.permission);
+  }
+
+  /**
+   * Revocation ends what a seat may do; it does not erase what it did. The record is kept and marked,
+   * so earlier approvals and signatures still name who gave them. An organisation always keeps one
+   * administrator seat, or nobody could manage its seats again.
+   */
+  revokeSeat(actor: Actor, seatId: string, reason: string): Membership {
+    if (!("seat" in actor)) throw new PermissionDenied("Seats are revoked by the organisation's own administrator seat.");
+    const m = this.must(this.store.memberships.get(seatId), "Seat", seatId);
+    if (actor.seat.organisationId !== m.organisationId || actor.seat.permission !== "administrator") {
+      this.audit(actor, "seat.revoke_denied", { type: "membership", id: seatId }, { reason: `seat is ${actor.seat.permission} of ${actor.seat.organisationId}` });
+      throw this.denied(`Only an administrator seat of the organisation can revoke its seats. Your seat is ${actor.seat.permission.replace("_", " ")}. This attempt has been recorded.`);
+    }
+    if (m.revoked) throw new InvalidRequest("That seat was already revoked.");
+    const admins = this.store.memberships.list().filter((x) => x.organisationId === m.organisationId && !x.revoked && x.permission === "administrator");
+    if (m.permission === "administrator" && admins.length <= 1) {
+      throw new InvalidRequest("That is the organisation's only administrator seat. Give another person an administrator seat first, or nobody could manage the organisation's seats.");
+    }
+    const why = reason.replace(/\s+/g, " ").trim().slice(0, 300);
+    if (!why) throw new InvalidRequest("Say why the seat is revoked. The reason goes into the audit chain.");
+    m.revoked = { at: this.now().toISOString(), bySeatId: actor.seat.id, reason: why };
+    this.store.memberships.put(m);
+    this.audit(actor, "seat.revoked", { type: "membership", id: seatId }, { permission: m.permission, reason: why });
     return m;
   }
 
@@ -199,6 +282,7 @@ export class Platform {
    */
   private openWaitingMatches(org: Organisation) {
     for (const listing of this.store.listings.list()) {
+      if (listing.withdrawn) continue;
       const owner = this.store.organisations.get(listing.organisationId);
       if (!owner || owner.verification.status !== "verified") continue;
       const others = listing.organisationId === org.id
@@ -232,14 +316,14 @@ export class Platform {
     method: "manual_vetting" | "vouching";
     functions: MarketFunction[];
   }): { personId: string; seatId: string; organisationId: string } {
-    // A bound on self-registration keeps a public instance from being filled until it falls over.
-    // The MVP puts sign-up behind identity checks and rate limits; this is the prototype's floor.
-    if (this.store.organisations.list().filter((o) => o.id.startsWith("org_new_")).length >= 200) {
+    // A bound on self-registration keeps a public instance from being filled until it falls over. The
+    // interface rate-limits registration per client first (lib/rateLimit.ts), so one visitor cannot
+    // reach this bound alone. The MVP puts sign-up behind identity checks as well.
+    if (this.store.organisations.list().filter((o) => o.id.startsWith("org_new_")).length >= MAX_SELF_REGISTRATIONS) {
       throw new InvalidRequest("Registration is paused on this demonstration instance: it has reached its limit of self-registered organisations. An administrator can reset the demo.");
     }
-    const n = this.store.persons.list().length + 1;
-    const personId = `p_new_${n}`;
-    const organisationId = `org_new_${this.store.organisations.list().length + 1}`;
+    const personId = this.nextId("p_new_", (id) => !!this.store.persons.get(id), this.store.persons.list().length + 1);
+    const organisationId = this.nextId("org_new_", (id) => !!this.store.organisations.get(id), this.store.organisations.list().length + 1);
     const person: Person = { id: personId, name: input.personName, email: "not held in this demo", country: input.country, onboardingPath: "B", badges: [] };
     const org: Organisation = { id: organisationId, name: input.orgName, kind: input.kind, country: input.country, functions: input.functions, verification: { status: "unverified" }, credentials: [], description: "Registered in this demo session." };
     this.store.persons.put(person);
@@ -258,8 +342,11 @@ export class Platform {
    */
   recordDemandSignal(actor: Actor | null, input: { want: DemandSignal["want"]; have: string; redactions: number }): DemandSignal {
     const org = actor && "seat" in actor ? actor.organisation : null;
+    const tally = this.demandTally();
+    tally.total++;
+    tally.byWant[input.want] = (tally.byWant[input.want] ?? 0) + 1;
     const signal: DemandSignal = {
-      id: `dem_${this.store.demandSignals.list().length + 1}`,
+      id: `dem_${tally.total}`,
       at: this.now().toISOString(),
       want: input.want,
       have: input.have.slice(0, 200),
@@ -269,7 +356,26 @@ export class Platform {
       organisationCountry: org?.country ?? null,
     };
     this.store.demandSignals.put(signal);
+    // Keep the most recent signals; the tally above keeps the counts whole.
+    const kept = this.store.demandSignals.list();
+    for (const old of kept.slice(0, Math.max(0, kept.length - MAX_DEMAND_SIGNALS_KEPT))) this.store.demandSignals.remove(old.id);
     return signal;
+  }
+
+  private tally?: { total: number; byWant: Record<string, number> };
+  private demandTally() {
+    if (!this.tally) {
+      const all = this.store.demandSignals.list();
+      this.tally = { total: all.length, byWant: all.reduce<Record<string, number>>((m, s) => ({ ...m, [s.want]: (m[s.want] ?? 0) + 1 }), {}) };
+    }
+    return this.tally;
+  }
+
+  /** Every declaration counted since the instance started, and the most recent ones kept. */
+  demandSignalSummary(recent = 6): { total: number; byWant: Record<string, number>; recent: DemandSignal[]; kept: number } {
+    const t = this.demandTally();
+    const kept = this.store.demandSignals.list();
+    return { total: t.total, byWant: { ...t.byWant }, recent: kept.slice(-recent).reverse(), kept: kept.length };
   }
 
   // ---------------------------------------------------------- discovery
@@ -283,6 +389,7 @@ export class Platform {
     const q = query.trim().toLowerCase();
     return this.store.listings.list()
       .filter((l) => {
+        if (l.withdrawn) return false;
         if (country && l.provenanceCountry !== country) return false;
         if (side && l.side !== side) return false;
         if (!q) return true;
@@ -291,8 +398,78 @@ export class Platform {
       .map((l) => publicProjection(l, this.must(this.store.organisations.get(l.organisationId), "Organisation", l.organisationId)));
   }
 
+  /** What discovery shows: every published listing that its owner has not withdrawn. */
   publicListings(): PublicListing[] {
-    return this.store.listings.list().map((l) => publicProjection(l, this.store.organisations.get(l.organisationId)!));
+    return this.store.listings.list().filter((l) => !l.withdrawn).map((l) => publicProjection(l, this.store.organisations.get(l.organisationId)!));
+  }
+
+  /**
+   * An organisation publishes an offer or a need. It is a public statement on the organisation's
+   * behalf, so it takes an authorised signatory or administrator seat. The public fields are what
+   * anyone can search; the full fields are revealed only when a match opens a case. An offer names a
+   * provider country with a configured pathway, because a match on it opens a case under that
+   * country's rules; a need may accept any provenance, in which case the supplier's country decides.
+   */
+  createListing(actor: Actor, input: {
+    side: string; provenanceCountry: string; functionCodes: string[]; resourceClass: string; publicSummary: string;
+    indicativeScale: string; publicTaxon: string; speciesDetail: string; localityDetail: string; fullDescription: string; dsiExposure: string;
+  }): Listing {
+    if (!("seat" in actor)) throw new PermissionDenied("A listing is published by a seat of the organisation that holds the material or the need. Administrators do not publish for organisations.");
+    this.require(actor, "authorised_signatory");
+    const org = actor.organisation;
+    if (org.verification.status === "declined") throw new PermissionDenied("Your organisation's verification was declined. It cannot publish listings until a new verification request is decided.");
+    const side = input.side === "offer" || input.side === "need" ? input.side : null;
+    if (!side) throw new InvalidRequest("Choose whether this is an offer (you supply) or a need (you are looking for a supplier).");
+    const configured = [...this.countries.keys()].sort();
+    const country = input.provenanceCountry.trim().toUpperCase() === "ANY" ? "any" : input.provenanceCountry.trim().toUpperCase();
+    if (side === "offer" && !this.countries.has(country)) throw new InvalidRequest(`An offer names the provider country whose rules a match would run under. Choose one with a configured pathway: ${configured.join(", ")}.`);
+    if (side === "need" && country !== "any" && !this.countries.has(country)) throw new InvalidRequest(`A need accepts any provenance with a lawful pathway, or one configured provider country: ${configured.join(", ")}.`);
+    const codes = [...new Set(input.functionCodes)];
+    if (!codes.length || codes.length > 3 || codes.some((f) => !(FUNCTION_CODES as readonly string[]).includes(f))) throw new InvalidRequest("Choose one to three functions from the taxonomy offered.");
+    const clean = (v: string, max: number) => v.replace(/\s+/g, " ").trim().slice(0, max);
+    const resourceClass = clean(input.resourceClass, 120);
+    const publicSummary = clean(input.publicSummary, 400);
+    if (resourceClass.length < 3) throw new InvalidRequest("Say what is offered or sought, in a few words (for example: plant metabolite extracts, ex situ).");
+    if (publicSummary.length < 10) throw new InvalidRequest("Write a short public summary. It is what a searcher reads before any match.");
+    const dsi = (["none", "possible", "likely"] as const).find((d) => d === input.dsiExposure);
+    if (!dsi) throw new InvalidRequest("Choose the DSI exposure from the options offered.");
+    if (this.store.listings.list().filter((l) => l.organisationId === org.id && !l.withdrawn).length >= 50) throw new InvalidRequest(`${org.name} already has 50 published listings, the prototype's limit. Withdraw one first.`);
+    const id = this.nextId("lst_new_", (x) => !!this.store.listings.get(x), this.store.listings.list().length + 1);
+    const serial = String(1000 + this.store.listings.list().length + 1).padStart(4, "0");
+    const listing: Listing = {
+      id,
+      glId: `GL-${side === "need" ? "NEED" : country}-${this.now().getUTCFullYear()}-${serial}`,
+      organisationId: org.id,
+      side,
+      functionCodes: codes,
+      resourceClass,
+      provenanceCountry: country,
+      publicSummary,
+      indicativeScale: clean(input.indicativeScale, 120) || "Not stated",
+      publicTaxon: clean(input.publicTaxon, 160) || "Withheld by the listing owner until mutual interest",
+      speciesDetail: clean(input.speciesDetail, 1000) || "Not stated",
+      localityDetail: clean(input.localityDetail, 1000) || "Not stated",
+      fullDescription: clean(input.fullDescription, 1000) || "Not stated",
+      dsiExposure: dsi,
+      createdAt: this.now().toISOString(),
+    };
+    this.store.listings.put(listing);
+    this.audit(actor, "listing.published", { type: "listing", id }, { glId: listing.glId, side, provenanceCountry: country, functionCodes: codes });
+    return listing;
+  }
+
+  /** The owner takes a listing out of discovery. Signals already made stay on the record and cases already opened continue. */
+  withdrawListing(actor: Actor, listingId: string, reason: string): Listing {
+    if (!("seat" in actor)) throw new PermissionDenied("A listing is withdrawn by a seat of the organisation that published it.");
+    const l = this.must(this.store.listings.get(listingId), "Listing", listingId);
+    this.require(actor, "authorised_signatory", l.organisationId);
+    if (l.withdrawn) throw new InvalidRequest("This listing is already withdrawn.");
+    const why = reason.replace(/\s+/g, " ").trim().slice(0, 300);
+    if (!why) throw new InvalidRequest("Say why the listing is withdrawn. The reason goes into the audit chain.");
+    l.withdrawn = { at: this.now().toISOString(), bySeatId: actor.seat.id, reason: why };
+    this.store.listings.put(l);
+    this.audit(actor, "listing.withdrawn", { type: "listing", id: listingId }, { reason: why });
+    return l;
   }
 
   /**
@@ -312,6 +489,7 @@ export class Platform {
     if (!("seat" in actor)) throw new PermissionDenied("Only a seat can signal interest");
     this.require(actor, "member");
     const listing = this.must(this.store.listings.get(listingId), "Listing", listingId);
+    if (listing.withdrawn) throw new InvalidRequest("This listing was withdrawn by its owner. It no longer takes signals of interest.");
     if (listing.organisationId === actor.seat.organisationId) throw new PermissionDenied("Cannot signal interest in your own listing");
     if (actor.organisation.verification.status === "declined") throw new PermissionDenied("Your organisation's verification was declined. Interest cannot be signalled until a new verification request is decided.");
     this.requireCounterpartyPathway(listing, actor.organisation);
@@ -330,6 +508,7 @@ export class Platform {
     if (!("seat" in actor)) throw new PermissionDenied("Only a seat can reciprocate");
     const listing = this.must(this.store.listings.get(listingId), "Listing", listingId);
     this.require(actor, "member", listing.organisationId);
+    if (listing.withdrawn) throw new InvalidRequest("This listing is withdrawn. Signalling back would open a case on a listing you have taken out of discovery; publish it again as a new listing if the offer stands.");
     const interested = this.must(this.store.organisations.get(interestedOrganisationId), "Organisation", interestedOrganisationId);
     if (!this.store.interests.get(`int_${interestedOrganisationId}_${listingId}`)) throw new InvalidRequest("That organisation has not signalled interest in this listing. A reveal is mutual or it does not happen.");
     if (interested.verification.status === "declined") throw new PermissionDenied(`${interested.kind.replace("_", " ")} (${interested.country}) was declined verification. Signalling back is not available until a new verification request is decided.`);
@@ -447,16 +626,28 @@ export class Platform {
     try {
       this.requireParticipant(actor, c);
     } catch (e) {
-      if (e instanceof PermissionDenied) this.recordDenied(actor, "case_audit.view", { type: "case", id: caseId }, "Not a participant in this case");
+      if (errorKind(e) === "permission_denied") this.recordDenied(actor, "case_audit.view", { type: "case", id: caseId }, "Not a participant in this case");
       throw e;
     }
     const related = new Set([caseId, ...this.instrumentsFor(caseId).map((i) => i.id), ...this.agreementsFor(caseId).map((a) => a.id), ...this.documentsFor(caseId).map((d) => d.id), ...this.escalationsFor(caseId).map((e) => e.id), ...this.manualReviewsFor(caseId).map((m) => m.id)]);
     return this.store.audit.list().filter((e) => related.has(e.subject.id));
   }
 
+  /**
+   * The pathway is a pure function of the country file, the facts and the judgments recorded, so it is
+   * kept per combination: a page that reads it several times, or a list of many cases, builds it once.
+   */
   pathwayFor(c: Case): Pathway {
-    return buildPathway(this.country(c.providerCountry), c.facts, this.decidedReviews(c.id));
+    const decided = this.decidedReviews(c.id);
+    const key = `${c.providerCountry}|${factsFingerprint(c.facts)}|${[...decided].sort().join(",")}`;
+    const hit = this.pathways.get(key);
+    if (hit) return hit;
+    const built = buildPathway(this.country(c.providerCountry), c.facts, decided);
+    if (this.pathways.size >= 500) this.pathways.clear();
+    this.pathways.set(key, built);
+    return built;
   }
+  private pathways = new Map<string, Pathway>();
 
   /** The manual reviews already judged on a case, by review id. The pathway reads these (R5). */
   decidedReviews(caseId: string): Set<string> {
@@ -731,6 +922,17 @@ export class Platform {
     const cfg = this.country(c.providerCountry);
     const actorKind = "system" in actor ? "system" : "admin" in actor ? "authority" : "applicant";
     const declared = cfg.stateMachine.transitions.find((t) => t.from === c.machine.state && t.event === event);
+    // A lapse is a fact about time, not an act anyone records. It follows from the clock: the clock
+    // check applies it once the last day has ended where the authority sits (tickClocks). Recorded by
+    // hand it would put a lapse, and a remedy against the administrator, on the record while the law's
+    // days are still running: the reverse of R8. Nobody records it by hand, the administrator included.
+    if (event === "lapse" || (declared && cfg.stateMachine.states[declared.to]?.outcome === "lapsed")) {
+      const live = tick(cfg, c.machine, this.now()).snap.clocks;
+      const running = cfg.stateMachine.clocks.find((k) => runsIn(k).includes(c.machine.state) && live[k.id]?.deadline && !live[k.id].lapsed);
+      const until = running ? ` The ${running.label} runs to the end of ${localDate(new Date(live[running.id].deadline!), cfg.timeZone)} (${cfg.timeZone})${live[running.id].suspended ? " and is suspended now" : ""}.` : "";
+      this.audit(actor, "regulator.event_denied", { type: "case", id: caseId }, { event, reason: "a lapse follows from the clock and is never recorded by hand" });
+      throw this.denied(`A lapse is not recorded by hand. It follows from the clock: when a running clock's last day has ended in ${cfg.name}, the clock check records the lapse against the administrator.${until} This attempt has been recorded.`);
+    }
     const effectiveActor = declared ? declared.actor : actorKind;
     // Authority and system events are recorded by an administrator on the authority's
     // behalf. A party seat can record only applicant events; a denied attempt is
@@ -751,6 +953,14 @@ export class Platform {
     if ("seat" in actor && rank[actor.seat.permission] < rank.authorised_signatory) {
       this.audit(actor, "regulator.event_denied", { type: "case", id: caseId }, { event, reason: `filing before the regulator needs an authorised signatory seat; seat is ${actor.seat.permission}` });
       throw this.denied(`Recording "${event.replace(/_/g, " ")}" is a filing before the regulator, a commitment the organisation stands behind. It needs an authorised signatory or administrator seat; your seat is ${actor.seat.permission}. This attempt has been recorded.`);
+    }
+    // Where the law names the filer (Brazil: the Brazilian registrant, never the foreign company in its own
+    // name), a party established elsewhere prepares the bundle and the provider-country party records it.
+    const filer = cfg.stateMachine.applicantFiledBy;
+    if (filer && effectiveActor === "applicant" && "seat" in actor && actor.organisation.country !== cfg.code) {
+      const local = c.participants.map((p) => this.store.organisations.get(p.organisationId)).find((o) => o?.country === cfg.code);
+      this.audit(actor, "regulator.event_denied", { type: "case", id: caseId }, { event, reason: `the applicant's acts are recorded by a party established in ${cfg.code}`, citation: filer.reg.citation });
+      throw this.denied(`In ${cfg.name} the applicant's filings are made by a registrant established there: ${filer.reg.value} (${filer.reg.citation}). ${local ? `Your organisation prepares the bundle; an authorised signatory of ${local.name} records "${event.replace(/_/g, " ")}".` : `No party to this case is established in ${cfg.name}, so nobody on it can make the filing. The foreign party needs a ${cfg.name} institution to associate with first.`} This attempt has been recorded.`);
     }
     // A filing before the regulator rests on a scope answer. While scope is undetermined (the parties
     // have not answered purpose or activity), escalated (the law is unresolved) or out of scope, the
@@ -803,7 +1013,12 @@ export class Platform {
     }
   }
 
-  tickClocks(caseId: string, now = this.now()): { lapsed: string[] } {
+  /**
+   * Check the case's clocks at `now`. The demo's time control passes a later moment and marks the
+   * check as simulated, so the audit chain never presents a demonstration of R8 as a lapse that
+   * happened on the calendar.
+   */
+  tickClocks(caseId: string, now = this.now(), simulated = false): { lapsed: string[] } {
     const c = this.caseFor(caseId);
     const cfg = this.country(c.providerCountry);
     const { snap, lapsed } = tick(cfg, c.machine, now);
@@ -813,7 +1028,7 @@ export class Platform {
       const clock = cfg.stateMachine.clocks.find((k) => k.id === id)!;
       if (!runsIn(clock).includes(c.machine.state)) continue;
       c.machine = applyLapse(cfg, c.machine, id, now);
-      this.audit({ system: true }, "clock.lapsed", { type: "case", id: caseId }, { clockId: id, to: c.machine.state, effect: "remedy_against_administrator", granted: false });
+      this.audit({ system: true }, "clock.lapsed", { type: "case", id: caseId }, { clockId: id, to: c.machine.state, effect: "remedy_against_administrator", granted: false, ...(simulated ? { demoTimeControl: true, simulatedCheckAt: now.toISOString() } : {}) });
     }
     this.store.cases.put(c);
     return { lapsed };
@@ -843,7 +1058,7 @@ export class Platform {
     const running = cfg.stateMachine.clocks.find((k) => runsIn(k).includes(c.machine.state) && c.machine.clocks[k.id]?.deadline && !c.machine.clocks[k.id].suspended && !c.machine.clocks[k.id].lapsed);
     if (!running) return null;
     const at = new Date(new Date(c.machine.clocks[running.id].deadline!).getTime() + 86_400_000);
-    return { ...this.tickClocks(caseId, at), at };
+    return { ...this.tickClocks(caseId, at, true), at };
   }
 
   /**

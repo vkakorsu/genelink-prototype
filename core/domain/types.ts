@@ -45,6 +45,11 @@ export type Membership = {
   permission: Permission;
   invitedBy?: string;
   since: string;
+  /**
+   * A revoked seat acts for nobody. It is kept, not deleted: approvals, signatures and audit entries
+   * name it, and the record of who could act for the organisation, and when, is part of the trail.
+   */
+  revoked?: { at: string; bySeatId: string | null; reason: string };
 };
 
 export const VISIT_WANTS = ["sell_to_eu_buyer", "source_from_south", "find_broker", "get_abs_compliant", "learn", "screening_agreement"] as const;
@@ -105,6 +110,8 @@ export type Listing = {
   /** DSI exposure analysis flags and informs. It never asserts an obligation. */
   dsiExposure: "none" | "possible" | "likely";
   createdAt: string;
+  /** Withdrawn by its owner: gone from discovery and closed to new signals. Cases already opened continue. */
+  withdrawn?: { at: string; bySeatId: string; reason: string };
 };
 
 export type InterestSignal = {

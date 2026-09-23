@@ -396,6 +396,23 @@ stateMachine:
       label: Art. 28 clock lapsed (65 days from the form, the latest the 60 days can end). Remedy against the administrator, no assent.
       kind: halted
       outcome: lapsed
+  # The registrant files. A foreign company never registers in its own name: the Brazilian institution it
+  # is associated with makes the cadastro, so only a party established in Brazil records the applicant's
+  # acts (completing the form, answering, correcting, appealing, withdrawing). The foreign company prepares.
+  applicantFiledBy:
+    party: provider_country
+    reg:
+      state: established
+      marker: "§"
+      value: >-
+        The cadastro is made in SisGen by a Brazilian registrant. A foreign company registers only through the
+        Brazilian research institution it is associated with, never in its own name, under an ordinary Art. 12 II
+        association or, where there is no scientific collaboration, the Art. 22-B termo de associação para fins de
+        cadastro. The foreign company supplies the information and remains bound by the Lei.
+      citation: Lei Art. 12 II; Decreto Art. 22-B
+      note: >-
+        Art. 22-B was inserted by Decreto 13.014/2026. Checked 23 September 2026 against published commentary on the
+        decree; confirm the wording against the consolidated text on Planalto in the verification round.
   transitions:
     # Completing the SisGen form is the registrant's own filing. What SisGen does next (issue the receipt at
     # once, or hold the cadastro for Art. 27 assent) is automatic, but the act that triggers it is the

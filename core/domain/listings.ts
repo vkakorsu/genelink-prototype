@@ -10,6 +10,12 @@ import type { Listing, Organisation } from "./types";
  * Open decision (Appendix A): exactly what is visible before a match. The split
  * below is a working position and is data, not code, in the MVP.
  */
+/**
+ * The function codes a listing can carry in the prototype: the illustrative subset of GENE-LINK's own
+ * 48-code taxonomy that the seeded listings use. The MVP loads the full list from configuration.
+ */
+export const FUNCTION_CODES = ["F07 anti-inflammatory", "F12 emulsifier", "F19 antioxidant", "F23 film-forming", "F31 preservative"] as const;
+
 export type PublicListing = {
   id: string;
   glId: string;

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { forbidden, notFound, unauthorized } from "next/navigation";
-import { PermissionDenied } from "@/core/platform";
+import { errorKind } from "@/core/errors";
 import { getPlatform } from "@/core";
 import { PageHead, fmtTime } from "@/components/ui";
 import { getSession } from "@/lib/session";
@@ -18,7 +18,7 @@ export default async function CaseAuditPage({ params }: { params: Promise<{ id: 
   try {
     entries = platform.caseAudit(session.actor, id);
   } catch (e) {
-    if (e instanceof PermissionDenied) forbidden();
+    if (errorKind(e) === "permission_denied") forbidden();
     throw e;
   }
   const v = platform.verifyAudit();

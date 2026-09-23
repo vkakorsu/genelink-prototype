@@ -306,6 +306,13 @@ export const StateMachine = z.strictObject({
   states: z.record(z.string(), MachineState),
   transitions: z.array(Transition),
   clocks: z.array(Clock).default([]),
+  /**
+   * Who may record the applicant's own acts before this regulator, where the law names the filer.
+   * "provider_country": only a party organisation established in the provider country records them
+   * (Brazil: a foreign company never registers in its own name; the Brazilian institution it is
+   * associated with makes the cadastro). Absent: any party's authorised signatory may.
+   */
+  applicantFiledBy: z.strictObject({ party: z.literal("provider_country"), reg: RegValue }).optional(),
 });
 export type StateMachine = z.infer<typeof StateMachine>;
 

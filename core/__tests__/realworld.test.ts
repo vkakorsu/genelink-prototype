@@ -4,7 +4,7 @@ import { loadCountries } from "../config/load";
 import type { CaseFacts } from "../config/schema";
 import { InMemoryStore } from "../store/memory";
 import { seed, ADMIN } from "../seed/seed";
-import { InvalidRequest, PermissionDenied, type Platform } from "../platform";
+import { InvalidRequest, MAX_SELF_REGISTRATIONS, PermissionDenied, type Platform } from "../platform";
 import { buildPathway } from "../engine/pathway";
 import { evaluateScope } from "../engine/scope";
 import { factsFingerprint, withDeclaredDefaults } from "../engine/facts";
@@ -198,7 +198,7 @@ describe("what the platform keeps from a visit", () => {
 
   it("self-registration is bounded on a public instance", () => {
     const p = fresh();
-    for (let i = 0; i < 200; i++) p.registerOrganisation({ personName: `P${i}`, orgName: `O${i}`, kind: "company", country: "DE", method: "manual_vetting", functions: ["seeking"] });
+    for (let i = 0; i < MAX_SELF_REGISTRATIONS; i++) p.registerOrganisation({ personName: `P${i}`, orgName: `O${i}`, kind: "company", country: "DE", method: "manual_vetting", functions: ["seeking"] });
     expect(() => p.registerOrganisation({ personName: "x", orgName: "y", kind: "company", country: "DE", method: "manual_vetting", functions: ["seeking"] })).toThrow(/paused/);
   });
 });

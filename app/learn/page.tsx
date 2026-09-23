@@ -24,7 +24,8 @@ export default async function LearnPage() {
       <div className="two-col">
         <section className="card">
           <h3>Resources</h3>
-          <table className="data compact">
+          {resources.length === 0 && <p className="small mute">No learning resources are listed on this instance yet. Landscape Alliance supplies the content; each resource is attached to the pathway stages it serves and appears here and on those stages.</p>}
+          {resources.length > 0 && <table className="data compact">
             <thead><tr><th>Resource</th><th>Attached to stages</th><th>Countries</th><th>Status</th></tr></thead>
             <tbody>
               {resources.map((r) => (
@@ -36,7 +37,7 @@ export default async function LearnPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table>}
           <p className="small mute" style={{ marginTop: 10 }}>The MVP links to learning, it does not host a learning management system. That is a deliberate simplification.</p>
         </section>
         <aside className="card">

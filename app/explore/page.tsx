@@ -69,7 +69,12 @@ export default async function ExplorePage({ searchParams }: { searchParams: Prom
       {implied && (
         <p className="small soft" style={{ marginTop: -6 }}>Showing {implied.side === "offer" ? "offers" : "needs"} because {implied.why}. <Link href={`/explore?side=${q ? `&q=${encodeURIComponent(q)}` : ""}${country ? `&country=${encodeURIComponent(country)}` : ""}`}>Show offers and needs</Link> · <Link href="/declare">Change the objective</Link></p>
       )}
-      {listings.length === 0 && <Empty title="No opportunities match">Try a broader function, or <Link href="/explore">clear the filters</Link>.</Empty>}
+      {all.length === 0 && (
+        <Empty title="Nothing is listed on this instance yet">
+          Offers and needs are published by organisations from their own page. {session.kind === "seat" ? <Link href={`/organisations/${session.actor.organisation.id}`}>Publish one from your organisation&apos;s page</Link> : <><Link href="/persona">Register an organisation</Link> to publish one</>}.
+        </Empty>
+      )}
+      {all.length > 0 && listings.length === 0 && <Empty title="No opportunities match">Try a broader function, or <Link href="/explore">clear the filters</Link>.</Empty>}
       <div className="grid cols-2">
         {listings.map((l) => (
           <article className="card listing" key={l.id}>

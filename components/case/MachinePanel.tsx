@@ -7,9 +7,12 @@ import { extendClock, fireEvent, tickClocks } from "@/app/actions";
 import { EvidenceChip } from "@/components/Evidence";
 import { fmtDeadline, fmtTime, stateHeadline } from "@/components/ui";
 
-export function MachinePanel({ cfg, c, canAct, canPrepare, isAdmin, decided }: { cfg: CountryConfig; c: Case; canAct: boolean; canPrepare: boolean; isAdmin: boolean; decided: ReadonlySet<string> }) {
+export function MachinePanel({ cfg, c, canAct, canPrepare, isAdmin, decided, viewerCountry, localParty }: { cfg: CountryConfig; c: Case; canAct: boolean; canPrepare: boolean; isAdmin: boolean; decided: ReadonlySet<string>; viewerCountry: string | null; localParty: string | null }) {
   const sm = cfg.stateMachine;
   const current = sm.states[c.machine.state];
+  const last = c.machine.history.at(-1);
+  // Where the law names the filer, a party established elsewhere prepares and the local party files.
+  const filedElsewhere = !isAdmin && !!sm.applicantFiledBy && viewerCountry !== cfg.code;
   const options = eventsFor(cfg, c.machine.state, c.facts).filter((o) => o.transition.event !== "lapse");
   const scope = evaluateScope(cfg, c.facts);
   // Applicant filings wait on a settled scope; the core refuses them otherwise, so they are not offered.
@@ -36,6 +39,9 @@ export function MachinePanel({ cfg, c, canAct, canPrepare, isAdmin, decided }: {
       </div>
       <p className="small soft" style={{ marginTop: 12 }}>Current state: <span className={`state current ${current.kind === "halted" ? "halted" : ""}`}>{current.label}</span></p>
       {current.reg && <p className="small"><EvidenceChip reg={current.reg} short /> {current.reg.value} <span className="mono mute">{current.reg.citation}</span></p>}
+      {last?.note && last.to === c.machine.state && (
+        <p className="small last-act"><strong>Recorded with &ldquo;{last.event.replace(/_/g, " ")}&rdquo;</strong> ({last.actor}, {fmtTime(last.at)}): <q>{last.note}</q></p>
+      )}
       {current.outcome === "lapsed" && (
         <div className="halt-box"><strong>Lapsed clock, nothing granted.</strong> A missed statutory deadline gives the applicant a remedy against the administrator. It never grants (R8). The authority may resume.</div>
       )}
@@ -144,8 +150,16 @@ export function MachinePanel({ cfg, c, canAct, canPrepare, isAdmin, decided }: {
         )}
         {events.length > 0 && canAct && (() => {
           // Each side records its own acts: the administrator the authority's, a party's signatory the applicant's.
-          const mine = events.filter((t) => (isAdmin ? t.actor !== "applicant" : t.actor === "applicant"));
+          const mine = events.filter((t) => (isAdmin ? t.actor !== "applicant" : t.actor === "applicant" && !filedElsewhere));
           const held = events.length - mine.length;
+          if (filedElsewhere && events.some((t) => t.actor === "applicant")) {
+            return (
+              <p className="small halt-box" role="status">
+                In {cfg.name} the applicant&apos;s filings are made by a registrant established there. <EvidenceChip reg={sm.applicantFiledBy!.reg} short /> {sm.applicantFiledBy!.reg.value} <span className="mono">{sm.applicantFiledBy!.reg.citation}</span>{" "}
+                {localParty ? `Your organisation prepares the bundle; an authorised signatory of ${localParty} records ${events.filter((t) => t.actor === "applicant").map((t) => `"${t.event.replace(/_/g, " ")}"`).join(", ")}.` : `No party to this case is established in ${cfg.name}, so nobody on it can make the filing yet.`}
+              </p>
+            );
+          }
           return (
             <form action={fireEvent.bind(null, c.id)} className="stack">
               <input name="note" type="text" aria-label="Note for the audit record (optional)" placeholder="Note for the audit record (optional)" />

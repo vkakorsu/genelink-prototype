@@ -3,18 +3,19 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { ZodError } from "zod";
 import { getPlatform, resetPlatform } from "@/core";
 import { CaseFacts, TYPED_FACTS, type CountryConfig } from "@/core/config/schema";
 import { VISIT_WANTS, type MarketFunction } from "@/core/domain/types";
 import { InvalidRequest, NotFound, PermissionDenied } from "@/core/platform";
-import { TransitionError } from "@/core/engine/stateMachine";
+import { describeError, isUnauditedDenial } from "@/lib/describeError";
 import { ADMIN } from "@/core/seed/seed";
 import { OBJECTIVE_COOKIE, SEAT_COOKIE, getSession } from "@/lib/session";
 import { MODEL_CLAUSES } from "@/lib/clauses";
 import { redactIdentifiers } from "@/lib/redact";
 import { safeLocalPath } from "@/lib/safePath";
 import { signNotice } from "@/lib/notice";
+import { LIMITS, clientKey, take } from "@/lib/rateLimit";
+import type { Permission } from "@/core/domain/types";
 
 /**
  * Server actions: the only way the interface mutates state. Each one resolves the
@@ -39,35 +40,20 @@ function back(path: string, error?: string) {
   redirect(error ? `${path}?error=${encodeURIComponent(error)}&sig=${signNotice(error)}` : path);
 }
 
-/** Turn any failure into one sentence the page can show. Unexpected errors are logged, never leaked. */
-function describe(e: unknown): string {
-  if (e instanceof ZodError) {
-    const missing = [...new Set(e.issues.filter((i) => i.code === "invalid_type").map((i) => i.path.join(".") || "form"))];
-    const invalid = [...new Set(e.issues.filter((i) => i.code !== "invalid_type").map((i) => i.path.join(".") || "form"))];
-    return [
-      missing.length ? `The form is incomplete: ${missing.map(friendlyField).join(", ")}. Choose an answer for each before saving.` : "",
-      invalid.length ? `These answers are not among the options offered: ${invalid.map(friendlyField).join(", ")}. Reload the page and choose again.` : "",
-    ].filter(Boolean).join(" ");
-  }
-  if (e instanceof PermissionDenied || e instanceof InvalidRequest || e instanceof NotFound || e instanceof TransitionError) return e.message;
-  if (e instanceof Error && /Unknown (output|amendment policy)|No configured pathway|Stage not on this pathway/.test(e.message)) return e.message;
-  console.error("[action]", e);
-  return "Not done. Something unexpected happened on the server and has been logged. Nothing was changed.";
-}
-
-const FIELD_NAMES: Record<string, string> = {
-  purpose: "purpose", activity: "activity", provenance: "material provenance", applicantType: "applicant type", exchange: "material-exchange scenario",
-  communityHeld: "community-held", tkInvolved: "traditional knowledge involved", directAffectation: "direct affectation", speciesListed: "species status",
-  scientificCollaboration: "scientific collaboration", localities: "collection localities (a whole number)",
-};
-function friendlyField(f: string) {
-  return FIELD_NAMES[f] ?? f;
-}
-
 /** Browsers always send Origin on a POST. A submission without one is refused: it did not come from a page this site rendered. */
 async function requireOrigin() {
   const origin = (await headers()).get("origin");
   if (!origin || origin === "null") throw new PermissionDenied("This action only accepts submissions sent from this site. The request carried no Origin header, so it was refused.");
+}
+
+/** Per-client limit on a path a visitor can use without a seat. Refused with a sentence, never silently. */
+async function limitClient(scope: keyof typeof LIMITS) {
+  const l = LIMITS[scope];
+  const r = take(scope, clientKey(await headers()), l.limit, l.windowMs);
+  if (!r.ok) {
+    const wait = r.retryAfterSeconds >= 90 ? `${Math.ceil(r.retryAfterSeconds / 60)} minutes` : `${r.retryAfterSeconds} seconds`;
+    throw new InvalidRequest(`Too many ${l.what} from this connection: the limit is ${l.limit} every ${l.windowMs / 60_000} minutes. Nothing was recorded. Try again in ${wait}.`);
+  }
 }
 
 async function requireSeat() {
@@ -124,11 +110,11 @@ function wrap<T extends unknown[]>(name: string, fn: (...a: T) => Promise<void> 
       await fn(...a);
     } catch (e) {
       if (isRedirect(e)) throw e;
-      if (e instanceof PermissionDenied && !(e as { audited?: boolean }).audited) {
+      if (isUnauditedDenial(e)) {
         const s = subject ? subject(...a) : { type: "request", id: safePath(...a) };
         await auditDenied(name, { type: s.type, id: typeof s.id === "string" ? s.id : "unknown" }, e.message);
       }
-      back(safePath(...a), describe(e));
+      back(safePath(...a), describeError(e));
       return;
     }
     back(safePath(...a));
@@ -182,6 +168,7 @@ export const declareObjective = wrap(
   "declareObjective",
   async (formData: FormData) => {
     if (!(formData instanceof FormData)) throw new InvalidRequest("Malformed submission. Reload the page and try again.");
+    await limitClient("declare");
     // Redact before truncating: a cut can split an address mid-string and store a
     // fragment the counter then under-reports. Identify on the full text, store 200 chars.
     const { text: redacted, redactions } = redactIdentifiers(text(formData, "have", 2000));
@@ -211,6 +198,7 @@ export const verifyDocument = wrap(
     if (!(formData instanceof FormData)) throw new InvalidRequest("Malformed submission. Reload the page and try again.");
     const raw = typeof formData.get("content") === "string" ? (formData.get("content") as string) : "";
     if (!raw.trim()) throw new InvalidRequest("Paste the document text, or its SHA-256, to check it.");
+    await limitClient("verify");
     if (Buffer.byteLength(raw, "utf8") > 256 * 1024) throw new InvalidRequest("The text exceeds the prototype's 256 KB limit.");
     const sha = /^\s*[0-9a-f]{64}\s*$/i.test(raw) ? raw.trim().toLowerCase() : getPlatform().verifyContent(raw).sha256;
     redirect(`/verify?sha=${sha}`);
@@ -275,8 +263,82 @@ export const decideVerification = wrap(
     const admin = await requireAdmin();
     getPlatform().decideVerification(admin, text(fd, "organisationId", 100), text(fd, "outcome", 20) as "verified" | "declined", text(fd, "reason", 500));
   },
-  () => `/admin`,
+  // Decided from the organisation's own page, the administrator lands back there; from the console, on the console.
+  (fd) => (fd instanceof FormData && fd.get("from") === "organisation" && text(fd, "organisationId", 100) ? `/organisations/${encodeURIComponent(text(fd, "organisationId", 100))}` : `/admin`),
   (fd) => ({ type: "organisation", id: text(fd, "organisationId", 100) || "unknown" }),
+);
+
+// ------------------------------------------------------------------ seats
+/** The organisation's administrator gives a colleague a seat. */
+export const inviteColleague = wrap(
+  "inviteColleague",
+  async (organisationId: string, fd: FormData) => {
+    rejectStrayId(fd, "organisationId", organisationId);
+    const actor = await requireSeat();
+    getPlatform().inviteColleague(actor, organisationId, { name: text(fd, "name", 200), permission: text(fd, "permission", 40) as Permission });
+  },
+  (organisationId) => `/organisations/${encodeURIComponent(organisationId)}`,
+  (organisationId) => ({ type: "organisation", id: organisationId }),
+);
+
+export const revokeSeat = wrap(
+  "revokeSeat",
+  async (organisationId: string, fd: FormData) => {
+    rejectStrayId(fd, "organisationId", organisationId);
+    const actor = await requireSeat();
+    const seatId = text(fd, "seatId", 150);
+    const seat = getPlatform().store.memberships.get(seatId);
+    // The seat must belong to the organisation whose page acted: never revoke across organisations by id.
+    if (seat && seat.organisationId !== organisationId) throw new InvalidRequest("That seat does not belong to this organisation. Reload the page and try again.");
+    getPlatform().revokeSeat(actor, seatId, text(fd, "reason", 300));
+  },
+  (organisationId) => `/organisations/${encodeURIComponent(organisationId)}`,
+  (organisationId) => ({ type: "organisation", id: organisationId }),
+);
+
+// --------------------------------------------------------------- listings
+/**
+ * Publish an offer or a need. Identifying contact details are stripped from the public fields before
+ * they are stored: those fields are shown to anyone, and a phone number in a summary would reveal what
+ * the projection withholds.
+ */
+export const createListing = wrap(
+  "createListing",
+  async (organisationId: string, fd: FormData) => {
+    rejectStrayId(fd, "organisationId", organisationId);
+    const actor = await requireSeat();
+    if (actor.organisation.id !== organisationId) throw new PermissionDenied("A listing is published from your own organisation's page.");
+    const pub = (name: string, max: number) => redactIdentifiers(text(fd, name, max * 2)).text.slice(0, max);
+    const listing = getPlatform().createListing(actor, {
+      side: text(fd, "side", 10),
+      provenanceCountry: text(fd, "provenanceCountry", 10),
+      functionCodes: fd.getAll("functionCode").map(String).slice(0, 10),
+      resourceClass: pub("resourceClass", 120),
+      publicSummary: pub("publicSummary", 400),
+      indicativeScale: pub("indicativeScale", 120),
+      publicTaxon: pub("publicTaxon", 160),
+      speciesDetail: text(fd, "speciesDetail", 1000),
+      localityDetail: text(fd, "localityDetail", 1000),
+      fullDescription: text(fd, "fullDescription", 1000),
+      dsiExposure: text(fd, "dsiExposure", 20),
+    });
+    revalidatePath("/explore");
+    redirect(`/listings/${listing.id}`);
+  },
+  (organisationId) => `/organisations/${encodeURIComponent(organisationId)}`,
+  (organisationId) => ({ type: "organisation", id: organisationId }),
+);
+
+export const withdrawListing = wrap(
+  "withdrawListing",
+  async (listingId: string, fd: FormData) => {
+    rejectStrayId(fd, "listingId", listingId);
+    const actor = await requireSeat();
+    getPlatform().withdrawListing(actor, listingId, text(fd, "reason", 300));
+    revalidatePath("/explore");
+  },
+  (listingId) => `/listings/${encodeURIComponent(listingId)}`,
+  (listingId) => ({ type: "listing", id: listingId }),
 );
 
 /**
@@ -288,6 +350,7 @@ export const decideVerification = wrap(
 export const registerOrganisation = wrap(
   "registerOrganisation",
   async (fd: FormData) => {
+    if (!(fd instanceof FormData)) throw new InvalidRequest("Malformed submission. Reload the page and try again.");
     const personName = text(fd, "personName", 100);
     const orgName = text(fd, "orgName", 150);
     if (!personName || !orgName) throw new InvalidRequest("Give your name and the organisation's name.");
@@ -302,6 +365,8 @@ export const registerOrganisation = wrap(
     if (!functions.length) throw new InvalidRequest("Choose at least one thing the organisation does in the market.");
     const country = text(fd, "country", 10).toUpperCase();
     if (!/^[A-Z]{2}$/.test(country)) throw new InvalidRequest("Give the organisation's country as a two-letter code, for example KE, CO or BR.");
+    // Counted only once the form is valid, so a person correcting a typo is not charged for each attempt.
+    await limitClient("register");
     const r = getPlatform().registerOrganisation({ personName, orgName, kind, country, method, functions });
     const jar = await cookies();
     jar.delete(OBJECTIVE_COOKIE);
@@ -388,7 +453,7 @@ export const tickClocks = onCase("tickClocks", async (caseId, fd) => {
   }
   const days = Number(mode || 0);
   if (!Number.isFinite(days) || days < 0 || days > 3650) throw new InvalidRequest("Days must be a number between 0 and 3650");
-  p.tickClocks(caseId, new Date(Date.now() + days * 86_400_000));
+  p.tickClocks(caseId, new Date(Date.now() + days * 86_400_000), days > 0);
 });
 
 export const extendClock = onCase("extendClock", async (caseId, fd) => {

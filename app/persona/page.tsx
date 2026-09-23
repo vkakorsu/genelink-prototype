@@ -9,7 +9,13 @@ export default async function PersonaPage({ searchParams }: { searchParams: Prom
   const next = safeLocalPath(sp.next);
   const platform = getPlatform();
   const session = await getSession();
-  const persons = platform.store.persons.list().filter((p) => p.id !== "person_admin");
+  const everyone = platform.store.persons.list().filter((p) => p.id !== "person_admin");
+  // Seeded personas first, then the people registered or invited on this instance, newest first. A busy
+  // instance lists the newest 40; the rest still sign in, they are just not all offered here.
+  const seeded = everyone.filter((p) => !p.id.startsWith("p_new_"));
+  const added = everyone.filter((p) => p.id.startsWith("p_new_")).reverse();
+  const persons = [...seeded, ...added.slice(0, 40)];
+  const hidden = added.length - Math.min(added.length, 40);
 
   return (
     <div className="container">
@@ -32,7 +38,9 @@ export default async function PersonaPage({ searchParams }: { searchParams: Prom
                 <span className="tag">Path {person.onboardingPath}{person.orcid ? " · ORCID" : ""}</span>
               </div>
               <p className="small mute" style={{ margin: "4px 0 10px" }}>{person.email} · {person.country}{person.badges.length ? ` · ${person.badges.length} badge${person.badges.length > 1 ? "s" : ""}` : ""}</p>
-              {seats.length === 0 && <p className="small mute">No seat yet. A learner re-enters the spine later.</p>}
+              {seats.length === 0 && (platform.store.memberships.list().some((m) => m.personId === person.id && m.revoked)
+                ? <p className="small mute">Seat revoked by the organisation&apos;s administrator. The record of what this person did stays.</p>
+                : <p className="small mute">No seat yet. A learner re-enters the spine later.</p>)}
               <div className="stack">
                 {seats.map((seat) => {
                   const org = platform.store.organisations.get(seat.organisationId)!;
@@ -53,6 +61,7 @@ export default async function PersonaPage({ searchParams }: { searchParams: Prom
             </div>
           );
         })}
+        {hidden > 0 && <p className="small mute">{hidden} more {hidden === 1 ? "person" : "people"} registered or invited on this instance {hidden === 1 ? "is" : "are"} not listed here. The newest 40 are shown.</p>}
         <div className="card tinted">
           <h3>Register a new organisation (Path B)</h3>
           <p className="small soft">A stranger arrives with no ORCID and no institutional email. Path B onboards community custodians, IPLC holders and smaller institutions by manual vetting or vouching. The request enters the same administrator queue as the seeded ones: pending until a human decides, never pre-decided.</p>

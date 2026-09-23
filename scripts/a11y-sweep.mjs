@@ -71,6 +71,13 @@ const ROUTES = [
   { path: "/cases", seat: "seat_nyokabi_olkalou" },
   { path: "/declare", seat: "seat_nyokabi_olkalou" },
   { path: "/admin", seat: "admin" },
+  { path: "/admin?find=Ol%20Kalou", seat: "admin" },
+  // The forms added after the real-world usage pass, checked with their folded sections open.
+  { path: "/organisations/org_lbnpi", seat: "seat_wanjiru_lbnpi", open: true },
+  { path: "/organisations/org_olkalou", seat: "admin", open: true },
+  { path: "/listings/lst_ke_antiinfl", seat: "seat_otieno_lbnpi", open: true },
+  { path: "/cases/case_4_br", seat: "seat_ines_nordlicht", open: true },
+  { path: "/cases/case_2_co", seat: "seat_camila_ibp", open: true },
   { path: "/admin/audit", seat: "admin" },
   { path: "/admin/config/KE", seat: "admin" },
   { path: "/config", seat: "admin" },
@@ -101,6 +108,8 @@ for (const route of ROUTES) {
       console.log(`SKIP  ${route.path} [${route.seat || "anon"}] -> HTTP ${status}`);
       continue;
     }
+    // A person expands a folded section before using the form inside it; check it as they would meet it.
+    if (route.open) await page.evaluate(() => document.querySelectorAll("details").forEach((d) => { d.open = true; }));
     await page.evaluate(axeSource);
     const results = await page.evaluate(async () => {
       return await axe.run(document, {

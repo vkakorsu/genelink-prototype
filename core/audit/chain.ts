@@ -50,9 +50,12 @@ export function append(chain: AuditEntry[], input: Omit<AuditEntry, "seq" | "pre
 
 export type VerificationResult = { ok: true; length: number } | { ok: false; brokenAt: number; reason: string };
 
-export function verifyChain(chain: AuditEntry[]): VerificationResult {
-  let prevHash = GENESIS;
-  for (let i = 0; i < chain.length; i++) {
+/**
+ * Verify the chain, or its tail from a checkpoint: `from` entries already verified, the last of them
+ * with hash `prevHash`. A checkpoint lets a busy instance check new entries without rehashing the log.
+ */
+export function verifyChain(chain: AuditEntry[], from = 0, prevHash = GENESIS): VerificationResult {
+  for (let i = from; i < chain.length; i++) {
     const e = chain[i];
     if (e.seq !== i + 1) return { ok: false, brokenAt: e.seq, reason: "sequence gap" };
     if (e.prevHash !== prevHash) return { ok: false, brokenAt: e.seq, reason: "previous hash mismatch" };

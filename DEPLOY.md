@@ -9,7 +9,7 @@ The demo holds no personal data and uses fictional parties, so a small instance 
 
 ## How it was deployed
 
-The repository is public on GitHub under `vkakorsu/genelink-prototype`, with GitHub Actions (`.github/workflows/ci.yml`) running ESLint, the configuration linter, the type check, the 150 tests and the production build on every push.
+The repository is public on GitHub under `vkakorsu/genelink-prototype`, with GitHub Actions (`.github/workflows/ci.yml`) running ESLint, the configuration linter, the type check, the 172 tests and the production build on every push.
 
 The Render service was created with the official Render CLI (`render` v2.28.0), authenticated via device authorization:
 
@@ -31,6 +31,14 @@ render services create `
 ```
 
 Render builds the `Dockerfile` at the repository root. The Dockerfile runs `npm run test:ci` inside the image build, so a failing test fails the deploy. The container listens on port 3000; Render routes public traffic to it automatically.
+
+## Starting empty
+
+The demo seeds fictional parties at start-up. Set `GENELINK_SEED=none` to start the instance empty instead, the state a fresh production database starts in: no personas, listings or cases, and "Reset demo data" returns it to empty. Everything is then created through the product: an organisation registers, an administrator verifies it, it publishes an offer or a need and gives colleagues their seats, and a match opens a case.
+
+## Client addresses and the rate limits
+
+Registration, journey declarations and document checks need no seat, so they are limited per client (`lib/rateLimit.ts`: 5, 30 and 60 every 10 minutes). The client is identified by `CF-Connecting-IP`, which Cloudflare, in front of Render, sets to the address it saw and overwrites if a client sends one. On a host without Cloudflare the first `X-Forwarded-For` entry is used, which a client can write, so behind another reverse proxy set the limiter on the header that proxy controls. The counters live in process memory, like the rest of the prototype; the MVP keeps them in Postgres or at the edge so they hold across instances.
 
 ## If the service is ever moved back to the free plan
 

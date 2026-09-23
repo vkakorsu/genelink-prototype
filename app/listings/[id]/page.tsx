@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPlatform } from "@/core";
-import { reciprocate, signalInterest } from "@/app/actions";
+import { reciprocate, signalInterest, withdrawListing } from "@/app/actions";
+import { publicProjection } from "@/core/domain/listings";
 import { ErrorNotice, Notice, OpenMarker, PageHead, fmtTime } from "@/components/ui";
 import { getSession } from "@/lib/session";
 
@@ -13,8 +14,8 @@ export default async function ListingPage({ params, searchParams }: { params: Pr
   if (!raw) notFound();
   const session = await getSession();
   const actor = session.kind === "anonymous" ? null : session.actor;
-  const projection = actor ? platform.listingFor(actor, id) : platform.publicListings().find((l) => l.id === id)!;
   const owner = platform.store.organisations.get(raw.organisationId)!;
+  const projection = actor ? platform.listingFor(actor, id) : publicProjection(raw, owner);
   const isOwner = session.kind === "seat" && session.actor.organisation.id === raw.organisationId;
   const interests = platform.interestsOn(id);
   const myInterest = session.kind === "seat" ? interests.find((i) => i.fromOrganisationId === session.actor.organisation.id) : undefined;
@@ -25,6 +26,7 @@ export default async function ListingPage({ params, searchParams }: { params: Pr
   const myPathway = myOrg && !isOwner ? platform.providerCountryFor(raw, myOrg) : null;
   const myPathwayConfigured = myPathway ? platform.countries.has(myPathway) : true;
   const signalWithListing = signalInterest.bind(null, id);
+  const canWithdraw = isOwner && session.kind === "seat" && (session.actor.seat.permission === "authorised_signatory" || session.actor.seat.permission === "administrator");
   const reciprocateOnListing = reciprocate.bind(null, id);
 
   return (
@@ -44,6 +46,7 @@ export default async function ListingPage({ params, searchParams }: { params: Pr
         </div>
       </PageHead>
       <ErrorNotice error={sp.error} sig={sp.sig} />
+      {raw.withdrawn && <Notice kind="halt"><strong>Withdrawn by its owner</strong> on {fmtTime(raw.withdrawn.at)}. It is out of discovery and takes no new signals of interest. Cases already opened from it continue.</Notice>}
       <div className="two-col">
         <div className="stack">
           <section className="card">
@@ -85,7 +88,8 @@ export default async function ListingPage({ params, searchParams }: { params: Pr
             {session.kind === "seat" && !isOwner && myCase && (
               <Notice kind="ok">Mutual interest recorded and both identities revealed {myCase.revealedAt ? fmtTime(myCase.revealedAt) : ""}. Full projection shown. <Link href={`/cases/${myCase.id}`}>Open the case</Link>.</Notice>
             )}
-            {session.kind === "seat" && !isOwner && !myCase && (
+            {session.kind === "seat" && !isOwner && !myCase && raw.withdrawn && <p className="small mute">This listing no longer takes signals of interest.</p>}
+            {session.kind === "seat" && !isOwner && !myCase && !raw.withdrawn && (
               myInterest && platform.matchWaiting(session.actor.organisation.id, raw) ? (
                 <Notice kind="pending">Mutual interest is recorded. The case opens by itself when both organisations are verified, and both identities are revealed then, not before.{session.actor.organisation.verification.status !== "verified" ? " Your organisation's verification is still pending." : ""}</Notice>
               ) : myInterest ? (
@@ -124,7 +128,7 @@ export default async function ListingPage({ params, searchParams }: { params: Pr
                       </div>
                       {existing ? (
                         <Link className="btn small secondary" href={`/cases/${existing.id}`}>Open case</Link>
-                      ) : declined || !configured ? (
+                      ) : declined || !configured || raw.withdrawn ? (
                         <span className="small mute">Not available</span>
                       ) : platform.matchWaiting(org.id, raw) ? (
                         <span className="small mute" style={{ maxWidth: 260 }}>Signalled back. The case opens by itself when {org.verification.status !== "verified" ? "this organisation" : "your organisation"} is verified.</span>
@@ -140,13 +144,23 @@ export default async function ListingPage({ params, searchParams }: { params: Pr
               </div>
             )}
           </section>
+          {canWithdraw && !raw.withdrawn && (
+            <section className="card flat">
+              <h3>Withdraw this listing</h3>
+              <p className="small soft">Takes it out of discovery and closes it to new signals. Signals already made stay on the record and cases already opened continue.</p>
+              <form action={withdrawListing.bind(null, id)} className="stack">
+                <input name="reason" type="text" aria-label="Reason for withdrawing the listing" placeholder="Reason, recorded in the audit chain" required />
+                <button className="btn small danger" type="submit">Withdraw the listing</button>
+              </form>
+            </section>
+          )}
           {/* Only the cases this viewer is party to. Even an empty heading would tell an outsider the listing has matched. */}
           {visibleCases.length > 0 && (
             <section className="card flat">
               <h3>Cases from this listing</h3>
               <ul className="small" style={{ paddingLeft: 18, margin: 0 }}>
                 {visibleCases.map((c) => (
-                  <li key={c.id}><Link href={`/cases/${c.id}`}>{c.title}</Link></li>
+                  <li key={c.id} style={{ padding: "4px 0" }}><Link href={`/cases/${c.id}`}>{c.title}</Link></li>
                 ))}
               </ul>
             </section>
