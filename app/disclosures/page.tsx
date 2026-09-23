@@ -5,6 +5,7 @@ import { EvidenceChip } from "@/components/Evidence";
 import { unauthorized, forbidden } from "next/navigation";
 import { Empty, PageHead, fmtTime } from "@/components/ui";
 import { getSession } from "@/lib/session";
+import { disclosureContextLabel } from "@/lib/labels";
 
 export default async function DisclosuresPage() {
   const session = await getSession();
@@ -29,7 +30,7 @@ export default async function DisclosuresPage() {
               <tr key={d.id}>
                 <td className="mono small">{fmtTime(d.at)}</td>
                 <td className="small">{d.caseId ? <Link href={`/cases/${d.caseId}`}>{platform.store.cases.get(d.caseId)?.title ?? d.caseId}</Link> : "none"} {d.countryCode && <span className="mute">· {d.countryCode}</span>}</td>
-                <td className="small mute">{d.context}</td>
+                <td className="small mute">{disclosureContextLabel(d.countryCode ? platform.countries.get(d.countryCode) : undefined, d.context)}</td>
                 <td className="small">{d.statement}</td>
                 <td><EvidenceChip reg={d.reg} short />{d.reg.citation && <div className="mono small mute">{d.reg.citation}</div>}</td>
               </tr>

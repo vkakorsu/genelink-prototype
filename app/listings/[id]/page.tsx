@@ -5,6 +5,7 @@ import { reciprocate, signalInterest, withdrawListing } from "@/app/actions";
 import { publicProjection } from "@/core/domain/listings";
 import { ErrorNotice, Notice, OpenMarker, PageHead, fmtTime } from "@/components/ui";
 import { getSession } from "@/lib/session";
+import { kindLabel, verificationLabel } from "@/lib/labels";
 
 export default async function ListingPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { id } = await params;
@@ -57,7 +58,7 @@ export default async function ListingPage({ params, searchParams }: { params: Pr
               <dt>Provenance</dt><dd>{raw.provenanceCountry === "any" ? "Any provenance with a lawful pathway" : platform.countries.get(raw.provenanceCountry)?.name ?? raw.provenanceCountry}</dd>
               <dt>Scale</dt><dd>{raw.indicativeScale}</dd>
               <dt>Taxon (as published)</dt><dd>{raw.publicTaxon}. The owner chooses how much to publish; this level is what species search can find.</dd>
-              <dt>Organisation</dt><dd>{owner.kind.replace("_", " ")}, {owner.verification.status}</dd>
+              <dt>Organisation</dt><dd>{kindLabel(owner.kind)}, {verificationLabel(owner.verification.status).toLowerCase()}</dd>
               <dt>DSI exposure</dt><dd>{raw.dsiExposure}. An exposure analysis flags and informs. It does not assert a resolved DSI or Cali Fund obligation.</dd>
               <dt>Identifiers</dt><dd>GENE-LINK-native ID {raw.glId} minted at listing. GGBN ID {raw.ggbnId ?? "not available, never blocks"}.</dd>
             </dl>
@@ -121,8 +122,8 @@ export default async function ListingPage({ params, searchParams }: { params: Pr
                   return (
                     <div key={i.id} className="row between" style={{ padding: "8px 10px", background: "var(--sand)", borderRadius: 6 }}>
                       <div className="small">
-                        <strong>{existing ? org.name : `${org.kind.replace("_", " ")} (${org.country})`}</strong>
-                        {" · "}{org.verification.status}
+                        <strong>{existing ? org.name : `${kindLabel(org.kind)} (${org.country})`}</strong>
+                        {" · "}{verificationLabel(org.verification.status).toLowerCase()}
                         <div className="mute">{fmtTime(i.at)}{raw.side === "need" ? ` · pathway ${configured ? platform.countries.get(pathway)?.name : `${pathway}, not configured`}` : ""}</div>
                         {declined && <div className="mute">Verification declined. Signalling back is not available until a new request is decided.</div>}
                       </div>

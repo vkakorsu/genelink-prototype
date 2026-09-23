@@ -5,6 +5,7 @@ import { isGranted } from "@/core/engine/stateMachine";
 import { amendInstrument, recordInstrument, setInstrumentStatus } from "@/app/actions";
 import { EvidenceChip, RegBlock } from "@/components/Evidence";
 import { fmtTime, stateHeadline } from "@/components/ui";
+import { sentence } from "@/lib/labels";
 
 export function InstrumentsPanel({ cfg, c, instruments, canSign, isAdmin, seatPermission }: {
   cfg: CountryConfig;
@@ -34,7 +35,7 @@ export function InstrumentsPanel({ cfg, c, instruments, canSign, isAdmin, seatPe
         <h3 style={{ margin: 0 }}>What the applicant holds</h3>
         <span className="small mute">&ldquo;Permit&rdquo; is not one object across regimes (A5.4)</span>
       </div>
-      <p className="small soft">This country&apos;s journey ends in: {cfg.outputs.map((o) => `${o.label} (${o.issuer})`).join(" and ")}. Amendment policy: <strong>{cfg.outputs[0].amendmentPolicy.replace("_", " ")}</strong>.{cfg.outputs.length > 1 && <> The applicant holds nothing usable until <strong>all {cfg.outputs.length}</strong> are externally recorded, each from its own issuer. Recording one never satisfies the other.</>}</p>
+      <p className="small soft">This country&apos;s journey ends in: {cfg.outputs.map((o) => `${o.label} (${o.issuer})`).join(" and ")}. Amendment policy: <strong>{sentence(cfg.outputs[0].amendmentPolicy).toLowerCase()}</strong>.{cfg.outputs.length > 1 && <> The applicant holds nothing usable until <strong>all {cfg.outputs.length}</strong> are externally recorded, each from its own issuer. Recording one never satisfies the other.</>}</p>
 
       {!probe.allowed && <p className="small soft"><strong>Term and renewal:</strong> {probe.reason}</p>}
 
@@ -50,9 +51,9 @@ export function InstrumentsPanel({ cfg, c, instruments, canSign, isAdmin, seatPe
           <div className="row between">
             <div>
               <strong>{inst.label}</strong> <span className="small mute">· {inst.issuer}</span>
-              <div className="small">Status: <span className={`status-pill ${inst.status === "awaiting_record" ? "active" : inst.status === "verification_open" || inst.status === "correction_required" ? "in_progress" : FROZEN_STATUSES.has(inst.status) ? "halted" : "complete"}`}>{inst.status.replace(/_/g, " ")}</span>{inst.versions.length > 0 && <> · origin {inst.origin.replace(/_/g, " ")} · {inst.versions.length} version{inst.versions.length === 1 ? "" : "s"}</>}</div>
+              <div className="small">Status: <span className={`status-pill ${inst.status === "awaiting_record" ? "active" : inst.status === "verification_open" || inst.status === "correction_required" ? "in_progress" : FROZEN_STATUSES.has(inst.status) ? "halted" : "complete"}`}>{sentence(inst.status)}</span>{inst.versions.length > 0 && <> · {inst.origin === "recorded_external" ? "recorded from the issuing authority" : "rendered on the platform"} · {inst.versions.length} version{inst.versions.length === 1 ? "" : "s"}</>}</div>
             </div>
-            <span className="tag">{inst.kind.replace("_", " ")}</span>
+            <span className="tag">{sentence(inst.kind)}</span>
           </div>
           {inst.status === "awaiting_record" && <p className="small soft" style={{ margin: "6px 0 0" }}>The regime says this instrument now exists. The platform has no hash for it because it has no copy. Nothing here is fabricated.</p>}
           {inst.versions.length > 0 && (

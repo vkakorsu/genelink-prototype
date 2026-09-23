@@ -5,6 +5,7 @@ import { createListing, decideVerification, inviteColleague, requestVerification
 import { FUNCTION_CODES } from "@/core/domain/listings";
 import { ErrorNotice, Notice, PageHead, fmtTime } from "@/components/ui";
 import { getSession } from "@/lib/session";
+import { kindLabel, permissionLabel, sentence, verificationLabel } from "@/lib/labels";
 
 const FN_LABEL: Record<string, string> = { seeking: "Seeking (buys from the South)", providing: "Providing (supplies)", advising: "Advising on compliance", brokering: "Brokering", custodian: "Community custodian", learning: "Learning" };
 
@@ -32,10 +33,10 @@ export default async function OrganisationPage({ params, searchParams }: { param
 
   return (
     <div className="container">
-      <PageHead eyebrow={`Organisation · ${org.kind.replace("_", " ")} · ${org.country}`} title={publicView ? "Organisation (identity withheld outside a match)" : org.name}>
+      <PageHead eyebrow={`Organisation · ${kindLabel(org.kind)} · ${org.country}`} title={publicView ? "Organisation (identity withheld outside a match)" : org.name}>
         <div className="row">
-          <span className={`status-pill ${org.verification.status === "verified" ? "complete" : org.verification.status === "pending" ? "in_progress" : "informational"}`}>Verification: {org.verification.status}</span>
-          {org.verification.method && <span className="small mute">via {org.verification.method.replace("_", " ")}</span>}
+          <span className={`status-pill ${org.verification.status === "verified" ? "complete" : org.verification.status === "pending" ? "in_progress" : "informational"}`}>{verificationLabel(org.verification.status)}</span>
+          {org.verification.method && <span className="small mute">by {sentence(org.verification.method).toLowerCase()}</span>}
         </div>
       </PageHead>
       <ErrorNotice error={sp.error} sig={sp.sig} />
@@ -72,9 +73,9 @@ export default async function OrganisationPage({ params, searchParams }: { param
                     return (
                       <tr key={s.id} className={s.revoked ? "mute" : undefined}>
                         <td>{p.name}<div className="mute small">{p.email}{p.orcid ? ` · ORCID ${p.orcid}` : ""}</div></td>
-                        <td><strong>{s.permission.replace("_", " ")}</strong>{s.revoked && <div className="small">revoked {fmtTime(s.revoked.at)}: {s.revoked.reason}</div>}</td>
+                        <td><strong>{permissionLabel(s.permission)}</strong>{s.revoked && <div className="small">revoked {fmtTime(s.revoked.at)}: {s.revoked.reason}</div>}</td>
                         <td className="small">{s.since}</td>
-                        <td className="small mute">{s.invitedBy ?? "founding seat"}</td>
+                        <td className="small mute">{s.invitedBy ? (platform.store.persons.get(platform.store.memberships.get(s.invitedBy)?.personId ?? "")?.name ?? "A former seat") : "Founding seat"}</td>
                         {isAdminSeat && (
                           <td>
                             {!s.revoked && !lastAdmin && (
@@ -120,7 +121,7 @@ export default async function OrganisationPage({ params, searchParams }: { param
             <section className="card flat">
               <h3>Listings</h3>
               {listings.length === 0 && <p className="small mute">Nothing published yet.</p>}
-              <ul className="small" style={{ paddingLeft: 18 }}>{listings.map((l) => <li key={l.id} style={{ padding: "4px 0" }}><Link href={`/listings/${l.id}`}>{l.glId}</Link> · {l.side} · {l.resourceClass}{l.withdrawn && <span className="mute"> · withdrawn {fmtTime(l.withdrawn.at)}</span>}</li>)}</ul>
+              <ul className="small" style={{ paddingLeft: 18 }}>{listings.map((l) => <li key={l.id} style={{ padding: "4px 0" }}><Link href={`/listings/${l.id}`}>{l.glId}</Link> · {l.side === "offer" ? "Offer" : "Need"} · {l.resourceClass}{l.withdrawn && <span className="mute"> · withdrawn {fmtTime(l.withdrawn.at)}</span>}</li>)}</ul>
               {canPublish && org.verification.status !== "declined" && (
                 <details className="fold" style={{ marginTop: 8 }}>
                   <summary>Publish an offer or a need</summary>
@@ -170,7 +171,7 @@ export default async function OrganisationPage({ params, searchParams }: { param
             <h3>Verification gate</h3>
             <p className="small soft">Verification is on the organisation, not the person. Path A: ORCID or institutional email. Path B: institutional email plus manual vetting or vouching for community seed banks, IPLC holders and smaller institutions.</p>
             {org.verification.status === "verified" && <Notice kind="ok">Verified by {org.verification.decidedBy} on {fmtTime(org.verification.decidedAt)}.{publicView ? " The evidence behind the decision is shown to the organisation and its matched counterparties." : ` Reason: ${org.verification.reason}`}</Notice>}
-            {org.verification.status === "pending" && <Notice kind="pending">Pending an administrator decision with a recorded reason. Method: {org.verification.method?.replace("_", " ")}.</Notice>}
+            {org.verification.status === "pending" && <Notice kind="pending">Pending an administrator decision with a recorded reason. Method: {sentence(org.verification.method).toLowerCase()}.</Notice>}
             {session.kind === "admin" && org.verification.status === "pending" && (
               <form action={decideVerification} className="stack" style={{ marginTop: 8 }}>
                 <input type="hidden" name="organisationId" value={org.id} />

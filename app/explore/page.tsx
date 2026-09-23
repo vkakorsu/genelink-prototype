@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getPlatform } from "@/core";
 import { Empty, OpenMarker, PageHead } from "@/components/ui";
 import { getObjective, getSession } from "@/lib/session";
+import { kindLabel } from "@/lib/labels";
 
 /** What a declared objective implies for the market side a visitor sees first. */
 const SIDE_FOR_OBJECTIVE: Record<string, { side: "offer" | "need"; why: string }> = {
@@ -88,7 +89,7 @@ export default async function ExplorePage({ searchParams }: { searchParams: Prom
             <dl className="kv" style={{ marginTop: 4 }}>
               <dt>Scale</dt><dd>{l.indicativeScale}</dd>
               <dt>Taxon (as published)</dt><dd>{l.publicTaxon}</dd>
-              <dt>Organisation</dt><dd><span className="redacted">Withheld until match</span> · {l.organisationKind.replace("_", " ")}{l.organisationVerified ? ", verified" : ", verification pending"}</dd>
+              <dt>Organisation</dt><dd><span className="redacted">Withheld until match</span> · {kindLabel(l.organisationKind)}{l.organisationVerified ? ", verified" : ", verification pending"}</dd>
               <dt>Species detail, locality</dt><dd><span className="redacted">Withheld until mutual interest</span></dd>
               <dt>DSI exposure</dt><dd>{l.dsiExposure}{l.dsiExposure !== "none" && <> <span className="small mute">(flags and informs, never asserts an obligation)</span></>}</dd>
             </dl>

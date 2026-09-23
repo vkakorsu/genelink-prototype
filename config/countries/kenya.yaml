@@ -730,7 +730,7 @@ obligationClasses:
   - number: 1
     name: Records and retention
     note: >-
-      Appendix B left duty_exists and what_must_be_recorded unconfirmed against the Gazette text. The Kenya
+      Appendix B left whether the duty exists and what must be recorded unconfirmed against the Gazette text. The Kenya
       Law consolidated text of LN 68 (retrieved 22 September 2026) supplies both in reg. 18(2)(a) and (b).
       They are carried as GENE-LINK's reading, not as established law, until Landscape Alliance's own
       verification round confirms them. Nothing is built on them.
@@ -772,7 +772,7 @@ obligationClasses:
       variation_power: { state: "established", marker: "§", value: "reg. 18(3) is a general power to vary. It is not an alternative route around reg. 11(6) and must not be offered as one.", citation: "reg. 18(3)" }
   - number: 5
     name: Renewal
-    note: Kenya is the case the three-state enum exists for. A renewal-probe service must carry renewals_capped = unknown and surface it.
+    note: Kenya is the case the three-state enum exists for. A renewal-probe service must treat whether renewals are capped as unknown, and say so.
     fields:
       term_exists: { state: "established", marker: "§", value: "Yes" }
       term_length: { state: "established", marker: "§", value: "One year from the date of issue", citation: "reg. 17(1)" }

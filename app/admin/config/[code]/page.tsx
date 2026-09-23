@@ -3,6 +3,7 @@ import { getPlatform } from "@/core";
 import { EvidenceChip, EvidenceLegend, RegBlock } from "@/components/Evidence";
 import { Notice, PageHead, stateHeadline } from "@/components/ui";
 import { getSession } from "@/lib/session";
+import { conditionLabel, eventLabel, scopeLabel, sentence, stateLabel } from "@/lib/labels";
 
 const A5_LABEL: Record<string, string> = {
   whoMayApply: "A5.1 Who may apply",
@@ -54,7 +55,7 @@ export default async function ConfigPage({ params }: { params: Promise<{ code: s
           <p className="small soft">{cfg.scope.premise}</p>
           <table className="data compact">
             <thead><tr><th>Rule</th><th>When</th><th>Result</th><th>Basis</th></tr></thead>
-            <tbody>{cfg.scope.rules.map((r) => <tr key={r.id}><td className="mono small">{r.id}</td><td className="mono small">{r.when ? JSON.stringify(r.when) : "otherwise"}</td><td><strong>{r.result.replace("_", " ")}</strong></td><td><RegBlock reg={r.basis} compact /></td></tr>)}</tbody>
+            <tbody>{cfg.scope.rules.map((r) => <tr key={r.id}><td className="mono small mute">{r.id}</td><td className="small">{conditionLabel(cfg, r.when)}</td><td><strong>{scopeLabel(r.result)}</strong></td><td><RegBlock reg={r.basis} compact /></td></tr>)}</tbody>
           </table>
           <h4 style={{ marginTop: 12 }}>Intake questions this file declares</h4>
           <p className="small soft">The shared intake collects purpose, provenance, applicant, exchange scenario, community holding and traditional knowledge for every country. These are {cfg.name}&apos;s own deciding facts. The form renders them from here; the interface has no country code.</p>
@@ -74,7 +75,7 @@ export default async function ConfigPage({ params }: { params: Promise<{ code: s
         <h3>Stages, in this country&apos;s order (A5.3)</h3>
         <table className="data compact">
           <thead><tr><th>#</th><th>Stage</th><th>Subject</th><th>Applies when</th><th>Requirements</th><th>Documents</th><th>Consent parties</th></tr></thead>
-          <tbody>{cfg.stages.map((s, i) => <tr key={s.id}><td>{i + 1}</td><td><strong>{s.title}</strong><div className="mono small mute">{s.id}{s.usesStateMachine ? " · state machine" : ""}{s.produces.length ? ` · produces ${s.produces.join(", ")}` : ""}</div></td><td><span className={`subject ${s.subject}`}>{s.subject}</span></td><td className="mono small">{s.when ? JSON.stringify(s.when) : "always"}</td><td className="small">{s.requirements.map((r) => <div key={r.id}><EvidenceChip reg={r.reg} short /> {r.id}{r.effect ? <strong> · {r.effect} when {JSON.stringify(r.when)}</strong> : ""}</div>)}</td><td className="small">{s.documents.map((d) => d.label).join(", ")}</td><td className="small">{s.consentParties.map((c) => c.label).join(", ")}</td></tr>)}</tbody>
+          <tbody>{cfg.stages.map((s, i) => <tr key={s.id}><td>{i + 1}</td><td><strong>{s.title}</strong><div className="mono small mute">{s.id}{s.usesStateMachine ? " · state machine" : ""}{s.produces.length ? ` · produces ${s.produces.join(", ")}` : ""}</div></td><td><span className={`subject ${s.subject}`}>{s.subject}</span></td><td className="small">{s.when ? conditionLabel(cfg, s.when) : "always"}</td><td className="small">{s.requirements.map((r) => <div key={r.id}><EvidenceChip reg={r.reg} short /> {r.id}{r.effect ? <strong> · {r.effect} when {JSON.stringify(r.when)}</strong> : ""}</div>)}</td><td className="small">{s.documents.map((d) => d.label).join(", ")}</td><td className="small">{s.consentParties.map((c) => c.label).join(", ")}</td></tr>)}</tbody>
         </table>
       </section>
 
@@ -91,7 +92,7 @@ export default async function ConfigPage({ params }: { params: Promise<{ code: s
             </div>
           ))}
           {cfg.stateMachine.transitions.some((t) => t.when) && (
-            <p className="small mute">Guarded transitions: {cfg.stateMachine.transitions.filter((t) => t.when).map((t) => `${t.event} → ${t.to} when ${JSON.stringify(t.when)}`).join("; ")}. A guard on an unanswered fact is never taken.</p>
+            <p className="small mute">Guarded transitions: {cfg.stateMachine.transitions.filter((t) => t.when).map((t) => `${eventLabel(t.event)} leads to “${stateLabel(cfg, t.to)}” when ${conditionLabel(cfg, t.when)}`).join("; ")}. A guard on an unanswered fact is never taken.</p>
           )}
           {cfg.calendar ? (
             <details className="fold">
@@ -105,13 +106,13 @@ export default async function ConfigPage({ params }: { params: Promise<{ code: s
           <h3>Outputs (A5.4, R7)</h3>
           {cfg.outputs.map((o) => (
             <div key={o.id} className="card flat" style={{ marginBottom: 8 }}>
-              <strong>{o.label}</strong> <span className="small mute">· {o.kind.replace("_", " ")} · {o.issuer} · amendment {o.amendmentPolicy.replace("_", " ")}{o.automatic ? " · automatic" : ""}{o.verificationOpenAfterIssue ? " · verification open after issue" : ""}</span>
+              <strong>{o.label}</strong> <span className="small mute">· {sentence(o.kind)} · {o.issuer} · amended by {sentence(o.amendmentPolicy).toLowerCase()}{o.automatic ? " · automatic" : ""}{o.verificationOpenAfterIssue ? " · verification open after issue" : ""}</span>
               <RegBlock reg={o.term} text="Term" compact />
               <RegBlock reg={o.renewalsCapped} text="Renewals capped" compact />
               <RegBlock reg={o.fee} text="Fee" compact />
             </div>
           ))}
-          <RegBlock reg={cfg.changeOfIntent.consequence} text={`Change of intent consequence (policy ${cfg.changeOfIntent.policy.replace("_", " ")})`} compact />
+          <RegBlock reg={cfg.changeOfIntent.consequence} text={`Change of intent consequence (policy: ${sentence(cfg.changeOfIntent.policy).toLowerCase()})`} compact />
         </section>
       </div>
 

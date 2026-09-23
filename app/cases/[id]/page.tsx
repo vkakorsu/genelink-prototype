@@ -12,6 +12,7 @@ import { MachinePanel } from "@/components/case/MachinePanel";
 import { InstrumentsPanel } from "@/components/case/InstrumentsPanel";
 import { AgreementsPanel } from "@/components/case/AgreementsPanel";
 import { getSession } from "@/lib/session";
+import { eventLabel, factValueLabel, scopeLabel, sentence } from "@/lib/labels";
 
 export default async function CasePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { id } = await params;
@@ -67,7 +68,7 @@ export default async function CasePage({ params, searchParams }: { params: Promi
     <div className="container">
       <PageHead eyebrow={`Case · provider country ${cfg.name}${cfg.tag ? ` · ${cfg.tag}` : ""}`} title={c.title}>
         <div className="row">
-          {c.participants.map((p) => <span key={p.organisationId} className="tag"><Link href={`/organisations/${p.organisationId}`}>{orgs.get(p.organisationId)?.name}</Link> · {p.role}</span>)}
+          {c.participants.map((p) => <span key={p.organisationId} className="tag"><Link href={`/organisations/${p.organisationId}`}>{orgs.get(p.organisationId)?.name}</Link> · {p.role === "demand" ? "Demand side" : p.role === "supply" ? "Supply side" : sentence(p.role)}</span>)}
           <span className="small mute">Opened {fmtTime(c.createdAt)}{c.revealedAt ? `, identities revealed symmetrically ${fmtTime(c.revealedAt)}` : ""}</span>
         </div>
       </PageHead>
@@ -99,7 +100,7 @@ export default async function CasePage({ params, searchParams }: { params: Promi
               const last = c.machine.history.at(-1);
               if (!last?.note || last.to !== c.machine.state) return null;
               const who = last.actor === "authority" ? "The authority's last act" : last.actor === "system" ? "Last recorded by the clock" : "The applicant's last filing";
-              return <p className="small last-act" style={{ marginTop: 8, marginBottom: 0 }}><strong>{who}:</strong> {last.event.replace(/_/g, " ")}, {fmtTime(last.at)}. <q>{last.note}</q></p>;
+              return <p className="small last-act" style={{ marginTop: 8, marginBottom: 0 }}><strong>{who}:</strong> {eventLabel(last.event)}, {fmtTime(last.at)}. <q>{last.note}</q></p>;
             })()}
             {(machineKind === "terminal" || machineKind === "halted") && done < pathway.stages.length && (
               <p className="small mute" style={{ marginTop: 6, marginBottom: 0 }}>Two tracks, deliberately separate. The regulator line is the authority&apos;s own legal record: it ran its course on the proceeding events. The pathway tracks GENE-LINK-side work and still carries an open question; a proceeding outcome never silently completes platform work.</p>
@@ -131,7 +132,7 @@ export default async function CasePage({ params, searchParams }: { params: Promi
           {/* Scope answer */}
           <section className={`card ${pathway.scope.kind === "in_scope" ? "tinted" : "warn"}`}>
             <div className="row between">
-              <h3 style={{ margin: 0 }}>Scope on the facts entered: {pathway.scope.kind.replaceAll("_", " ")}</h3>
+              <h3 style={{ margin: 0 }}>Scope on the facts entered: {scopeLabel(pathway.scope.kind).toLowerCase()}</h3>
               <EvidenceChip reg={pathway.scope.basis} />
             </div>
             <p className="small soft" style={{ margin: "6px 0" }}>{cfg.scope.premise}</p>
@@ -207,7 +208,7 @@ export default async function CasePage({ params, searchParams }: { params: Promi
                   {duties.map((d) => (
                     <tr key={d.number}>
                       <td>{d.number}</td>
-                      <td><details className="fold"><summary>{d.name}</summary>{d.note && <p className="small soft">{d.note}</p>}{d.fields.map((f) => <RegBlock key={f.key} reg={f.reg} text={f.key.replace(/_/g, " ")} compact />)}</details></td>
+                      <td><details className="fold"><summary>{d.name}</summary>{d.note && <p className="small soft">{d.note}</p>}{d.fields.map((f) => <RegBlock key={f.key} reg={f.reg} text={sentence(f.key)} compact />)}</details></td>
                       <td>{d.fields.length}</td>
                       <td>{d.unknownCount ? <span className="ev unknown"><span className="m">?</span>{d.unknownCount}</span> : <span className="mute">0</span>}</td>
                     </tr>
@@ -222,13 +223,13 @@ export default async function CasePage({ params, searchParams }: { params: Promi
           <section className="card sticky" tabIndex={0}>
             <h3>Facts on file</h3>
             <dl className="kv">
-              <dt>Purpose</dt><dd>{show(c.facts.purpose)}</dd>
+              <dt>Purpose</dt><dd>{show(factValueLabel("purpose", c.facts.purpose, cfg))}</dd>
               <dt>Activity</dt><dd>{c.facts.activity === undefined ? <NotYet /> : activityQuestion(cfg).options.find((o) => o.id === c.facts.activity)?.label ?? c.facts.activity}</dd>
-              <dt>Provenance</dt><dd>{show(c.facts.provenance)}</dd>
-              <dt>Applicant</dt><dd>{show(c.facts.applicantType)}</dd>
-              <dt>Exchange</dt><dd>{show(c.facts.exchange)}</dd>
-              <dt>Community-held</dt><dd>{c.facts.communityHeld}</dd>
-              <dt>TK involved</dt><dd>{c.facts.tkInvolved}</dd>
+              <dt>Provenance</dt><dd>{show(factValueLabel("provenance", c.facts.provenance, cfg))}</dd>
+              <dt>Applicant</dt><dd>{show(factValueLabel("applicantType", c.facts.applicantType, cfg))}</dd>
+              <dt>Exchange</dt><dd>{show(factValueLabel("exchange", c.facts.exchange, cfg))}</dd>
+              <dt>Community-held</dt><dd>{factValueLabel("communityHeld", c.facts.communityHeld, cfg)}</dd>
+              <dt>TK involved</dt><dd>{factValueLabel("tkInvolved", c.facts.tkInvolved, cfg)}</dd>
               {cfg.scope.questions.filter((q) => q.fact !== "activity").map((q) => {
                 const v = readFact(c.facts, q.fact);
                 if (v === undefined) return null;
@@ -255,7 +256,7 @@ export default async function CasePage({ params, searchParams }: { params: Promi
             {escalations.length === 0 && <p className="small mute">None.</p>}
             {escalations.map((e) => (
               <div key={e.id} className="small" style={{ marginBottom: 6 }}>
-                {e.status === "open" ? <span className="ev unknown"><span className="m">?</span>open</span> : <span className="tag">{e.status}</span>} {e.question.slice(0, 120)}{e.question.length > 120 ? "…" : ""}
+                {e.status === "open" ? <span className="ev unknown"><span className="m">?</span>open</span> : <span className="tag">{sentence(e.status)}</span>} {e.question.slice(0, 120)}{e.question.length > 120 ? "…" : ""}
                 <div className="mute">→ {e.owner}{e.ownerName ? ` (${e.ownerName})` : ", name pending"}</div>
                 {e.status !== "open" && e.answer && <div className="mute">{e.answer.note}</div>}
               </div>
@@ -270,7 +271,7 @@ export default async function CasePage({ params, searchParams }: { params: Promi
                 <button className="btn small secondary" type="submit">Request</button>
               </form>
             )}
-            {c.supportRequests.length > 0 && <ol className="timeline" style={{ marginTop: 8 }}>{c.supportRequests.map((r) => <li key={r.id}><time>{fmtTime(r.at)}</time> {r.kind}: {r.note}<div className="mute">{r.routedTo}</div></li>)}</ol>}
+            {c.supportRequests.length > 0 && <ol className="timeline" style={{ marginTop: 8 }}>{c.supportRequests.map((r) => <li key={r.id}><time>{fmtTime(r.at)}</time> {r.kind === "technical" ? "Technical help" : "Expert help"}: {r.note}<div className="mute">{r.routedTo}</div></li>)}</ol>}
             <p className="small mute">Attaching an adviser or broker as a participant on a case is MVP work behind the same seat model. The prototype records the request and does not attach anyone.</p>
             {isAdmin && (
               <>
@@ -304,5 +305,5 @@ function NotYet() {
 }
 
 function show(v: string | undefined) {
-  return v === undefined ? <NotYet /> : v.replaceAll("_", " ");
+  return v === undefined || v === "" ? <NotYet /> : v;
 }

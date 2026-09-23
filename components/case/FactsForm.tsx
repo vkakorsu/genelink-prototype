@@ -3,6 +3,7 @@ import { readFact } from "@/core/engine/conditions";
 import { factsFingerprint } from "@/core/engine/facts";
 import { changeOfIntent, updateFacts } from "@/app/actions";
 import { EvidenceChip } from "@/components/Evidence";
+import { sentence } from "@/lib/labels";
 
 const TRI = [["yes", "Yes"], ["no", "No"], ["unclear", "Unclear"]] as const;
 
@@ -88,7 +89,7 @@ export function FactsForm({ cfg, caseId, facts, mode, canEdit }: { cfg: CountryC
         <div className="field">
           <label htmlFor="description">What changed</label>
           <input id="description" name="description" type="text" required placeholder="e.g. samples now leave the country for a sequencing service" />
-          <div className="hint">Change of intent is a first-class event. It re-runs scope and applies this country&apos;s consequence: <strong>{cfg.changeOfIntent.policy.replace("_", " ")}</strong>. <EvidenceChip reg={cfg.changeOfIntent.consequence} short /> {cfg.changeOfIntent.consequence.value}</div>
+          <div className="hint">Change of intent is a first-class event. It re-runs scope and applies this country&apos;s consequence: <strong>{sentence(cfg.changeOfIntent.policy).toLowerCase()}</strong>. <EvidenceChip reg={cfg.changeOfIntent.consequence} short /> {cfg.changeOfIntent.consequence.value}</div>
         </div>
       )}
       </fieldset>

@@ -3,6 +3,8 @@ import { approveAgreement, createAgreement, executeAgreement, reviseAgreement } 
 import { MODEL_CLAUSES } from "@/lib/clauses";
 import { fmtTime } from "@/components/ui";
 import { canonicalAgreementText } from "@/core/domain/agreements";
+import { getPlatform } from "@/core";
+import { seatLabel, sentence } from "@/lib/labels";
 
 export function AgreementsPanel({ c, agreements, orgs, mySeat, canEdit, canSign, seatPermission }: {
   c: Case;
@@ -33,8 +35,8 @@ export function AgreementsPanel({ c, agreements, orgs, mySeat, canEdit, canSign,
         return (
           <div key={a.id} className="card flat" style={{ marginTop: 10 }}>
             <div className="row between">
-              <div><strong>{a.title}</strong><div className="small mute">v{latest.version} · {latest.summary} · {latest.origin.replace(/_/g, " ")} · <span className="mono">{latest.sha256.slice(0, 16)}…</span></div></div>
-              <span className={`status-pill ${a.status === "executed" || a.status === "recorded" ? "complete" : a.status === "approved" ? "active" : "in_progress"}`}>{a.status.replace("_", " ")}</span>
+              <div><strong>{a.title}</strong><div className="small mute">v{latest.version} · {latest.summary} · {latest.origin === "uploaded_off_platform" ? "negotiated off the platform" : "drafted on the platform"} · <span className="mono">{latest.sha256.slice(0, 16)}…</span></div></div>
+              <span className={`status-pill ${a.status === "executed" || a.status === "recorded" ? "complete" : a.status === "approved" ? "active" : "in_progress"}`}>{sentence(a.status)}</span>
             </div>
             <p className="small" style={{ margin: "4px 0" }}>
               <a download={`${a.id}-v${latest.version}.txt`} href={`data:text/plain;charset=utf-8,${encodeURIComponent(canonicalAgreementText(latest.version, latest.clauses))}`}>Download the exact text of v{latest.version}</a>
@@ -44,7 +46,7 @@ export function AgreementsPanel({ c, agreements, orgs, mySeat, canEdit, canSign,
               <summary>Clauses ({latest.clauses.length})</summary>
               {latest.clauses.map((cl) => (
                 <div key={cl.id} className="reg" style={{ borderLeftColor: cl.source === "illustrative" ? "var(--ev-inferred)" : cl.source === "negotiated" ? "var(--ev-gl)" : "var(--forest)" }}>
-                  <div className="row"><strong className="small">{cl.title}</strong><span className="tag">{cl.source.replace("_", " ")}</span></div>
+                  <div className="row"><strong className="small">{cl.title}</strong><span className="tag">{sentence(cl.source)}</span></div>
                   <p className="small" style={{ margin: "4px 0 0" }}>{cl.text}</p>
                 </div>
               ))}
@@ -62,9 +64,9 @@ export function AgreementsPanel({ c, agreements, orgs, mySeat, canEdit, canSign,
                   const ex = a.executions.find((x) => x.organisationId === p.organisationId);
                   return (
                     <tr key={p.organisationId}>
-                      <td>{orgs.get(p.organisationId)?.name} <span className="mute">({p.role})</span></td>
-                      <td>{ap ? `Approved ${fmtTime(ap.at)} by seat ${ap.seatId}` : <span className="mute">not yet</span>}</td>
-                      <td>{ex ? <>Executed {fmtTime(ex.at)} · {ex.method.replace(/_/g, " ")} · hash <span className="mono">{ex.sha256.slice(0, 12)}…</span></> : <span className="mute">not yet</span>}</td>
+                      <td>{orgs.get(p.organisationId)?.name} <span className="mute">({p.role === "demand" ? "demand side" : "supply side"})</span></td>
+                      <td>{ap ? `Approved ${fmtTime(ap.at)} by ${seatLabel(getPlatform(), ap.seatId)}` : <span className="mute">Not yet</span>}</td>
+                      <td>{ex ? <>Signed {fmtTime(ex.at)} by {seatLabel(getPlatform(), ex.seatId)} · {ex.method === "platform_click_to_sign" ? "click to sign on the platform" : "recorded from outside"} · fingerprint <span className="mono">{ex.sha256.slice(0, 12)}…</span></> : <span className="mute">Not yet</span>}</td>
                     </tr>
                   );
                 })}
@@ -110,7 +112,7 @@ export function AgreementsPanel({ c, agreements, orgs, mySeat, canEdit, canSign,
             <div className="field"><label htmlFor="title">Title</label><input id="title" name="title" type="text" defaultValue="Draft benefit-sharing and access terms" /></div>
             <div className="radio-list">
               {MODEL_CLAUSES.map((cl) => (
-                <label key={cl.id}><input type="checkbox" name="clause" value={cl.id} defaultChecked style={{ width: "auto" }} /> <span><strong>{cl.title}</strong> <span className="tag">{cl.source.replace("_", " ")}</span><div className="small mute">{cl.text}</div></span></label>
+                <label key={cl.id}><input type="checkbox" name="clause" value={cl.id} defaultChecked style={{ width: "auto" }} /> <span><strong>{cl.title}</strong> <span className="tag">{sentence(cl.source)}</span><div className="small mute">{cl.text}</div></span></label>
               ))}
             </div>
             <button className="btn small" type="submit">Create draft v1</button>

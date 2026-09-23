@@ -4,6 +4,7 @@ import { getPlatform } from "@/core";
 import { decideManualReviewFromConsole, decideVerification } from "@/app/actions";
 import { ErrorNotice, PageHead, fmtTime } from "@/components/ui";
 import { getSession } from "@/lib/session";
+import { describeAudit, functionsLabel, kindLabel, seatLabel, sentence, stageTitle, subjectLabel, verificationLabel } from "@/lib/labels";
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
@@ -79,7 +80,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           {pending.length === 0 && <p className="small mute">{find ? "No pending request matches." : "Queue empty."}</p>}
           {queue.map((o) => (
             <div key={o.id} className="card flat" style={{ marginTop: 8 }}>
-              <strong><Link href={`/organisations/${o.id}`}>{o.name}</Link></strong> <span className="small mute">· {o.kind.replace("_", " ")} · {o.country} · method {o.verification.method?.replace("_", " ")}</span>
+              <strong><Link href={`/organisations/${o.id}`}>{o.name}</Link></strong> <span className="small mute">· {kindLabel(o.kind)} · {o.country} · {sentence(o.verification.method)}</span>
               <p className="small">{o.description}</p>
               {orgs.some((x) => x.id !== o.id && x.name.trim().toLowerCase() === o.name.trim().toLowerCase()) && (
                 <p className="small halt-box" role="status">Another organisation on the platform already uses this name. Check that this request is not an impersonation before verifying.</p>
@@ -98,7 +99,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           <h4 style={{ marginTop: 14 }}>All organisations</h4>
           <table className="data compact">
             <thead><tr><th>Organisation</th><th>Kind, country</th><th>Functions</th><th>Verification</th></tr></thead>
-            <tbody>{orgRows.map((o) => <tr key={o.id}><td><Link href={`/organisations/${o.id}`}>{o.name}</Link> <span className="mono mute small">{o.id}</span></td><td className="small">{o.kind.replace(/_/g, " ")}, {o.country}</td><td className="small">{o.functions.join(", ")}</td><td className="small">{o.verification.status}</td></tr>)}</tbody>
+            <tbody>{orgRows.map((o) => <tr key={o.id}><td><Link href={`/organisations/${o.id}`}>{o.name}</Link><div className="mono mute" style={{ fontSize: "0.72rem" }}>{o.id}</div></td><td className="small">{kindLabel(o.kind)}, {o.country}</td><td className="small">{functionsLabel(o.functions)}</td><td className="small">{verificationLabel(o.verification.status)}</td></tr>)}</tbody>
           </table>
           {pager("orgs", orgsPage, orgsShown.length, ORGS)}
         </section>
@@ -109,7 +110,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           {escalations.length === 0 && <p className="small mute">None.</p>}
           {escRows.map((e) => (
             <div key={e.id} className="small" style={{ padding: "8px 0", borderBottom: "1px solid var(--rule-soft)" }}>
-              <span className="ev unknown"><span className="m">?</span>{e.status}</span> <Link href={`/cases/${e.caseId}`}>{e.caseId}</Link> · stage {e.stageId}
+              <span className="ev unknown"><span className="m">?</span>{sentence(e.status)}</span> <Link href={`/cases/${e.caseId}`}>{platform.store.cases.get(e.caseId)?.title ?? e.caseId}</Link> · {stageTitle(platform.countries.get(platform.store.cases.get(e.caseId)?.providerCountry ?? ""), e.stageId)}
               <div>{e.question.slice(0, 160)}{e.question.length > 160 ? "…" : ""}</div>
               <div className="mute">→ {e.owner}{e.ownerName ? ` (${e.ownerName})` : " · name pending Landscape Alliance"} · raised {fmtTime(e.raisedAt)}</div>
             </div>
@@ -129,7 +130,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             <div key={r.id} className="card flat" style={{ marginTop: 8 }}>
               <div className="small"><strong><Link href={`/cases/${r.caseId}`}>{rc?.title ?? r.caseId}</Link></strong> <span className="mute">· {rc ? platform.countries.get(rc.providerCountry)?.name ?? rc.providerCountry : ""} · {r.caseId}</span></div>
               {parties && <div className="small mute">Parties: {parties}</div>}
-              <div className="small">{r.reviewId.replace(/_/g, " ")} · <span className={`tag ${r.status === "decided" ? "" : "open"}`}>{r.status === "decided" ? "decided" : "waiting for a judgment"}</span></div>
+              <div className="small">{sentence(r.reviewId)} · <span className={`tag ${r.status === "decided" ? "" : "open"}`}>{r.status === "decided" ? "Decided" : "Waiting for a judgment"}</span></div>
               <p className="small" style={{ margin: "4px 0" }}>{r.question}</p>
               {r.status === "decided" && r.decision ? (
                 <p className="small"><strong>Decided</strong> by {r.decision.by} on {fmtTime(r.decision.at)}: {r.decision.outcome}. Reason: {r.decision.reason}</p>
@@ -138,7 +139,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                   <input type="hidden" name="recordId" value={r.id} />
                   <input name="outcome" type="text" aria-label={`Judgment for ${rc?.title ?? r.caseId}`} placeholder="Judgment" required style={{ flex: 1, minWidth: 140 }} />
                   <input name="reason" type="text" aria-label={`Reason for the judgment on ${rc?.title ?? r.caseId}`} placeholder="Reason" required style={{ flex: 2, minWidth: 200 }} />
-                  <button className="btn small" type="submit">Record judgment for {r.caseId}</button>
+                  <button className="btn small" type="submit" aria-label={`Record judgment on ${rc?.title ?? r.caseId}`}>Record judgment</button>
                 </form>
               )}
             </div>
@@ -154,7 +155,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             const answered = (platform.store.cases.get(r.caseId)?.interventions ?? []).some((i) => i.at >= r.at);
             return (
               <div key={r.id} className="small" style={{ padding: "8px 0", borderBottom: "1px solid var(--rule-soft)" }}>
-                <span className={`tag ${answered ? "" : "open"}`}>{answered ? "intervention since" : "waiting"}</span> <Link href={`/cases/${r.caseId}`}>{r.caseId}</Link> · {fmtTime(r.at)} · seat {r.bySeatId}
+                <span className={`tag ${answered ? "" : "open"}`}>{answered ? "intervention since" : "waiting"}</span> <Link href={`/cases/${r.caseId}`}>{platform.store.cases.get(r.caseId)?.title ?? r.caseId}</Link> · {fmtTime(r.at)} · {seatLabel(platform, r.bySeatId)}
                 <div className="mute">{r.note}</div>
               </div>
             );
@@ -171,7 +172,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           </ul>
           <h4 style={{ marginTop: 14 }}>Recent administrative actions</h4>
           {interventions.length === 0 && <p className="small mute">None yet.</p>}
-          <ol className="timeline">{interventions.slice(-8).reverse().map((e) => <li key={e.seq}><time>{fmtTime(e.at)}</time> <strong>{e.action}</strong> {e.subject.type} {e.subject.id}<div className="mute mono" style={{ fontSize: "0.72rem" }}>{JSON.stringify(e.detail)}</div></li>)}</ol>
+          <ol className="timeline">{interventions.slice(-8).reverse().map((e) => <li key={e.seq}><time>{fmtTime(e.at)}</time> {describeAudit(platform, e)}<div className="mute">{subjectLabel(platform, e.subject)}</div></li>)}</ol>
         </section>
 
         <section className="card">

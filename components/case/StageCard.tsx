@@ -4,6 +4,7 @@ import type { Case, CaseDocument, EscalationRecord, ManualReviewRecord } from "@
 import { EvidenceChip, RegBlock } from "@/components/Evidence";
 import { markStage, uploadDocument, decideManualReview } from "@/app/actions";
 import { fmtTime } from "@/components/ui";
+import { progressLabel } from "@/lib/labels";
 
 export function StageCard({
   stage, c, documents, escalations, manualReviews, canEdit, canComplete, canJudge, learning, upstreamHalted, completionWaitsOn,
@@ -61,7 +62,7 @@ export function StageCard({
           {stage.status === "stopped" && <span className="status-pill halted">Stopped · a prohibition applies on these facts</span>}
           {stage.status === "halted" && <span className="status-pill halted">{stage.escalations.every((e) => e.kind === "unanswered_fact") && !stage.manualReviews.length ? "Halted · waiting on a fact" : "Halted · routed to a named person"}</span>}
           {stage.status === "informational" && <span className="status-pill informational">Phase two · recorded, not run</span>}
-          {stage.status === "active" && <span className={`status-pill ${progress === "complete" ? "complete" : progress === "in_progress" ? "in_progress" : "active"}`}>{progress.replace("_", " ")}</span>}
+          {stage.status === "active" && <span className={`status-pill ${progress === "complete" ? "complete" : progress === "in_progress" ? "in_progress" : "active"}`}>{progressLabel(progress)}</span>}
         </div>
         <div className="stage-body">
           <p className="now" style={{ margin: "0 0 8px" }}><strong>What this means now:</strong> {now}</p>

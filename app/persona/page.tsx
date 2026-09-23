@@ -3,6 +3,7 @@ import { registerOrganisation, switchPersona } from "@/app/actions";
 import { PageHead, Notice } from "@/components/ui";
 import { getSession } from "@/lib/session";
 import { safeLocalPath } from "@/lib/safePath";
+import { functionsLabel, kindLabel, permissionLabel } from "@/lib/labels";
 
 export default async function PersonaPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
@@ -50,10 +51,10 @@ export default async function PersonaPage({ searchParams }: { searchParams: Prom
                       <input type="hidden" name="seat" value={seat.id} />
                       <input type="hidden" name="next" value={next} />
                       <div>
-                        <div><strong>{org.name}</strong> <span className="small mute">({org.kind.replaceAll("_", " ")}, {org.country})</span></div>
-                        <div className="small">Seat: <strong>{seat.permission.replaceAll("_", " ")}</strong> · Functions: {org.functions.map((f) => f.replaceAll("_", " ")).join(", ")}</div>
+                        <div><strong>{org.name}</strong> <span className="small mute">({kindLabel(org.kind)}, {org.country})</span></div>
+                        <div className="small">Seat: <strong>{permissionLabel(seat.permission)}</strong> · Functions: {functionsLabel(org.functions)}</div>
                       </div>
-                      <button className={`btn small ${current ? "" : "secondary"}`} type="submit" aria-current={current ? "true" : undefined}>{current ? `Acting as ${org.name}` : `Act as ${org.name}`} <span className="mute">({seat.permission.replaceAll("_", " ")})</span></button>
+                      <button className={`btn small ${current ? "" : "secondary"}`} type="submit" aria-current={current ? "true" : undefined}>{current ? `Acting as ${org.name}` : `Act as ${org.name}`} <span className="mute">({permissionLabel(seat.permission)})</span></button>
                     </form>
                   );
                 })}

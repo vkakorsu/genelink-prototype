@@ -3,7 +3,8 @@ import { BUILD_COMMIT } from "@/lib/build";
 import { getObjective, getSession } from "@/lib/session";
 import { getPlatform } from "@/core";
 import { resetDemo } from "@/app/actions";
-import { clip, humanize } from "@/components/ui";
+import { clip } from "@/components/ui";
+import { permissionLabel } from "@/lib/labels";
 
 const WANT_LABEL: Record<string, string> = {
   sell_to_eu_buyer: "Sell to an EU buyer",
@@ -20,7 +21,7 @@ export async function Shell({ children }: { children: React.ReactNode }) {
   const platform = getPlatform();
   const initials = session.kind === "seat" ? session.actor.person.name.split(" ").map((w) => w[0]).filter((c) => /[A-Z]/.test(c)).slice(-2).join("") : session.kind === "admin" ? "AD" : "?";
   const label = session.kind === "seat"
-    ? `${session.actor.person.name} · ${session.actor.organisation.name} · ${humanize(session.actor.seat.permission)}`
+    ? `${session.actor.person.name} · ${session.actor.organisation.name} · ${permissionLabel(session.actor.seat.permission)}`
     : session.kind === "admin" ? "GENE-LINK administrator (demo)" : "Not signed in · choose a persona";
   const orgId = session.kind === "seat" ? session.actor.organisation.id : null;
   const storeKind = platform.store.kind;
