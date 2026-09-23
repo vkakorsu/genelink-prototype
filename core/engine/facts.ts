@@ -1,5 +1,16 @@
 import { TYPED_FACTS, type CaseFacts, type CountryConfig } from "../config/schema";
+import { createHash } from "node:crypto";
 import { readFact } from "./conditions";
+
+/**
+ * A short fingerprint of a case's facts. The intake form carries the one it was built from, so an
+ * edit made from a page opened before someone else's save is refused instead of silently undoing it.
+ */
+export function factsFingerprint(facts: CaseFacts): string {
+  const sorted = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined).sort(([a], [b]) => a.localeCompare(b)));
+  const canonical = JSON.stringify({ ...sorted(facts as unknown as Record<string, unknown>), flags: sorted(facts.flags ?? {}) });
+  return createHash("sha256").update(canonical).digest("hex").slice(0, 16);
+}
 
 /**
  * A country's own deciding facts start in the state their question declares as `default`,
@@ -16,6 +27,22 @@ export function withDeclaredDefaults(cfg: CountryConfig, facts: CaseFacts): Case
     if (readFact(out, q.fact) !== undefined) continue;
     if ((TYPED_FACTS as readonly string[]).includes(q.fact)) (out as unknown as Record<string, unknown>)[q.fact] = q.default;
     else out.flags[q.fact] = q.default;
+  }
+  return out;
+}
+
+/**
+ * The same facts with every country-declared answer still at its "not yet established" default
+ * removed. A transition guard reads these: a branch that turns on a fact nobody has established is
+ * waiting on that fact, not ruled out because "not yet established" is neither of its answers.
+ */
+export function establishedOnly(cfg: CountryConfig, facts: CaseFacts): CaseFacts {
+  const out: CaseFacts = { ...facts, flags: { ...facts.flags } };
+  for (const q of cfg.scope.questions) {
+    if (q.fact === "activity" || q.kind !== "choice" || q.default === undefined) continue;
+    if (String(readFact(out, q.fact)) !== q.default) continue;
+    if ((TYPED_FACTS as readonly string[]).includes(q.fact)) delete (out as unknown as Record<string, unknown>)[q.fact];
+    else delete out.flags[q.fact];
   }
   return out;
 }

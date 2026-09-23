@@ -33,6 +33,8 @@ export type ResolvedRequirement = {
   text: string;
   reg: RegValue;
   halts: boolean;
+  /** An open rule a recorded manual-review judgment has answered for this case. Shown, no longer halting. */
+  answeredByJudgment?: boolean;
   /** stop: an established prohibition applies on these facts. hold: a settled rule waits on a fact from its named source. */
   effect?: "stop" | "hold";
 };
@@ -63,7 +65,12 @@ export type Pathway = {
   stoppedStageIds: string[];
 };
 
-export function buildPathway(cfg: CountryConfig, facts: CaseFacts): Pathway {
+/**
+ * `decided` holds the manual reviews already judged on this case. A decided judgment no longer halts
+ * its stage, and the requirements it declares it answers stop halting too. Without it, every
+ * judgment is pending: the pathway of a case nobody has reviewed.
+ */
+export function buildPathway(cfg: CountryConfig, facts: CaseFacts, decided: ReadonlySet<string> = new Set()): Pathway {
   const scope = evaluateScope(cfg, facts);
   const escalations: Escalation[] = [];
   const ownerName = cfg.escalation.defaultOwnerName;
@@ -131,9 +138,10 @@ export function buildPathway(cfg: CountryConfig, facts: CaseFacts): Pathway {
             kind: "unanswered_fact",
           }))
         : [];
+    const answeredHere = new Set(cfg.manualReview.filter((m) => m.stageId === stage.id && decided.has(m.id)).flatMap((m) => m.answers));
     const requirements: ResolvedRequirement[] = stage.requirements
       .filter((r) => matches(r.when, facts))
-      .map((r) => ({ id: r.id, text: r.text, reg: r.reg, halts: r.reg.state === "unknown" && r.reg.drives, effect: r.effect }));
+      .map((r) => ({ id: r.id, text: r.text, reg: r.reg, halts: r.reg.state === "unknown" && r.reg.drives && !answeredHere.has(r.id), effect: r.effect, answeredByJudgment: answeredHere.has(r.id) }));
     const stops: Stop[] = requirements
       .filter((r) => r.effect === "stop")
       .map((r) => ({ stageId: stage.id, requirementId: r.id, text: r.text, reg: r.reg }));
@@ -181,7 +189,7 @@ export function buildPathway(cfg: CountryConfig, facts: CaseFacts): Pathway {
     ];
     escalations.push(...stageEscalations);
 
-    const halted = stageEscalations.length > 0 || manualReviews.some((m) => m.reg.state === "unknown" && m.reg.drives);
+    const halted = stageEscalations.length > 0 || manualReviews.some((m) => m.reg.state === "unknown" && m.reg.drives && !decided.has(m.id));
     stages.push({
       stage,
       index: index++,

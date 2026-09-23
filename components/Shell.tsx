@@ -56,9 +56,13 @@ export async function Shell({ children }: { children: React.ReactNode }) {
           {objective && <span className="mute">This visit: I have {objective.have ? `"${clip(objective.have)}"` : "…"} and I want to {WANT_LABEL[objective.want]?.toLowerCase() ?? objective.want}.{objective.redactions ? ` ${objective.redactions} identifying item${objective.redactions === 1 ? "" : "s"} removed.` : ""} <Link href="/declare">Change</Link></span>}
           {!objective && <Link href="/declare">Declare your journey for this visit</Link>}
           {session.kind === "admin" && (
-            <form action={resetDemo} style={{ marginLeft: "auto" }}>
-              <button className="btn ghost small" type="submit" title="Re-seed the demo data">Reset demo data</button>
-            </form>
+            <details className="fold" style={{ marginLeft: "auto" }}>
+              <summary className="small">Reset demo data</summary>
+              <form action={resetDemo} className="row">
+                <label className="small" style={{ fontWeight: 400 }}><input type="checkbox" name="confirm" value="1" required style={{ width: "auto" }} /> Wipe every change anyone has made on this instance and re-seed it</label>
+                <button className="btn ghost small" type="submit">Reset now</button>
+              </form>
+            </details>
           )}
         </div>
       </div>

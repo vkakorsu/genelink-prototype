@@ -166,6 +166,9 @@ export const switchPersona = wrap(
     if (!(formData instanceof FormData)) throw new InvalidRequest("Malformed submission. Reload the page and try again.");
     const seat = text(formData, "seat", 100);
     const jar = await cookies();
+    // A different person signing in starts a different visit: the last person's declared objective
+    // (and its free text) must not follow the next one on a shared computer.
+    if (jar.get(SEAT_COOKIE)?.value !== seat) jar.delete(OBJECTIVE_COOKIE);
     if (!seat) jar.delete(SEAT_COOKIE);
     else jar.set(SEAT_COOKIE, seat, { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production" });
     const next = text(formData, "next", 300);
@@ -217,13 +220,15 @@ export const verifyDocument = wrap(
 
 export const resetDemo = wrap(
   "resetDemo",
-  async () => {
+  async (fd: FormData) => {
     await requireAdmin();
+    // Shared instance: a reset erases everyone's work, so it is never one stray click.
+    if (!(fd instanceof FormData) || fd.get("confirm") !== "1") throw new InvalidRequest("Nothing was reset. Tick the box to confirm that every change on this instance will be wiped.");
     resetPlatform();
     revalidatePath("/", "layout");
     redirect("/?reset=1");
   },
-  () => "/",
+  () => "/admin",
 );
 
 // -------------------------------------------------------------- discovery
@@ -299,6 +304,7 @@ export const registerOrganisation = wrap(
     if (!/^[A-Z]{2}$/.test(country)) throw new InvalidRequest("Give the organisation's country as a two-letter code, for example KE, CO or BR.");
     const r = getPlatform().registerOrganisation({ personName, orgName, kind, country, method, functions });
     const jar = await cookies();
+    jar.delete(OBJECTIVE_COOKIE);
     jar.set(SEAT_COOKIE, r.seatId, { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production" });
     redirect(`/organisations/${r.organisationId}`);
   },
@@ -344,14 +350,14 @@ function countryOfCase(caseId: string): CountryConfig {
 
 export const updateFacts = onCase("updateFacts", async (caseId, fd) => {
   const actor = await requireSeat();
-  getPlatform().updateFacts(actor, caseId, parseFacts(fd, countryOfCase(caseId)));
+  getPlatform().updateFacts(actor, caseId, parseFacts(fd, countryOfCase(caseId)), text(fd, "factsSeen", 32) || undefined);
 });
 
 export const changeOfIntent = onCase("changeOfIntent", async (caseId, fd) => {
   const actor = await requireSeat();
   const description = text(fd, "description", 300);
   if (!description) throw new InvalidRequest("Say what changed. The description is the change-of-intent record.");
-  getPlatform().changeOfIntent(actor, caseId, parseFacts(fd, countryOfCase(caseId)), description);
+  getPlatform().changeOfIntent(actor, caseId, parseFacts(fd, countryOfCase(caseId)), description, text(fd, "factsSeen", 32) || undefined);
 });
 
 export const uploadDocument = onCase("uploadDocument", async (caseId, fd) => {
@@ -433,12 +439,13 @@ export const reviseAgreement = onCase("reviseAgreement", async (caseId, fd) => {
 
 export const approveAgreement = onCase("approveAgreement", async (caseId, fd) => {
   const actor = await requireSeat();
-  getPlatform().approveAgreement(actor, caseId, text(fd, "agreementId", 150));
+  const seen = Number(text(fd, "version", 10));
+  getPlatform().approveAgreement(actor, caseId, text(fd, "agreementId", 150), Number.isInteger(seen) && seen > 0 ? seen : undefined);
 });
 
 export const executeAgreement = onCase("executeAgreement", async (caseId, fd) => {
   const actor = await requireSeat();
-  getPlatform().executeAgreement(actor, caseId, text(fd, "agreementId", 150));
+  getPlatform().executeAgreement(actor, caseId, text(fd, "agreementId", 150), text(fd, "sha256", 64) || undefined);
 });
 
 export const requestSupport = onCase("requestSupport", async (caseId, fd) => {

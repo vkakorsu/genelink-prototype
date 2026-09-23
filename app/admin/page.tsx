@@ -18,6 +18,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const chain = platform.verifyAudit();
   const interventions = platform.store.audit.list().filter((e) => e.actor.role === "administrator");
   const signals = platform.store.demandSignals.list();
+  // Technical requests are routed to GENE-LINK support: they queue here. Expert requests stay with the parties.
+  const technical = platform.store.cases.list().flatMap((c) => c.supportRequests.filter((r) => r.kind === "technical").map((r) => ({ ...r, caseId: c.id }))).sort((a, b) => b.at.localeCompare(a.at));
   const byWant = signals.reduce<Record<string, number>>((m, s) => ({ ...m, [s.want]: (m[s.want] ?? 0) + 1 }), {});
 
   return (
@@ -44,7 +46,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               )}
               <form action={decideVerification} className="stack">
                 <input type="hidden" name="organisationId" value={o.id} />
-                <input name="reason" type="text" placeholder="Reason, recorded in the audit chain" required />
+                <input name="reason" type="text" aria-label="Reason for the verification decision" placeholder="Reason, recorded in the audit chain" required />
                 <div className="row">
                   <button className="btn small" type="submit" name="outcome" value="verified">Verify</button>
                   <button className="btn small danger" type="submit" name="outcome" value="declined">Decline</button>
@@ -54,8 +56,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           ))}
           <h4 style={{ marginTop: 14 }}>All organisations</h4>
           <table className="data compact">
-            <thead><tr><th>Organisation</th><th>Functions</th><th>Verification</th></tr></thead>
-            <tbody>{orgs.map((o) => <tr key={o.id}><td><Link href={`/organisations/${o.id}`}>{o.name}</Link></td><td className="small">{o.functions.join(", ")}</td><td className="small">{o.verification.status}</td></tr>)}</tbody>
+            <thead><tr><th>Organisation</th><th>Kind, country</th><th>Functions</th><th>Verification</th></tr></thead>
+            <tbody>{orgs.map((o) => <tr key={o.id}><td><Link href={`/organisations/${o.id}`}>{o.name}</Link> <span className="mono mute small">{o.id}</span></td><td className="small">{o.kind.replace(/_/g, " ")}, {o.country}</td><td className="small">{o.functions.join(", ")}</td><td className="small">{o.verification.status}</td></tr>)}</tbody>
           </table>
         </section>
 
@@ -85,13 +87,28 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               ) : (
                 <form action={decideManualReviewFromConsole} className="row">
                   <input type="hidden" name="recordId" value={r.id} />
-                  <input name="outcome" type="text" placeholder="Judgment" required style={{ flex: 1, minWidth: 140 }} />
-                  <input name="reason" type="text" placeholder="Reason" required style={{ flex: 2, minWidth: 200 }} />
+                  <input name="outcome" type="text" aria-label="Judgment" placeholder="Judgment" required style={{ flex: 1, minWidth: 140 }} />
+                  <input name="reason" type="text" aria-label="Reason for the judgment" placeholder="Reason" required style={{ flex: 2, minWidth: 200 }} />
                   <button className="btn small" type="submit">Record</button>
                 </form>
               )}
             </div>
           ))}
+        </section>
+
+        <section className="card">
+          <h3>Technical support requests</h3>
+          <p className="small soft">Requests the parties routed to GENE-LINK technical support. Answer on the case with a recorded intervention, so the reply sits on the case and the audit chain. Requests for an expert are the parties&apos; to take to their own adviser and do not queue here.</p>
+          {technical.length === 0 && <p className="small mute">None.</p>}
+          {technical.map((r) => {
+            const answered = (platform.store.cases.get(r.caseId)?.interventions ?? []).some((i) => i.at >= r.at);
+            return (
+              <div key={r.id} className="small" style={{ padding: "8px 0", borderBottom: "1px solid var(--rule-soft)" }}>
+                <span className={`tag ${answered ? "" : "open"}`}>{answered ? "intervention since" : "waiting"}</span> <Link href={`/cases/${r.caseId}`}>{r.caseId}</Link> · {fmtTime(r.at)} · seat {r.bySeatId}
+                <div className="mute">{r.note}</div>
+              </div>
+            );
+          })}
         </section>
 
         <section className="card">

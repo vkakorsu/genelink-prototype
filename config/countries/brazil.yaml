@@ -552,6 +552,8 @@ manualReview:
     decides: Which association instrument applies, ordinary Art. 12 II association or the Art. 22-B instrumental termo. Art. 22-C makes a wrong answer an eligibility defect.
     stageId: registrant
     when: { applicantType: foreign_legal }
+    # With no statutory test, configuration never answers this; the recorded judgment answers it for one case.
+    answers: [genuine_collaboration_undefined]
     reg:
       state: unknown
       marker: "?"
@@ -569,7 +571,7 @@ openQuestions:
     reg: { state: "unknown", marker: "?", note: "The operative wording is sourced from three concurring institutional sources. The consolidated primary text could not be retrieved.", citation: "Decreto Art. 107", owner: "Brazil escalation owner", drives: true }
   - id: genuine_collaboration
     question: Whether genuine scientific collaboration exists (no statutory test)
-    affects: Which instrument applies. A mandatory eligibility question with no test.
+    affects: Which instrument applies. A mandatory eligibility question with no test. On a case, the reviewer's recorded manual-review judgment (R5) answers it for that case alone and the registrant stage resumes; the question stays open here for every other case.
     reg: { state: "unknown", marker: "?", citation: "Decreto Arts. 22-B, 22-C", owner: "Legal review", drives: true }
 
 renewalProbe: never

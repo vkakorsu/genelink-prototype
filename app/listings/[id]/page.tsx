@@ -71,8 +71,8 @@ export default async function ListingPage({ params, searchParams }: { params: Pr
             ) : (
               <dl className="kv">
                 <dt>Organisation</dt><dd><span className="redacted">Organisation name withheld</span></dd>
-                <dt>Species detail</dt><dd><span className="redacted">Species detail withheld until mutual interest</span></dd>
-                <dt>Locality detail</dt><dd><span className="redacted">Locality withheld until mutual interest</span></dd>
+                <dt>Species detail</dt><dd><span className="redacted">Species detail withheld until mutual interest opens a case</span></dd>
+                <dt>Locality detail</dt><dd><span className="redacted">Locality withheld until mutual interest opens a case</span></dd>
               </dl>
             )}
           </section>
@@ -86,7 +86,9 @@ export default async function ListingPage({ params, searchParams }: { params: Pr
               <Notice kind="ok">Mutual interest recorded and both identities revealed {myCase.revealedAt ? fmtTime(myCase.revealedAt) : ""}. Full projection shown. <Link href={`/cases/${myCase.id}`}>Open the case</Link>.</Notice>
             )}
             {session.kind === "seat" && !isOwner && !myCase && (
-              myInterest ? (
+              myInterest && platform.matchWaiting(session.actor.organisation.id, raw) ? (
+                <Notice kind="pending">Mutual interest is recorded. The case opens by itself when both organisations are verified, and both identities are revealed then, not before.{session.actor.organisation.verification.status !== "verified" ? " Your organisation's verification is still pending." : ""}</Notice>
+              ) : myInterest ? (
                 <Notice kind="pending">Interest signalled on {fmtTime(myInterest.at)}. The reveal happens when the listing owner signals back, and both sides see the same thing at the same time.</Notice>
               ) : myOrg?.verification.status === "declined" ? (
                 <Notice kind="halt">Your organisation&apos;s verification was declined{myOrg.verification.reason ? ` (${myOrg.verification.reason})` : ""}. Interest cannot be signalled until a new verification request is decided.</Notice>
@@ -124,6 +126,8 @@ export default async function ListingPage({ params, searchParams }: { params: Pr
                         <Link className="btn small secondary" href={`/cases/${existing.id}`}>Open case</Link>
                       ) : declined || !configured ? (
                         <span className="small mute">Not available</span>
+                      ) : platform.matchWaiting(org.id, raw) ? (
+                        <span className="small mute" style={{ maxWidth: 260 }}>Signalled back. The case opens by itself when {org.verification.status !== "verified" ? "this organisation" : "your organisation"} is verified.</span>
                       ) : (
                         <form action={reciprocateOnListing}>
                           <input type="hidden" name="organisationId" value={org.id} />

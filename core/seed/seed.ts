@@ -149,6 +149,9 @@ export function seed(store: Store, countries: Map<string, CountryConfig>, baseDa
   platform.amendInstrument(camila, coId, coContract.id, "Otrosí No. 1: adds accession IBP-A-121 to the resource scope", "Otrosí No. 1 al Contrato de acceso No. 014 de 2026 (fictional). Se adiciona la accesión IBP-A-121 al alcance del contrato.");
   step(60 * 24 * 8);
   platform.changeOfIntent(camila, coId, { ...store.cases.get(coId)!.facts, exchange: "service_shipment" }, "Samples to be sent abroad for sequencing service and returned, rather than transferred with title");
+  step(60 * 24 * 6);
+  // The change of intent made an otrosí necessary. The contract gains a version when the signed one is recorded.
+  platform.amendInstrument(camila, coId, coContract.id, "Otrosí No. 2: samples sent abroad for a sequencing service and returned, not transferred with title", "Otrosí No. 2 al Contrato de acceso No. 014 de 2026 (fictional). Las muestras se envían al exterior para un servicio de secuenciación y se devuelven; no hay transferencia de titularidad.");
   step();
   const coAgreement = platform.createAgreement(camila, coId, "Accessory contract: national support institution", [
     { id: "a1", title: "Suspensive condition", text: "This accessory contract takes effect only on the access contract taking effect (D391 Art. 42).", source: "model_clause" },

@@ -1,5 +1,6 @@
 import { activityQuestion, type CaseFacts, type CountryConfig, type ScopeQuestion } from "@/core/config/schema";
 import { readFact } from "@/core/engine/conditions";
+import { factsFingerprint } from "@/core/engine/facts";
 import { changeOfIntent, updateFacts } from "@/app/actions";
 import { EvidenceChip } from "@/components/Evidence";
 
@@ -18,6 +19,7 @@ export function FactsForm({ cfg, caseId, facts, mode, canEdit }: { cfg: CountryC
   const own = cfg.scope.questions.filter((q) => q.fact !== "activity");
   return (
     <form action={action} className="stack">
+      <input type="hidden" name="factsSeen" value={factsFingerprint(facts)} />
       <fieldset disabled={!canEdit} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
       <fieldset>
         <legend>Purpose (decides the route before any {cfg.name} rule applies)</legend>

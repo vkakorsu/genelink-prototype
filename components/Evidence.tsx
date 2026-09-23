@@ -36,7 +36,7 @@ export function EvidenceChip({ reg, short = false }: { reg: RegValue; short?: bo
   );
 }
 
-export function RegBlock({ reg, text, compact = false }: { reg: RegValue; text?: string; compact?: boolean }) {
+export function RegBlock({ reg, text, compact = false, answered = false }: { reg: RegValue; text?: string; compact?: boolean; answered?: boolean }) {
   const cls = evidenceClass(reg);
   return (
     <div className={`reg ${cls}`}>
@@ -50,7 +50,7 @@ export function RegBlock({ reg, text, compact = false }: { reg: RegValue; text?:
       {reg.state === "unknown" && (
         <p className="owner">
           Routed to: {reg.owner}
-          {reg.drives ? " · halts the dependent step" : " · shown, does not halt"}
+          {answered ? " · answered for this case by the recorded manual-review judgment; the rule stays open in the configuration" : reg.drives ? " · halts the dependent step" : " · shown, does not halt"}
         </p>
       )}
     </div>

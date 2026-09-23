@@ -93,8 +93,8 @@ export function StageCard({
                   canJudge ? (
                     <form action={judgeHere} className="row" style={{ marginTop: 8 }}>
                       <input type="hidden" name="recordId" value={rec.id} />
-                      <input name="outcome" type="text" placeholder="Judgment (free text)" required style={{ flex: 1, minWidth: 180 }} />
-                      <input name="reason" type="text" placeholder="Reason, recorded in the audit chain" required style={{ flex: 2, minWidth: 220 }} />
+                      <input name="outcome" type="text" aria-label="Judgment" placeholder="Judgment (free text)" required style={{ flex: 1, minWidth: 180 }} />
+                      <input name="reason" type="text" aria-label="Reason for the judgment" placeholder="Reason, recorded in the audit chain" required style={{ flex: 2, minWidth: 220 }} />
                       <button className="btn small" type="submit">Record judgment (once, immutable)</button>
                     </form>
                   ) : (
@@ -108,7 +108,7 @@ export function StageCard({
           {stage.requirements.length > 0 && (
             <details className="fold" open={stage.status === "halted" || stage.requirements.length <= 3}>
               <summary>{stage.requirements.length} requirement statement{stage.requirements.length === 1 ? "" : "s"}, each with its evidence class</summary>
-              {stage.requirements.map((r) => <RegBlock key={r.id} reg={r.reg} text={r.text} compact />)}
+              {stage.requirements.map((r) => <RegBlock key={r.id} reg={r.reg} text={r.text} compact answered={r.answeredByJudgment} />)}
             </details>
           )}
 
@@ -142,8 +142,8 @@ export function StageCard({
                               <form action={uploadHere} className="stack">
                                 <input type="hidden" name="requirementId" value={d.id} />
                                 <input type="hidden" name="label" value={d.label} />
-                                <input name="fileName" type="text" placeholder="file name" />
-                                <textarea name="content" placeholder="Paste document text. The prototype stores the SHA-256, not the file. 256 KB limit." required />
+                                <input name="fileName" type="text" aria-label="File name of the document" placeholder="file name" />
+                                <textarea name="content" aria-label="Document text" placeholder="Paste document text. The prototype stores the SHA-256, not the file. 256 KB limit." required />
                                 <button className="btn small" type="submit">Record document</button>
                               </form>
                             </details>

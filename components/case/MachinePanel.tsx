@@ -7,16 +7,17 @@ import { extendClock, fireEvent, tickClocks } from "@/app/actions";
 import { EvidenceChip } from "@/components/Evidence";
 import { fmtTime, stateHeadline } from "@/components/ui";
 
-export function MachinePanel({ cfg, c, canAct, canPrepare, isAdmin }: { cfg: CountryConfig; c: Case; canAct: boolean; canPrepare: boolean; isAdmin: boolean }) {
+export function MachinePanel({ cfg, c, canAct, canPrepare, isAdmin, decided }: { cfg: CountryConfig; c: Case; canAct: boolean; canPrepare: boolean; isAdmin: boolean; decided: ReadonlySet<string> }) {
   const sm = cfg.stateMachine;
   const current = sm.states[c.machine.state];
   const options = eventsFor(cfg, c.machine.state, c.facts).filter((o) => o.transition.event !== "lapse");
   const scope = evaluateScope(cfg, c.facts);
   // Applicant filings wait on a settled scope; the core refuses them otherwise, so they are not offered.
-  const stops = buildPathway(cfg, c.facts).stages.flatMap((s) => s.stops);
+  const pathway = buildPathway(cfg, c.facts, decided);
+  const stops = pathway.stages.flatMap((s) => s.stops);
   const filingHeld = scope.kind !== "in_scope" || stops.length > 0;
   const events = options.filter((o) => o.status === "available").map((o) => o.transition).filter((t) => !(filingHeld && t.actor === "applicant" && t.event !== "withdraw"));
-  const openStages = buildPathway(cfg, c.facts).stages.filter((s) => s.status === "halted" || s.status === "stopped");
+  const openStages = pathway.stages.filter((s) => s.status === "halted" || s.status === "stopped");
   const guarded = options.filter((o) => o.status === "unresolved");
   const clocks = sm.clocks;
   // Days left are computed for now, on every render, not read from the last administrator check.
@@ -67,6 +68,11 @@ export function MachinePanel({ cfg, c, canAct, canPrepare, isAdmin }: { cfg: Cou
                       : `no longer running (state moved on before ${fmtTime(st.deadline, false)})`)}
                   {st?.lapsed && "lapsed · remedy against administrator"}
                   {st?.beyondCalendar && <span className="mute"> · beyond the holiday calendar ({cfg.calendar?.coversThrough}), weekends only</span>}
+                  {st?.restartedAfterLapse && !st.lapsed && (
+                    <span className="mute" style={{ display: "block" }}>
+                      <EvidenceChip reg={{ state: "inferred", marker: "[GL]", value: "GENE-LINK tracking deadline", note: "No source sets a new statutory deadline after a lapse.", drives: false, executable: true }} short /> Restarted when the authority resumed on {fmtTime(st.restartedAfterLapse.at, false)}. The statutory deadline{st.restartedAfterLapse.missedDeadline ? ` (${fmtTime(st.restartedAfterLapse.missedDeadline, false)})` : ""} was recorded as lapsed, and the remedy against the administrator stands. The date above is GENE-LINK&apos;s tracking aid, not a deadline the law sets.
+                    </span>
+                  )}
                 </span>
               </div>
             );
@@ -85,7 +91,7 @@ export function MachinePanel({ cfg, c, canAct, canPrepare, isAdmin }: { cfg: Cou
                 <input type="hidden" name="clockId" value={k.id} />
                 <span className="small mute">Record the authority&apos;s extension of the {k.label.split(" (")[0].toLowerCase()}:</span>
                 <input name="days" type="number" min={1} max={left} step={1} defaultValue={left} aria-label={`Extension in ${k.dayKind} days, at most ${left}`} style={{ width: 90 }} />
-                <input name="note" type="text" placeholder="Resolution or notice it rests on" required style={{ flex: 1, minWidth: 200 }} />
+                <input name="note" type="text" aria-label="Resolution or notice the extension rests on" placeholder="Resolution or notice it rests on" required style={{ flex: 1, minWidth: 200 }} />
                 <button className="btn ghost small" type="submit">Record extension</button>
               </form>
             );
@@ -109,13 +115,13 @@ export function MachinePanel({ cfg, c, canAct, canPrepare, isAdmin }: { cfg: Cou
             ? `Filing is refused while a prohibition applies on these facts: ${stops.map((x) => x.text).join(" ")}`
             : `Filing is held until scope is settled (${scope.kind.replace("_", " ")}). ${scope.kind === "undetermined" ? "Answer the intake questions first." : scope.kind === "escalate" ? "Scope on these facts is an open legal question routed to its owner." : "The case is out of scope on the facts entered."}`}</p>
         )}
-        {!filingHeld && openStages.length > 0 && events.some((t) => t.actor === "applicant" && t.event !== "withdraw") && (
+        {!isAdmin && !filingHeld && openStages.length > 0 && events.some((t) => t.actor === "applicant" && t.event !== "withdraw") && (
           <p className="small mute">Filing now proceeds with {openStages.length} stage{openStages.length === 1 ? "" : "s"} still open ({openStages.map((s) => s.stage.title).join("; ")}). That is the parties&apos; decision to take; the audit record notes which questions were open when it was filed.</p>
         )}
         {events.length === 0 && guarded.length === 0 && <p className="small mute">Terminal state. No further events are declared.</p>}
         {guarded.map((o) => (
           <div key={`${o.transition.event}-${o.transition.to}`} className="halt-box small" role="status">
-            <strong>{o.transition.event.replace(/_/g, " ")}</strong> ({stateHeadline(sm.states[o.transition.to].label)}) depends on a fact not yet answered: {o.missing.map((f) => promptFor(cfg, f)).join("; ")}. The engine does not choose a branch of the law for the parties; answer it on the intake form.
+            <strong>{o.transition.event.replace(/_/g, " ")}</strong> ({sm.transitions.filter((t) => t.from === o.transition.from && t.event === o.transition.event).length > 1 ? "where it leads depends on the answer" : stateHeadline(sm.states[o.transition.to].label)}) depends on a fact not yet answered: {o.missing.map((f) => promptFor(cfg, f).replace(/[.?!]\s*$/, "")).join("; ")}. The engine does not choose a branch of the law for the parties; answer it on the intake form.
           </div>
         ))}
         {events.length > 0 && !canAct && (
@@ -129,7 +135,7 @@ export function MachinePanel({ cfg, c, canAct, canPrepare, isAdmin }: { cfg: Cou
           const held = events.length - mine.length;
           return (
             <form action={fireEvent.bind(null, c.id)} className="stack">
-              <input name="note" type="text" placeholder="Note for the audit record (optional)" />
+              <input name="note" type="text" aria-label="Note for the audit record (optional)" placeholder="Note for the audit record (optional)" />
               <div className="row">
                 {mine.map((t) => (
                   <button key={t.event} className={`btn small ${t.actor === "authority" ? "secondary" : t.actor === "system" ? "ghost" : ""}`} type="submit" name="event" value={t.event} title={`Actor: ${t.actor}. Target: ${sm.states[t.to].label}`}>
@@ -137,8 +143,10 @@ export function MachinePanel({ cfg, c, canAct, canPrepare, isAdmin }: { cfg: Cou
                   </button>
                 ))}
               </div>
-              {mine.length === 0 && <p className="small mute">Your seat has no applicant act at this stage. The next events belong to the authority.</p>}
-              {held > 0 && <p className="small mute">{isAdmin ? `${held} applicant event${held === 1 ? " is" : "s are"} the parties' to record and not offered to the administrator.` : `${held} authority or system event${held === 1 ? " is" : "s are"} not shown to your seat.`}</p>}
+              {mine.length === 0 && <p className="small mute">{isAdmin
+                ? `No authority act is declared from here. The next step is the parties' (${events.map((t) => t.event.replace(/_/g, " ")).join(", ")}), recorded by their signatory.`
+                : "Your seat has no applicant act at this stage. The next events belong to the authority."}</p>}
+              {held > 0 && mine.length > 0 && <p className="small mute">{isAdmin ? `${held} applicant event${held === 1 ? " is" : "s are"} the parties' to record and not offered to the administrator.` : `${held} authority or system event${held === 1 ? " is" : "s are"} not shown to your seat.`}</p>}
               <p className="small mute">The platform records the regulator&apos;s acts. It does not perform them. Authority and system events are recorded by an administrator on the authority&apos;s behalf{isAdmin ? "" : ". Your seat can record applicant events only, and a denied attempt is written to the audit chain"}.</p>
             </form>
           );

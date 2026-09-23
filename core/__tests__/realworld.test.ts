@@ -7,7 +7,7 @@ import { seed, ADMIN } from "../seed/seed";
 import { InvalidRequest, PermissionDenied, type Platform } from "../platform";
 import { buildPathway } from "../engine/pathway";
 import { evaluateScope } from "../engine/scope";
-import { withDeclaredDefaults } from "../engine/facts";
+import { factsFingerprint, withDeclaredDefaults } from "../engine/facts";
 import { canonicalAgreementText } from "../domain/agreements";
 import { verifyChain } from "../audit/chain";
 import { safeLocalPath } from "../../lib/safePath";
@@ -214,5 +214,95 @@ describe("new facts that block a step undo its completion, and a prohibition sto
     expect(p.store.audit.list().some((e) => e.action === "stage.reopened" && (e.detail as { stageId?: string }).stageId === "eligibility")).toBe(true);
     expect(() => p.fireEvent(ines, ke.id, "submit")).toThrow(/prohibition applies/);
     expect(() => p.fireEvent(ines, ke.id, "withdraw")).not.toThrow();
+  });
+});
+
+describe("second pass: people moving between seats and waiting at the gate", () => {
+  it("mutual interest held at the verification gate reveals no identity until the case opens", () => {
+    const p = fresh();
+    const ines = p.actorFor("seat_ines_nordlicht");
+    const nyokabi = p.actorFor("seat_nyokabi_olkalou");
+    expect(() => p.reciprocate(ines, "lst_need_preservative", "org_olkalou")).toThrow(/still in verification/);
+    expect(p.matchWaiting("org_olkalou", { id: "lst_need_preservative", organisationId: "org_nordlicht" })).toBe(true);
+    const before = p.listingFor(nyokabi, "lst_need_preservative");
+    expect(JSON.stringify(before)).not.toContain("Nordlicht");
+    p.decideVerification(ADMIN, "org_olkalou", "verified", "Vouching by LBNPI accepted for the test.");
+    const after = p.listingFor(p.actorFor("seat_nyokabi_olkalou"), "lst_need_preservative");
+    expect(JSON.stringify(after)).toContain("Nordlicht");
+    expect(p.store.cases.list().some((c) => c.listingId === "lst_need_preservative" && c.participants.some((x) => x.organisationId === "org_olkalou"))).toBe(true);
+  });
+});
+
+describe("second pass: a change of intent requires an amendment; the platform does not write one", () => {
+  it("the Colombian contract gains a version only when the signed otrosí is recorded", () => {
+    const p = fresh();
+    const camila = p.actorFor("seat_camila_ibp");
+    const co = p.store.cases.get("case_2_co")!;
+    const contract = p.instrumentsFor(co.id)[0];
+    const before = contract.versions.length;
+    p.changeOfIntent(camila, co.id, { ...co.facts, exchange: "title_transfer" }, "Material to be transferred with title to a partner lab");
+    const pending = p.store.instruments.get(contract.id)!;
+    expect(pending.versions).toHaveLength(before);
+    expect(pending.pendingAmendment?.description).toBe("Material to be transferred with title to a partner lab");
+    expect(p.store.audit.list().some((e) => e.action === "instrument.amendment_required" && e.subject.id === contract.id)).toBe(true);
+    p.amendInstrument(camila, co.id, contract.id, "Otrosí No. 3: transfer with title", "Otrosí No. 3 (fictional).");
+    const done = p.store.instruments.get(contract.id)!;
+    expect(done.versions).toHaveLength(before + 1);
+    expect(done.versions.at(-1)!.hashes).toBe("document");
+    expect(done.pendingAmendment).toBeUndefined();
+    expect(verifyChain(p.store.audit.list()).ok).toBe(true);
+  });
+});
+
+describe("second pass: a recorded R5 judgment unblocks its stage for that case only", () => {
+  it("Brazil's registrant stage stops halting once the collaboration judgment is recorded, and the rule stays open in the file", () => {
+    const p = fresh();
+    const c = p.store.cases.get("case_4_br")!;
+    const stage = () => p.pathwayFor(p.store.cases.get(c.id)!).stages.find((s) => s.stage.id === "registrant")!;
+    expect(stage().status).toBe("halted");
+    const review = p.manualReviewsFor(c.id).find((r) => r.reviewId === "genuine_scientific_collaboration")!;
+    p.decideManualReview(ADMIN, review.id, "Genuine collaboration exists", "Joint protocol reviewed (fictional)");
+    const after = stage();
+    expect(after.status).toBe("active");
+    expect(after.requirements.find((r) => r.id === "genuine_collaboration_undefined")!.answeredByJudgment).toBe(true);
+    const esc = p.escalationsFor(c.id).find((e) => e.id.endsWith("genuine_collaboration_undefined"));
+    expect(esc?.status).toBe("answered");
+    expect(esc?.answer?.note).toMatch(/manual-review judgment/);
+    // Configuration is untouched: another case with no judgment still halts.
+    expect(buildPathway(countries.get("BR")!, c.facts).stages.find((s) => s.stage.id === "registrant")!.status).toBe("halted");
+    expect(verifyChain(p.store.audit.list()).ok).toBe(true);
+  });
+});
+
+describe("second pass: a stale page cannot approve or sign text the signatory never saw", () => {
+  it("approval and execution are bound to the version and hash on the signatory's screen", () => {
+    const p = fresh();
+    const { camila, amara, caseId } = newColombiaCase(p);
+    const clause = { id: "c1", title: "Purpose", text: "Screening only.", source: "model_clause" as const };
+    const a = p.createAgreement(camila, caseId, "Terms", [clause]);
+    const v1 = a.versions[0];
+    // Amara's page shows v1. Camila records v2 with different terms before Amara clicks.
+    p.reviseAgreement(camila, caseId, a.id, "Royalty added", [clause, { id: "c2", title: "Royalty", text: "5% of net sales.", source: "negotiated" }]);
+    expect(() => p.approveAgreement(amara, caseId, a.id, 1)).toThrow(/v2 has been recorded since/);
+    expect(p.store.agreements.get(a.id)!.approvals).toHaveLength(0);
+    p.approveAgreement(amara, caseId, a.id, 2);
+    p.approveAgreement(camila, caseId, a.id, 2);
+    expect(() => p.executeAgreement(amara, caseId, a.id, v1.sha256)).toThrow(/no longer the current version/);
+    const v2 = p.store.agreements.get(a.id)!.versions[1];
+    p.executeAgreement(amara, caseId, a.id, v2.sha256);
+    expect(p.store.agreements.get(a.id)!.executions[0].sha256).toBe(v2.sha256);
+  });
+});
+
+describe("second pass: two people editing the same facts", () => {
+  it("an edit from a page opened before someone else's save is refused, not silently applied", () => {
+    const p = fresh();
+    const { camila, amara, caseId } = newColombiaCase(p);
+    const opened = factsFingerprint(p.store.cases.get(caseId)!.facts);
+    p.updateFacts(camila, caseId, coFacts(), opened);
+    expect(() => p.updateFacts(amara, caseId, coFacts({ communityHeld: "yes" }), opened)).toThrow(/changed by someone else/);
+    expect(p.store.cases.get(caseId)!.facts.communityHeld).toBe("no");
+    p.updateFacts(amara, caseId, coFacts({ communityHeld: "yes" }), factsFingerprint(p.store.cases.get(caseId)!.facts));
+    expect(p.store.cases.get(caseId)!.facts.communityHeld).toBe("yes");
   });
 });

@@ -90,7 +90,7 @@ export default async function CasePage({ params, searchParams }: { params: Promi
               ) : (
                 <span className="small"><strong>Pathway:</strong> {done} of {pathway.stages.length} stages complete{stopped > 0 ? `, ${stopped} stopped by a prohibition` : ""}{halted > 0 ? `, ${halted} halted` : ""}</span>
               )}
-              {!outOfScope && next && <span className="small"><strong>Next:</strong> {(machineKind === "terminal" || machineKind === "halted") ? "GENE-LINK-side · " : ""}{next.stage.title}{next.status === "halted" ? " (halted, routed to its owner)" : next.status === "stopped" ? " (stopped: a prohibition applies on these facts)" : ""}</span>}
+              {!outOfScope && next && <span className="small"><strong>Next:</strong> {(machineKind === "terminal" || machineKind === "halted") ? "GENE-LINK-side · " : ""}{next.stage.title}{next.status === "halted" ? (next.escalations.length && next.escalations.every((e) => e.kind === "unanswered_fact") && !next.manualReviews.length ? " (waiting on answers on the intake form)" : " (halted, routed to its owner)") : next.status === "stopped" ? " (stopped: a prohibition applies on these facts)" : ""}</span>}
               {!outOfScope && !next && pathway.stages.length > 0 && <span className="small mute">All stages complete.</span>}
             </div>
             {(machineKind === "terminal" || machineKind === "halted") && done < pathway.stages.length && (
@@ -181,7 +181,7 @@ export default async function CasePage({ params, searchParams }: { params: Promi
             </section>
           )}
 
-          {pathway.scope.kind !== "out_of_scope" && <MachinePanel cfg={cfg} c={c} canAct={canSign || isAdmin} canPrepare={canEdit} isAdmin={isAdmin} />}
+          {pathway.scope.kind !== "out_of_scope" && <MachinePanel cfg={cfg} c={c} canAct={canSign || isAdmin} canPrepare={canEdit} isAdmin={isAdmin} decided={platform.decidedReviews(c.id)} />}
           {pathway.scope.kind !== "out_of_scope" && <InstrumentsPanel cfg={cfg} c={c} instruments={instruments} canSign={canSign} isAdmin={isAdmin} seatPermission={seat?.permission ?? null} />}
           {pathway.scope.kind !== "out_of_scope" && <AgreementsPanel c={c} agreements={agreements} orgs={orgs} mySeat={seat} canEdit={canEdit} canSign={canSign} seatPermission={seat?.permission ?? null} />}
 
@@ -258,7 +258,7 @@ export default async function CasePage({ params, searchParams }: { params: Promi
             {canEdit && (
               <form action={requestSupportHere} className="stack">
                 <select name="kind" aria-label="Type of assistance requested"><option value="expert">Expert assistance: parties&apos; own adviser</option><option value="technical">Technical issue: GENE-LINK support</option></select>
-                <textarea name="note" placeholder="What do you need?" />
+                <textarea name="note" aria-label="What you need help with" placeholder="What do you need?" required />
                 <button className="btn small secondary" type="submit">Request</button>
               </form>
             )}
@@ -269,8 +269,8 @@ export default async function CasePage({ params, searchParams }: { params: Promi
                 <hr className="rule" />
                 <h4>Administrator intervention</h4>
                 <form action={adminInterveneHere} className="stack">
-                  <input name="action" type="text" placeholder="What you did (e.g. contacted both parties)" required />
-                  <input name="reason" type="text" placeholder="Reason, recorded in the audit chain" required />
+                  <input name="action" type="text" aria-label="What you did" placeholder="What you did (e.g. contacted both parties)" required />
+                  <input name="reason" type="text" aria-label="Reason for the intervention" placeholder="Reason, recorded in the audit chain" required />
                   <button className="btn small ghost" type="submit">Record intervention</button>
                 </form>
               </>

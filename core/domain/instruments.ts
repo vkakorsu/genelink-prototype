@@ -88,6 +88,9 @@ export type AmendmentOutcome =
   | { kind: "versioned"; instrument: Instrument; version: InstrumentVersion }
   | { kind: "new_instrument_required"; instrument: Instrument; policy: string; reason: string };
 
+/** Policies under which a change is a new version of the same instrument rather than a new one. */
+export const AMENDABLE_POLICIES: ReadonlySet<string> = new Set(["addendum", "variation", "amendment_path"]);
+
 export function amendInstrument(instrument: Instrument, summary: string, at: Date, seatId: string, documentText?: string): AmendmentOutcome {
   if (FROZEN_STATUSES.has(instrument.status)) {
     throw new Error(

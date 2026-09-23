@@ -221,6 +221,12 @@ export type Instrument = {
   issuedAt: string;
   /** External instruments are recorded, not created, by the platform. */
   origin: "recorded_external" | "platform_rendered";
+  /**
+   * A change of intent that this instrument's policy answers with an addendum or variation. The
+   * platform does not write the amendment: it records that one is required, and the version is
+   * appended only when an authorised signatory records the signed text.
+   */
+  pendingAmendment?: { changeOfIntentId: string; at: string; description: string };
 };
 
 export type AgreementVersion = {

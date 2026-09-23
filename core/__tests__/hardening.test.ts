@@ -394,15 +394,20 @@ describe("stage completion is a commitment, not preparation", () => {
 describe("a facts edit cannot quietly change the scope answer", () => {
   it("flipping a case across the scope boundary must go through a declared change of intent", () => {
     const p = fresh();
-    const ke = p.store.cases.list().find((c) => c.providerCountry === "KE" && c.participants.some((x) => x.organisationId === "org_nordlicht"))!;
+    // Once something is filed, in scope -> out of scope is refused as a plain facts edit.
+    const filed = p.store.cases.get("case_3_ke")!;
+    const wanjiru = p.actorFor("seat_wanjiru_lbnpi");
+    expect(() => p.updateFacts(wanjiru, filed.id, { ...filed.facts, purpose: "non_commercial" })).toThrow(/change of intent|scope answer/);
+    // Before anything is filed, correcting the intake across scope is a correction, recorded as one:
+    // a change of intent would put the country's consequence on the record for an application that does not exist.
+    const ke = p.store.cases.get("case_1_ke")!;
     const ines = p.actorFor("seat_ines_nordlicht");
-    // In scope -> out of scope is refused as a plain facts edit.
-    expect(() => p.updateFacts(ines, ke.id, { ...ke.facts, purpose: "non_commercial" })).toThrow(/change of intent|scope answer/);
-    // Out of scope -> in scope is refused the same way.
-    const ooc = p.store.cases.list().find((c) => p.pathwayFor(c).scope.kind === "out_of_scope")!;
+    expect(() => p.updateFacts(ines, ke.id, { ...ke.facts, purpose: "non_commercial" })).not.toThrow();
+    expect(p.store.audit.list().at(-1)!.action).not.toBe("case.change_of_intent");
+    expect(p.store.audit.list().some((e) => e.action === "case.facts_corrected_before_filing" && e.subject.id === ke.id)).toBe(true);
+    const ooc = p.store.cases.list().find((c) => c.id === "case_5_co")!;
     const kwame = p.actorFor("seat_kwame_asheokoro");
     const flipped: CaseFacts = { ...ooc.facts, purpose: "commercial" };
-    expect(() => p.updateFacts(kwame, ooc.id, flipped)).toThrow(/change of intent|scope answer/);
     // An edit that keeps the scope answer still works.
     expect(() => p.updateFacts(kwame, ooc.id, { ...ooc.facts, localities: 3 })).not.toThrow();
     // The declared route exists and carries the consequence policy onto the record.
@@ -416,12 +421,15 @@ describe("clocks: resume restarts the clock, and a lapse can be forced for the d
   it("after administrator_resumes the determination clock runs afresh and lapses again past its new deadline", () => {
     const p = fresh();
     const lapsed = p.store.cases.list().find((c) => c.machine.state === "deadline_lapsed")!;
+    const missed = lapsed.machine.clocks.determination.deadline;
     p.fireEvent(ADMIN, lapsed.id, "administrator_resumes", "Resumed after remedy");
     const c = p.store.cases.get(lapsed.id)!;
     expect(c.machine.state).toBe("under_review");
     const clock = c.machine.clocks.determination;
     expect(clock.lapsed).toBe(false);
     expect(new Date(clock.deadline!).getTime()).toBeGreaterThan(Date.now());
+    // The restart is marked as a tracking aid, and the missed statutory deadline is kept.
+    expect(clock.restartedAfterLapse?.missedDeadline).toBe(missed);
     // Checking now does not lapse it.
     expect(p.tickClocks(c.id).lapsed).toEqual([]);
     expect(p.store.cases.get(c.id)!.machine.state).toBe("under_review");
@@ -551,7 +559,7 @@ describe("a filing before the regulator is a signatory act, not a member's", () 
     expect(verifyChain(p.store.audit.list()).ok).toBe(true);
   });
 
-  it("a change of intent re-runs scope and can version a live contract: member denied, signatory allowed", () => {
+  it("a change of intent re-runs scope and applies the country's consequence to a live contract: member denied, signatory allowed", () => {
     const p = fresh();
     const co = p.store.cases.list().find((c) => c.providerCountry === "CO" && c.participants.some((x) => x.organisationId === "org_nordlicht"))!;
     // Nordlicht's member seat tries to declare a change of intent on the Colombia case.

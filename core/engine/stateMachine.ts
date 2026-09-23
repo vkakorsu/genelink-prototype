@@ -2,6 +2,7 @@ import type { CaseFacts, CountryConfig, StateMachine, WorkingCalendar } from "..
 import type { z } from "zod";
 import type { Clock as ClockSchema, Transition as TransitionSchema } from "../config/schema";
 import { evaluate, unresolvedFields } from "./conditions";
+import { establishedOnly } from "./facts";
 type Transition = z.infer<typeof TransitionSchema>;
 type Clock = z.infer<typeof ClockSchema>;
 
@@ -40,6 +41,8 @@ export type ClockStatus = {
   extendedDays?: number;
   /** The deadline falls after the date the country's holiday list is maintained through. */
   beyondCalendar?: boolean;
+  /** The clock restarted when the authority resumed after a lapse. The law sets no new deadline; this one is a tracking aid. */
+  restartedAfterLapse?: { at: string; missedDeadline: string | null };
 };
 
 export class TransitionError extends Error {}
@@ -73,12 +76,30 @@ export type EventOption = { transition: Transition; status: "available" | "unres
  */
 export function eventsFor(cfg: CountryConfig, state: string, facts: CaseFacts): EventOption[] {
   const out: EventOption[] = [];
+  const seen = new Set<string>();
   for (const t of availableEvents(cfg.stateMachine, state)) {
-    const g = evaluate(t.when, facts);
-    if (g === "no_match") continue;
-    out.push({ transition: t, status: g === "match" ? "available" : "unresolved", missing: g === "unresolved" ? unresolvedFields(t.when, facts) : [] });
+    const g = guard(cfg, t.when, facts);
+    if (g.answer === "no_match") continue;
+    // Same-named branches waiting on the same fact are one question for the parties, shown once.
+    const key = `${t.event}|${g.answer}|${g.missing.join(",")}`;
+    if (g.answer === "unresolved" && seen.has(key)) continue;
+    seen.add(key);
+    out.push({ transition: t, status: g.answer === "match" ? "available" : "unresolved", missing: g.missing });
   }
   return out;
+}
+
+/**
+ * A guard read against the case's facts. A fact still at its question's "not yet established"
+ * default does not rule a branch out: the branch waits on it, as it would on a missing fact.
+ */
+function guard(cfg: CountryConfig, when: Transition["when"], facts: CaseFacts): { answer: "match" | "no_match" | "unresolved"; missing: string[] } {
+  const g = evaluate(when, facts);
+  if (g === "match") return { answer: "match", missing: [] };
+  const open = establishedOnly(cfg, facts);
+  const h = evaluate(when, open);
+  if (h === "unresolved") return { answer: "unresolved", missing: unresolvedFields(when, open) };
+  return { answer: "no_match", missing: [] };
 }
 
 export function fire(cfg: CountryConfig, snap: MachineSnapshot, event: string, actor: string, at: Date, note?: string, facts?: CaseFacts): MachineSnapshot {
@@ -93,9 +114,9 @@ export function fire(cfg: CountryConfig, snap: MachineSnapshot, event: string, a
   let t: Transition | undefined;
   const waiting: string[] = [];
   for (const c of candidates) {
-    const g = facts ? evaluate(c.when, facts) : c.when ? "unresolved" : "match";
-    if (g === "match") { t = c; break; }
-    if (g === "unresolved") waiting.push(...(facts ? unresolvedFields(c.when, facts) : Object.keys(c.when ?? {})));
+    const g = facts ? guard(cfg, c.when, facts) : { answer: c.when ? "unresolved" : "match", missing: Object.keys(c.when ?? {}) };
+    if (g.answer === "match") { t = c; break; }
+    if (g.answer === "unresolved") waiting.push(...g.missing);
   }
   if (!t) {
     throw new TransitionError(
@@ -124,7 +145,7 @@ export function fire(cfg: CountryConfig, snap: MachineSnapshot, event: string, a
     // from the resumption. The old deadline is history, recorded in the snapshot's history.
     if (status.lapsed && runsIn(c).includes(t.to)) {
       const deadline = addDays(at, c.days, c.dayKind, cal);
-      next.clocks[c.id] = { ...freshClock(c.id), startedAt: at.toISOString(), deadline: deadline.toISOString(), daysRemaining: c.days, beyondCalendar: beyond(deadline, c, cal) };
+      next.clocks[c.id] = { ...freshClock(c.id), startedAt: at.toISOString(), deadline: deadline.toISOString(), daysRemaining: c.days, beyondCalendar: beyond(deadline, c, cal), restartedAfterLapse: { at: at.toISOString(), missedDeadline: status.deadline } };
       continue;
     }
     if (!status.startedAt || status.lapsed) continue;

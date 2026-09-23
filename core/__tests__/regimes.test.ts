@@ -7,7 +7,7 @@ import type { CaseFacts, CountryConfig } from "../config/schema";
 import { evaluateScope } from "../engine/scope";
 import { buildPathway } from "../engine/pathway";
 import { withDeclaredDefaults } from "../engine/facts";
-import { addDays, applyLapse, eventsFor, extendClock, fire, initialSnapshot, isWorkingDay, tick, TransitionError, workingDaysBetween } from "../engine/stateMachine";
+import { addDays, applyLapse, eventsFor, extendClock, fire, initialSnapshot, isWorkingDay, tick, workingDaysBetween } from "../engine/stateMachine";
 import { InMemoryStore } from "../store/memory";
 import { seed, ADMIN } from "../seed/seed";
 import { PermissionDenied } from "../platform";
@@ -197,10 +197,12 @@ describe("Kenya reg. 11(4)(e): a listed species stops the pathway; an unchecked 
 });
 
 describe("Brazil: the Art. 27 branch is the parties' fact, never the engine's pick", () => {
-  it("with the site not yet established the filing is held and neither branch is offered", () => {
+  it("with the site not yet established neither branch is available, and the panel says which fact it waits on", () => {
     const facts = f(BR, { activity: "research_development" });
-    expect(eventsFor(BR, "preparing", facts).filter((o) => o.transition.event === "complete_form")).toEqual([]);
-    expect(() => fire(BR, initialSnapshot(BR, new Date()), "complete_form", "system", new Date(), undefined, facts)).toThrow(TransitionError);
+    const options = eventsFor(BR, "preparing", facts).filter((o) => o.transition.event === "complete_form");
+    // "Not yet established" is not an answer that rules both branches out: one entry, waiting on the fact.
+    expect(options.map((o) => [o.status, o.missing])).toEqual([["unresolved", ["art27Area"]]]);
+    expect(() => fire(BR, initialSnapshot(BR, new Date()), "complete_form", "system", new Date(), undefined, facts)).toThrow(/depends on a fact nobody has answered yet \(art27Area\)/);
     const reg = buildPathway(BR, facts).stages.find((s) => s.stage.id === "registration")!;
     expect(reg.status).toBe("halted");
   });

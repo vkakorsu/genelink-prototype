@@ -174,6 +174,13 @@ export function lintCountry(cfg: CountryConfig): LintIssue[] {
   for (const m of cfg.manualReview) {
     if (m.reg.state === "established" && m.reg.marker !== "§") err(`manualReview.${m.id}`, "inconsistent marker");
     if (!stageIds.has(m.stageId)) err(`manualReview.${m.id}.stageId`, `unknown stage ${m.stageId}`);
+    // A judgment may answer only an open rule in its own stage: never a settled one, never another stage's.
+    const own = cfg.stages.find((s) => s.id === m.stageId);
+    for (const rid of m.answers) {
+      const r = own?.requirements.find((x) => x.id === rid);
+      if (!r) err(`manualReview.${m.id}.answers`, `${rid} is not a requirement of stage ${m.stageId}`);
+      else if (r.reg.state !== "unknown") err(`manualReview.${m.id}.answers`, `${rid} is not an open question; a judgment cannot answer settled law`);
+    }
     if (m.reg.state !== "unknown") warn(`manualReview.${m.id}`, "a manual-review judgment is by definition unresolved until a human records it; expected state unknown");
   }
 

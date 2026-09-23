@@ -24,7 +24,7 @@ export function AgreementsPanel({ c, agreements, orgs, mySeat, canEdit, canSign,
         <h3 style={{ margin: 0 }}>Agreement development and execution</h3>
         <span className="small mute">Templates, versions, approvals, then a hashed record</span>
       </div>
-      {agreements.length === 0 && <p className="small mute">No draft yet. {canEdit ? "Assemble one from model clauses below." : `Drafting begins with a member or higher seat in a participant organisation; your seat is ${seatPermission ?? "none"}.`} Off-platform negotiation is supported: upload a revised draft as a new version and nothing is lost.</p>}
+      {agreements.length === 0 && <p className="small mute">No draft yet. {canEdit ? "Assemble one from model clauses below." : `Drafting begins with a member or higher seat in a participant organisation; ${seatPermission ? `your seat is ${seatPermission}` : "you hold no seat in one"}.`} Off-platform negotiation is supported: upload a revised draft as a new version and nothing is lost.</p>}
 
       {agreements.map((a) => {
         const latest = a.versions[a.versions.length - 1];
@@ -72,10 +72,10 @@ export function AgreementsPanel({ c, agreements, orgs, mySeat, canEdit, canSign,
             </table>
             <div className="row" style={{ marginTop: 8 }}>
               {canSign && a.status !== "executed" && !myApproved && (
-                <form action={approveHere}><input type="hidden" name="agreementId" value={a.id} /><button className="btn small secondary" type="submit">Approve v{latest.version} for my organisation</button></form>
+                <form action={approveHere}><input type="hidden" name="agreementId" value={a.id} /><input type="hidden" name="version" value={latest.version} /><button className="btn small secondary" type="submit">Approve v{latest.version} for my organisation</button></form>
               )}
               {canSign && a.status === "approved" && !myExecuted && (
-                <form action={executeHere}><input type="hidden" name="agreementId" value={a.id} /><button className="btn small" type="submit" title="Simple electronic signature: an authenticated signatory-level seat records assent to this document hash">Execute (click to sign v{latest.version})</button></form>
+                <form action={executeHere}><input type="hidden" name="agreementId" value={a.id} /><input type="hidden" name="sha256" value={latest.sha256} /><button className="btn small" type="submit" title="Simple electronic signature: an authenticated signatory-level seat records assent to this document hash">Execute (click to sign v{latest.version})</button></form>
               )}
               {canSign && a.status !== "approved" && a.status !== "executed" && (
                 <span className="small mute">Execution unlocks when both organisations have approved v{latest.version}.</span>
@@ -88,8 +88,8 @@ export function AgreementsPanel({ c, agreements, orgs, mySeat, canEdit, canSign,
                   <summary className="small">Revise (on or off platform)</summary>
                   <form action={reviseHere} className="stack">
                     <input type="hidden" name="agreementId" value={a.id} />
-                    <input name="summary" type="text" placeholder="What changed in this version" required />
-                    <textarea name="negotiated" placeholder="Negotiated clause text to add (optional)" />
+                    <input name="summary" type="text" aria-label="What changed in this version" placeholder="What changed in this version" required />
+                    <textarea name="negotiated" aria-label="Negotiated clause text to add (optional)" placeholder="Negotiated clause text to add (optional)" />
                     <label className="row small" style={{ fontWeight: 400 }}><input type="checkbox" name="offPlatform" value="1" style={{ width: "auto" }} /> This revision was negotiated off platform and is being recorded</label>
                     <button className="btn small ghost" type="submit">Record new version</button>
                     <p className="small mute">A new version resets approvals. Approvals attach to a version, not to the agreement.</p>
@@ -97,7 +97,7 @@ export function AgreementsPanel({ c, agreements, orgs, mySeat, canEdit, canSign,
                 </details>
               )}
               {a.status === "executed" && <span className="small soft">Executed versions are immutable. Amendments are recorded as new instrument versions or a new agreement.</span>}
-              {!canSign && a.status !== "executed" && <span className="small mute">Approval and execution require an authorised signatory or administrator seat. Your seat is {seatPermission ?? "none"}.</span>}
+              {!canSign && a.status !== "executed" && <span className="small mute">Approval and execution require an authorised signatory or administrator seat in a participant organisation. {seatPermission ? `Your seat is ${seatPermission}.` : "You hold no seat in one."}</span>}
             </div>
           </div>
         );

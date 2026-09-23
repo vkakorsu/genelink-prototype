@@ -62,6 +62,11 @@ export function InstrumentsPanel({ cfg, c, instruments, canSign, isAdmin, seatPe
               ))}
             </ol>
           )}
+          {inst.pendingAmendment && !FROZEN_STATUSES.has(inst.status) && (
+            <div className="halt-box small" role="status">
+              <strong>{inst.amendmentPolicy === "addendum" ? "An otrosí is required." : "A variation is required."}</strong> The change of intent recorded {fmtTime(inst.pendingAmendment.at)} (&ldquo;{inst.pendingAmendment.description}&rdquo;) is answered under this instrument&apos;s policy by amending it. The platform does not write the amendment: nothing is versioned until the signed text is recorded below.
+            </div>
+          )}
           {inst.amendmentPolicy === "addendum" && <p className="small soft">One contract, many versions (R7). An otrosí appends a version. It never creates an unrelated second record.</p>}
           {inst.amendmentPolicy === "new_application" && <p className="small soft">A change of purpose, locality or quantity requires notification and a new application. This instrument stays intact.</p>}
           {inst.amendmentPolicy === "new_registration" && <p className="small soft">A change of material or objective requires a new cadastro. One registration otherwise supports multiple downstream acts.</p>}
@@ -70,7 +75,7 @@ export function InstrumentsPanel({ cfg, c, instruments, canSign, isAdmin, seatPe
             <div className="row" style={{ marginTop: 8 }}>
               <form action={amendHere} className="stack" style={{ width: "100%" }}>
                 <input type="hidden" name="instrumentId" value={inst.id} />
-                <input name="summary" type="text" aria-label={inst.amendmentPolicy === "addendum" ? "Otrosí summary" : "Describe the modification"} placeholder={inst.amendmentPolicy === "addendum" ? "Otrosí summary" : "Describe the modification"} required />
+                <input name="summary" type="text" aria-label={inst.amendmentPolicy === "addendum" ? "Otrosí summary" : "Describe the modification"} placeholder={inst.amendmentPolicy === "addendum" ? "Otrosí summary" : "Describe the modification"} defaultValue={inst.pendingAmendment ? inst.pendingAmendment.description : undefined} required />
                 {(inst.amendmentPolicy === "addendum" || inst.amendmentPolicy === "variation" || inst.amendmentPolicy === "amendment_path") && (
                   <textarea name="content" aria-label="Signed document text" placeholder="Paste the signed document text so this version carries its hash and can be verified later (recommended)" />
                 )}
@@ -127,8 +132,8 @@ export function InstrumentsPanel({ cfg, c, instruments, canSign, isAdmin, seatPe
                 })}
               </select>
             </div>
-            <input name="fileName" type="text" placeholder="file name (e.g. NEMA-permit-2027-001.pdf)" />
-            <textarea name="content" placeholder="Paste the instrument text. The prototype stores the SHA-256 and the record, not the file. 256 KB limit." required />
+            <input name="fileName" type="text" aria-label="File name of the instrument" placeholder="file name (e.g. NEMA-permit-2027-001.pdf)" />
+            <textarea name="content" aria-label="Instrument text" placeholder="Paste the instrument text. The prototype stores the SHA-256 and the record, not the file. 256 KB limit." required />
             <button className="btn small" type="submit">Record instrument</button>
             <p className="small mute">Recorded, not created: the platform preserves an authoritative record of a document it did not issue.</p>
           </form>

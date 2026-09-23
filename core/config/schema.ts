@@ -366,6 +366,12 @@ export const ManualReview = z.strictObject({
   stageId: z.string(),
   reg: RegValue,
   when: Condition.optional(),
+  /**
+   * Requirements in the same stage whose open question this judgment answers for one case. A rule
+   * with no statutory test is never answered by configuration; the reviewer's recorded judgment is
+   * the answer for that case, and only once it is recorded does the requirement stop halting it.
+   */
+  answers: z.array(z.string()).default([]),
 });
 
 export const LiveLayer = z.strictObject({

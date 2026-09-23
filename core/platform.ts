@@ -1,13 +1,13 @@
 import { nextEntry, verifyChain, type AuditEntry } from "./audit/chain";
 import { makeDisclosure, type Disclosure } from "./audit/disclosure";
 import { type CaseFacts, type CountryConfig, type RegValue } from "./config/schema";
-import { FROZEN_STATUSES, amendInstrument, awaitingInstrument, issueInstruments, sha256 } from "./domain/instruments";
+import { AMENDABLE_POLICIES, FROZEN_STATUSES, amendInstrument, awaitingInstrument, issueInstruments, sha256 } from "./domain/instruments";
 import { canonicalAgreementText, normaliseText } from "./domain/agreements";
 import { fullProjection, publicProjection, searchableText, type FullListing, type PublicListing } from "./domain/listings";
 import type {
   Agreement, AgreementVersion, Case, CaseDocument, DemandSignal, EscalationRecord, Instrument, Listing, ManualReviewRecord, MarketFunction, Membership, Organisation, Permission, Person,
 } from "./domain/types";
-import { factProblems, withDeclaredDefaults } from "./engine/facts";
+import { factProblems, factsFingerprint, withDeclaredDefaults } from "./engine/facts";
 import { attachedDuties, buildPathway, type Pathway } from "./engine/pathway";
 import { evaluateScope } from "./engine/scope";
 import { applyLapse, extendClock, fire, initialSnapshot, isGranted, runsIn, tick } from "./engine/stateMachine";
@@ -295,13 +295,16 @@ export class Platform {
     return this.store.listings.list().map((l) => publicProjection(l, this.store.organisations.get(l.organisationId)!));
   }
 
-  /** Full projection is available only to the owner or to a counterparty after mutual interest. */
+  /**
+   * Full projection is available only to the owner or to a counterparty whose match has opened a case.
+   * Mutual interest held at the verification gate reveals nothing: the reveal is the case opening.
+   */
   listingFor(actor: Actor, listingId: string): PublicListing | FullListing {
     const l = this.must(this.store.listings.get(listingId), "Listing", listingId);
     const org = this.must(this.store.organisations.get(l.organisationId), "Organisation", l.organisationId);
     if ("admin" in actor || "system" in actor) return fullProjection(l, org);
     if (actor.seat.organisationId === l.organisationId) return fullProjection(l, org);
-    if (this.mutualInterest(actor.seat.organisationId, l)) return fullProjection(l, org);
+    if (this.matchOpened(actor.seat.organisationId, l)) return fullProjection(l, org);
     return publicProjection(l, org);
   }
 
@@ -336,6 +339,15 @@ export class Platform {
     this.audit(actor, "interest.reciprocated", { type: "listing", id: listingId }, { counterparty: interestedOrganisationId });
     const c = this.openCaseFromMatch(actor, listing, interestedOrganisationId);
     return { caseId: c.id };
+  }
+
+  /** Both sides have signalled but the case waits on verification. Nothing is revealed yet. */
+  matchWaiting(orgId: string, listing: { id: string; organisationId: string }): boolean {
+    return this.mutualInterest(orgId, listing) && !this.matchOpened(orgId, listing);
+  }
+
+  private matchOpened(orgId: string, listing: { id: string }): boolean {
+    return this.store.cases.list().some((c) => c.listingId === listing.id && c.participants.some((p) => p.organisationId === orgId));
   }
 
   private mutualInterest(orgId: string, listing: { id: string; organisationId: string }): boolean {
@@ -443,7 +455,12 @@ export class Platform {
   }
 
   pathwayFor(c: Case): Pathway {
-    return buildPathway(this.country(c.providerCountry), c.facts);
+    return buildPathway(this.country(c.providerCountry), c.facts, this.decidedReviews(c.id));
+  }
+
+  /** The manual reviews already judged on a case, by review id. The pathway reads these (R5). */
+  decidedReviews(caseId: string): Set<string> {
+    return new Set(this.manualReviewsFor(caseId).filter((r) => r.status === "decided").map((r) => r.reviewId));
   }
 
   dutiesFor(c: Case) {
@@ -454,10 +471,13 @@ export class Platform {
     return this.must(this.store.cases.get(caseId), "Case", caseId);
   }
 
-  updateFacts(actor: Actor, caseId: string, incoming: CaseFacts): Case {
+  updateFacts(actor: Actor, caseId: string, incoming: CaseFacts, seenFingerprint?: string): Case {
     const c = this.caseFor(caseId);
     this.requireParticipant(actor, c);
     this.require(actor, "member");
+    if (seenFingerprint !== undefined && seenFingerprint !== factsFingerprint(c.facts)) {
+      throw new InvalidRequest("The facts on this case were changed by someone else after you opened the page. Nothing was saved, so their change is not undone. Reload, check what they entered, and make your edit again.");
+    }
     const cfg = this.country(c.providerCountry);
     const facts = withDeclaredDefaults(cfg, incoming);
     const problems = factProblems(cfg, facts);
@@ -465,13 +485,17 @@ export class Platform {
     const before = evaluateScope(cfg, c.facts).kind;
     const after = evaluateScope(cfg, facts).kind;
     // Answering the intake questions for the first time is not a change of intent: before a scope
-    // answer exists there is no intent on the record to change.
-    if (before !== after && before !== "undetermined") {
-      throw new InvalidRequest(`That edit changes the scope answer from ${before.replaceAll("_", " ")} to ${after.replaceAll("_", " ")}. A scope change is a declared change of intent with the country's consequence policy on the record. Use the change-of-intent form, not a facts edit.`);
+    // answer exists there is no intent on the record to change. Nor is correcting the intake before
+    // anything has been filed or issued: a change of intent carries the country's consequence (Kenya:
+    // notify NEMA and apply for a new permit), which would put a false statement on the record for an
+    // application that does not exist yet. Once something is filed, crossing scope takes the form.
+    const filed = c.machine.history.some((h) => h.actor === "applicant") || this.instrumentsFor(caseId).length > 0;
+    if (before !== after && before !== "undetermined" && filed) {
+      throw new InvalidRequest(`That edit changes the scope answer from ${before.replaceAll("_", " ")} to ${after.replaceAll("_", " ")} after a filing. A scope change after filing is a declared change of intent with the country's consequence policy on the record. Use the change-of-intent form, not a facts edit.`);
     }
     c.facts = facts;
     this.store.cases.put(c);
-    this.audit(actor, "case.facts_updated", { type: "case", id: caseId }, { facts });
+    this.audit(actor, before !== after ? "case.facts_corrected_before_filing" : "case.facts_updated", { type: "case", id: caseId }, { facts, ...(before !== after ? { scopeBefore: before, scopeAfter: after } : {}) });
     this.reopenStagesTheFactsNowBlock(c);
     this.syncEscalations(actor, c);
     return c;
@@ -483,9 +507,12 @@ export class Platform {
    * is a declaration the organisation stands behind before the regulator, so it takes an
    * authorised signatory: a member prepares facts, a signatory commits to a change in them.
    */
-  changeOfIntent(actor: Actor, caseId: string, incoming: CaseFacts, description: string): Case {
+  changeOfIntent(actor: Actor, caseId: string, incoming: CaseFacts, description: string, seenFingerprint?: string): Case {
     const c = this.caseFor(caseId);
     this.requireParticipant(actor, c);
+    if (seenFingerprint !== undefined && seenFingerprint !== factsFingerprint(c.facts)) {
+      throw new InvalidRequest("The facts on this case were changed by someone else after you opened the page. Nothing was recorded. Reload and declare the change of intent against the facts as they now stand.");
+    }
     if ("seat" in actor && rank[actor.seat.permission] < rank.authorised_signatory) {
       throw new PermissionDenied("A change of intent is a declaration the organisation stands behind: it re-runs scope and applies this country's consequence to the instrument. It needs an authorised signatory or administrator seat. Your seat can edit facts that keep the scope answer, and record work in progress.");
     }
@@ -505,14 +532,19 @@ export class Platform {
     this.store.cases.put(c);
     this.audit(actor, "case.change_of_intent", { type: "case", id: caseId }, { description, policy: cfg.changeOfIntent.policy });
     this.reopenStagesTheFactsNowBlock(c);
-    // Apply to instruments already recorded. An instrument the platform is still awaiting has nothing to version.
+    // Apply to instruments already recorded. An instrument the platform is still awaiting has nothing to amend.
+    // Where the policy is an addendum or variation, the amendment is the parties' and the authority's
+    // document: the platform records that one is required and appends a version only when it is recorded.
+    const coiId = c.changeOfIntent[c.changeOfIntent.length - 1].id;
     for (const inst of this.instrumentsFor(caseId)) {
       if (FROZEN_STATUSES.has(inst.status)) continue;
+      if (AMENDABLE_POLICIES.has(inst.amendmentPolicy)) {
+        this.store.instruments.put({ ...inst, pendingAmendment: { changeOfIntentId: coiId, at, description } });
+        this.audit(actor, "instrument.amendment_required", { type: "instrument", id: inst.id }, { policy: inst.amendmentPolicy, changeOfIntentId: coiId });
+        continue;
+      }
       const out = amendInstrument(inst, `Change of intent: ${description}`, this.now(), "seat" in actor ? actor.seat.id : "system");
-      if (out.kind === "versioned") {
-        this.store.instruments.put(out.instrument);
-        this.audit(actor, "instrument.versioned", { type: "instrument", id: inst.id }, { version: out.version.version, kind: out.version.kind });
-      } else {
+      if (out.kind === "new_instrument_required") {
         this.audit(actor, "instrument.new_required", { type: "instrument", id: inst.id }, { policy: out.policy, reason: out.reason });
       }
     }
@@ -567,13 +599,16 @@ export class Platform {
       if (rec.status !== "open" || live.has(rec.id)) continue;
       const requirementId = rec.id.slice(`esc_${c.id}_`.length).split(":").pop() ?? "";
       const stillUnknownInFile = this.unknownInFile(cfg, rec.stageId, requirementId);
-      const note = stillUnknownInFile
-        ? "No longer raised on this case: the facts entered no longer reach this requirement. The question itself remains open in the configuration."
-        : "No longer raised: the configuration now carries an answer for this requirement. The file records the evidence class and citation.";
-      rec.status = stillUnknownInFile ? "closed" : "answered";
-      rec.answer = { by: "system", at: this.now().toISOString(), note };
+      const byJudgment = pathway.stages.some((s) => s.stage.id === rec.stageId && s.requirements.some((r) => r.id === requirementId && r.answeredByJudgment));
+      const note = byJudgment
+        ? "Answered for this case by the recorded manual-review judgment (R5). No statutory test exists, so the question stays open in the configuration for every other case."
+        : stillUnknownInFile
+          ? "No longer raised on this case: the facts entered no longer reach this requirement. The question itself remains open in the configuration."
+          : "No longer raised: the configuration now carries an answer for this requirement. The file records the evidence class and citation.";
+      rec.status = byJudgment || !stillUnknownInFile ? "answered" : "closed";
+      rec.answer = { by: byJudgment ? "manual-review judgment" : "system", at: this.now().toISOString(), note };
       this.store.escalations.put(rec);
-      this.audit({ system: true }, stillUnknownInFile ? "escalation.closed" : "escalation.answered", { type: "escalation", id: rec.id }, { note });
+      this.audit({ system: true }, rec.status === "answered" ? "escalation.answered" : "escalation.closed", { type: "escalation", id: rec.id }, { note });
     }
     for (const s of pathway.stages) {
       for (const m of s.manualReviews) {
@@ -624,6 +659,8 @@ export class Platform {
     rec.decision = { by: actor.admin.name, at: this.now().toISOString(), outcome: outcome.trim(), reason: reason.trim() };
     this.store.manualReviews.put(rec);
     this.audit(actor, "manual_review.decided", { type: "manual_review", id: recordId }, { outcome: rec.decision.outcome, reason: rec.decision.reason });
+    // The judgment is this case's answer to the open rules it declares; their escalations on this case close.
+    this.syncEscalations(actor, this.caseFor(rec.caseId));
   }
 
   uploadDocument(actor: Actor, caseId: string, requirementId: string, label: string, fileName: string, content: string): CaseDocument {
@@ -849,6 +886,7 @@ export class Platform {
     this.require(actor, "authorised_signatory");
     const cfg = this.country(c.providerCountry);
     const out = cfg.outputs.find((o) => o.id === outputId);
+    if (!outputId) throw new InvalidRequest(`Choose which instrument to record: ${cfg.outputs.map((o) => o.label).join(" or ")}.`);
     if (!out) throw new InvalidRequest(`Unknown output ${outputId} for ${cfg.name}. This regime's outputs are ${cfg.outputs.map((o) => o.id).join(", ")}.`);
     const st = cfg.stateMachine.states[c.machine.state];
     const existing = this.store.instruments.get(`inst_${caseId}_${outputId}`);
@@ -881,8 +919,10 @@ export class Platform {
     if (st?.kind === "terminal" && st.outcome !== "granted") throw new PermissionDenied(`The case has reached "${st.label}". No amendment can be recorded against an instrument of a case that has ended.`);
     const out = amendInstrument(inst, summary.trim(), this.now(), "seat" in actor ? actor.seat.id : "system", doc ? normaliseText(doc) : undefined);
     if (out.kind === "versioned") {
-      this.store.instruments.put(out.instrument);
-      this.audit(actor, "instrument.versioned", { type: "instrument", id: instrumentId }, { version: out.version.version, kind: out.version.kind, summary, sha256: out.version.sha256, hashes: out.version.hashes });
+      // Recording the signed amendment answers the change of intent that required it.
+      const answered = out.instrument.pendingAmendment?.changeOfIntentId;
+      this.store.instruments.put({ ...out.instrument, pendingAmendment: undefined });
+      this.audit(actor, "instrument.versioned", { type: "instrument", id: instrumentId }, { version: out.version.version, kind: out.version.kind, summary, sha256: out.version.sha256, hashes: out.version.hashes, ...(answered ? { answersChangeOfIntent: answered } : {}) });
     } else {
       this.audit(actor, "instrument.new_required", { type: "instrument", id: instrumentId }, { policy: out.policy, reason: out.reason });
     }
@@ -956,12 +996,16 @@ export class Platform {
     return a;
   }
 
-  approveAgreement(actor: Actor, caseId: string, agreementId: string): Agreement {
+  approveAgreement(actor: Actor, caseId: string, agreementId: string, seenVersion?: number): Agreement {
     if (!("seat" in actor)) throw new PermissionDenied("Only a seat can approve");
     const { a, c } = this.agreementFor(actor, caseId, agreementId);
     this.require(actor, "authorised_signatory");
     if (a.status === "executed" || a.status === "recorded") throw new PermissionDenied("This agreement is already executed");
     const latest = a.versions[a.versions.length - 1];
+    // An approval is of the text the signatory read. A version recorded since the page was opened is not it.
+    if (seenVersion !== undefined && seenVersion !== latest.version) {
+      throw new InvalidRequest(`You were approving v${seenVersion}, but v${latest.version} has been recorded since (${latest.summary}). Nothing was approved. Reload and read v${latest.version} before approving it.`);
+    }
     if (a.approvals.some((ap) => ap.organisationId === actor.seat.organisationId && ap.versionNumber === latest.version)) return a;
     a.approvals.push({ seatId: actor.seat.id, organisationId: actor.seat.organisationId, at: this.now().toISOString(), versionNumber: latest.version });
     const parties = c.participants.filter((p) => p.role === "demand" || p.role === "supply").map((p) => p.organisationId);
@@ -972,12 +1016,16 @@ export class Platform {
   }
 
   /** Simple electronic signature: an authenticated authorised signatory records assent to a specific document hash. */
-  executeAgreement(actor: Actor, caseId: string, agreementId: string): Agreement {
+  executeAgreement(actor: Actor, caseId: string, agreementId: string, seenSha256?: string): Agreement {
     if (!("seat" in actor)) throw new PermissionDenied("Only a seat can execute");
     const { a, c } = this.agreementFor(actor, caseId, agreementId);
     this.require(actor, "authorised_signatory");
-    if (a.status !== "approved" && a.status !== "executed") throw new PermissionDenied("Both organisations must approve the current version before execution");
     const latest = a.versions[a.versions.length - 1];
+    // A signature is assent to one hash: the one on the signatory's screen.
+    if (seenSha256 !== undefined && seenSha256 !== latest.sha256) {
+      throw new InvalidRequest(`The text you were signing is no longer the current version: v${latest.version} has been recorded since (${latest.summary}). Nothing was signed. Reload and read it first.`);
+    }
+    if (a.status !== "approved" && a.status !== "executed") throw new PermissionDenied("Both organisations must approve the current version before execution");
     if (!a.approvals.some((ap) => ap.organisationId === actor.seat.organisationId && ap.versionNumber === latest.version)) {
       throw new PermissionDenied(`Your organisation has not approved v${latest.version}. Execution follows approval of the same version by both organisations.`);
     }
@@ -1022,6 +1070,7 @@ export class Platform {
     this.requireParticipant(actor, c);
     this.require(actor, "member"); // a request is written onto the case; a viewer seat reads it
     if (kind !== "technical" && kind !== "expert") throw new InvalidRequest(`Unknown support kind ${kind}`);
+    if (!note.trim()) throw new InvalidRequest("Say what you need help with. The note is what the person answering reads.");
     const routedTo = kind === "expert"
       ? "Recorded on the case for the parties to take to their own adviser, or to a partner-provided adviser. Not a GENE-LINK review queue, and no adviser is attached to the case by this request."
       : "GENE-LINK technical support";
