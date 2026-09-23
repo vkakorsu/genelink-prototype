@@ -26,6 +26,31 @@ export function StageCard({
   const judgeHere = decideManualReview.bind(null, c.id);
   const uploadHere = uploadDocument.bind(null, c.id);
   const markHere = markStage.bind(null, c.id);
+  const missingDocs = stage.documents.filter((d) => !documents.some((x) => x.requirementId === d.id)).length;
+  const owners = [...new Set(stage.escalations.filter((e) => e.kind !== "unanswered_fact").map((e) => e.owner))];
+  const reviewPending = stage.manualReviews.some((m) => manualReviews.find((r) => r.reviewId === m.id)?.status !== "decided");
+  const waitingOn = [
+    ...(owners.length ? [`an open legal question (${owners.join("; ")})`] : []),
+    ...(reviewPending ? ["the reviewer's recorded judgment"] : []),
+  ];
+  const factsToAnswer = stage.escalations.filter((e) => e.kind === "unanswered_fact").length;
+  // One plain sentence before the legal detail: what, if anything, this user can do about the stage now.
+  const now = stage.status === "stopped"
+    ? "This step cannot go ahead on the facts entered. Check them with your adviser: if they are right, this route is closed for the project as described."
+    : stage.status === "informational"
+      ? "Nothing to do now. This is recorded so you know what attaches after the agreement."
+      : stage.status === "halted"
+        ? [
+            factsToAnswer ? `Answer ${factsToAnswer === 1 ? "one question" : `${factsToAnswer} questions`} on the intake form and this step restarts.` : "",
+            waitingOn.length ? `Waiting on ${waitingOn.join(" and ")}. Nothing on this page unblocks it; you can keep preparing other steps meanwhile.` : "",
+          ].filter(Boolean).join(" ")
+        : progress === "complete"
+          ? "Done."
+          : upstreamHalted
+            ? `Open to prepare: gather what it needs, listed below${missingDocs ? `, including ${missingDocs} missing document${missingDocs === 1 ? "" : "s"}` : ""}. An earlier step is waiting, so this one cannot be marked complete yet.`
+            : completionWaitsOn
+              ? `Open: gather what it needs, listed below${missingDocs ? `, including ${missingDocs} missing document${missingDocs === 1 ? "" : "s"}` : ""}. It is complete when the record says so: ${completionWaitsOn}.`
+              : `Open: gather what it needs, listed below${missingDocs ? `, including ${missingDocs} missing document${missingDocs === 1 ? "" : "s"}` : ""}, then an authorised signatory marks it complete.`;
   return (
     <div className={`stage ${cls}`} id={`stage-${stage.stage.id}`}>
       <div className="num" aria-hidden="true">{stage.index + 1}</div>
@@ -39,6 +64,7 @@ export function StageCard({
           {stage.status === "active" && <span className={`status-pill ${progress === "complete" ? "complete" : progress === "in_progress" ? "in_progress" : "active"}`}>{progress.replace("_", " ")}</span>}
         </div>
         <div className="stage-body">
+          <p className="now" style={{ margin: "0 0 8px" }}><strong>What this means now:</strong> {now}</p>
           <dl className="trig">
             <dt>Trig</dt><dd>{stage.stage.trig}</dd>
             <dt>Who</dt><dd>{stage.stage.who}</dd>
@@ -106,7 +132,7 @@ export function StageCard({
           })}
 
           {stage.requirements.length > 0 && (
-            <details className="fold" open={stage.status === "halted" || stage.requirements.length <= 3}>
+            <details className="fold" open={stage.status === "halted" || stage.status === "stopped"}>
               <summary>{stage.requirements.length} requirement statement{stage.requirements.length === 1 ? "" : "s"}, each with its evidence class</summary>
               {stage.requirements.map((r) => <RegBlock key={r.id} reg={r.reg} text={r.text} compact answered={r.answeredByJudgment} />)}
             </details>

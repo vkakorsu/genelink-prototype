@@ -65,6 +65,11 @@ const ROUTES = [
   { path: "/organisations/org_nordlicht", seat: "seat_ines_nordlicht" },
   { path: "/cases", seat: "seat_tobias_nordlicht" },
   { path: "/cases", seat: "seat_amara_asheokoro" },
+  // The Path B community custodian: the user the platform most needs to work for.
+  { path: "/organisations/org_olkalou", seat: "seat_nyokabi_olkalou" },
+  { path: "/listings/lst_need_preservative", seat: "seat_nyokabi_olkalou" },
+  { path: "/cases", seat: "seat_nyokabi_olkalou" },
+  { path: "/declare", seat: "seat_nyokabi_olkalou" },
   { path: "/admin", seat: "admin" },
   { path: "/admin/audit", seat: "admin" },
   { path: "/admin/config/KE", seat: "admin" },
