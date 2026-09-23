@@ -68,3 +68,18 @@
   workingPosition: Modelled as an agreement carrying a suspensive clause (it takes effect only when the access contract takes effect). The access contract remains the instrument; the nullity cascade on its termination is MVP scope, recorded rather than automated.
   decidedBy: Landscape Alliance at the Discovery Workshop
   affects: Colombia accessory and support-institution contracts
+- id: authority_acts_recorder
+  source: Appendix A, human review boundary; surfaced by running the prototype as its users would
+  question: >-
+    Who records the authority's acts on a case (NEMA's acknowledgement or grant, MinAmbiente's admission or
+    acceptance, CGen's verification), given that every clock, halt and instrument follows from them.
+  workingPosition: >-
+    In the prototype an administrator records each authority act on the authority's behalf, with a note the
+    parties see, and a party's signatory records only the applicant's own acts. At real volume that makes the
+    administrator a step every case waits on, which sits badly with Appendix A's rule that no GENE-LINK review is
+    in the critical path. The proposal for the MVP is that a party's authorised signatory records the authority's
+    act with the authority's document attached as evidence, marked as party-recorded in the audit chain, and an
+    administrator reviews after the fact rather than before. Where the authority's act ends in an instrument, the
+    existing rule stands, and an instrument is held only when its document is recorded.
+  decidedBy: Landscape Alliance at the Discovery Workshop
+  affects: The state-machine actor model, administrator staffing, the audit record of who recorded each authority act
