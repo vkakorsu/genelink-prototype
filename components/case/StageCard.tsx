@@ -43,7 +43,7 @@ export function StageCard({
       : stage.status === "halted"
         ? [
             factsToAnswer ? `Answer ${factsToAnswer === 1 ? "one question" : `${factsToAnswer} questions`} on the intake form and this step restarts.` : "",
-            waitingOn.length ? `Waiting on ${waitingOn.join(" and ")}. Nothing on this page unblocks it; you can keep preparing other steps meanwhile.` : "",
+            waitingOn.length ? `Waiting on ${waitingOn.join(" and ")}. Nothing on this page unblocks it. You can keep preparing other steps meanwhile.` : "",
           ].filter(Boolean).join(" ")
         : progress === "complete"
           ? "Done."
@@ -101,7 +101,7 @@ export function StageCard({
                   Routed to <strong>{e.owner}</strong>{e.ownerName ? ` (${e.ownerName})` : " · name pending Landscape Alliance"}.
                   {rec && <> Raised {fmtTime(rec.raisedAt)}. Status: {rec.status}.</>}
                   {" "}The answer is a configuration change with legal review, never an in-case override. Silently applying either possible answer would be a defect.
-                  {" "}Next step: the named owner answers; this stage resumes when the configuration records it. Nothing else unblocks it.
+                  {" "}Next step: the named owner answers, and this stage resumes when the configuration records it. Nothing else unblocks it.
                 </div>
               </div>
             );
@@ -125,7 +125,7 @@ export function StageCard({
                       <button className="btn small" type="submit">Record judgment (once, immutable)</button>
                     </form>
                   ) : (
-                    <div className="small mute" style={{ marginTop: 6 }}>Pending a human judgment with a recorded reason. It is recorded by the reviewer seat (the administrator in this prototype; which named seat holds it is an open decision), never by a party to the case. A party recording it would be self-declaration under another name.</div>
+                    <div className="small mute" style={{ marginTop: 6 }}>Pending a human judgment with a recorded reason. It is recorded by the reviewer seat (the administrator in this prototype, and which named seat holds it is an open decision), never by a party to the case. A party recording it would be self-declaration under another name.</div>
                   )
                 )}
               </div>
