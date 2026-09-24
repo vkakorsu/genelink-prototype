@@ -337,6 +337,8 @@ table.data.compact td, table.data.compact th { padding: 5px 8px; }
 .notice.pending { background: var(--ev-inferred-bg); border-color: #efd9a6; color: var(--ev-inferred); }
 .notice.halt { background: var(--ev-unknown-bg); border-color: #e9b1a6; color: var(--ev-unknown); }
 .notice.ok { background: var(--forest-soft); border-color: #c9dccf; color: var(--forest-deep); }
+/* Stacked notices read as separate statements, not one box. */
+.notice + .notice { margin-top: 14px; }
 .info-not-advice { font-size: var(--step--1); color: var(--ink-soft); border-top: 1px solid var(--rule); padding-top: 8px; margin-top: 12px; }
 
 .kv { display: grid; grid-template-columns: 160px 1fr; gap: 4px 14px; font-size: var(--step--1); }

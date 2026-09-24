@@ -4,7 +4,7 @@ A working implementation of the GENE-LINK partnership journey, built for the Lan
 
 Live demo: [genelink-prototype.onrender.com](https://genelink-prototype.onrender.com) (Render Starter instance, Frankfurt, always on, fictional parties, state resets on redeploy). The demo is a single shared instance — if another evaluator's session has moved things, the administrator persona's "Reset demo data" restores the seed.
 
-Video walkthrough: [six minutes, unedited](https://www.youtube.com/watch?v=uH3tDyWwJwk), one real-time session on the live site, from registration to signed agreement and audit trail, then the seeded Colombia, Kenya and Brazil cases.
+**Video walkthrough: [watch the six-minute recording](https://www.youtube.com/watch?v=uH3tDyWwJwk)**, one real-time session on the live site, from registration to signed agreement and audit trail, then the seeded Colombia, Kenya and Brazil cases.
 
 This is not a mock-up. It is the seed of the MVP codebase: the stack the proposal recommends for production, structured as the production system will be structured. On contract award it becomes the MVP.
 
