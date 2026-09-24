@@ -60,7 +60,7 @@ export function StageCard({
           <span className={`subject ${stage.stage.subject}`}>{SUBJECT_LABEL[stage.stage.subject]}</span>
           <h3>{stage.stage.title}</h3>
           {stage.status === "stopped" && <span className="status-pill halted">Stopped · a prohibition applies on these facts</span>}
-          {stage.status === "halted" && <span className="status-pill halted">{stage.escalations.every((e) => e.kind === "unanswered_fact") && !stage.manualReviews.length ? "Halted · waiting on a fact" : "Halted · routed to a named person"}</span>}
+          {stage.status === "halted" && <span className="status-pill halted">{stage.escalations.every((e) => e.kind === "unanswered_fact") && !stage.manualReviews.length ? "Halted · waiting on a fact" : "Halted · routed to its owner"}</span>}
           {stage.status === "informational" && <span className="status-pill informational">Phase two · recorded, not run</span>}
           {stage.status === "active" && <span className={`status-pill ${progress === "complete" ? "complete" : progress === "in_progress" ? "in_progress" : "active"}`}>{progressLabel(progress)}</span>}
         </div>

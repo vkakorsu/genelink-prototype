@@ -29,7 +29,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         <p className="lede">
           GENE-LINK carries two organisations from first contact to a recorded agreement while showing, for every requirement,
           whether it is established in law, GENE-LINK&apos;s own reading, or a question nobody has answered yet. Where a step depends
-          on an open question, the platform stops and routes it to a named person. It never guesses.
+          on an open question, the platform stops and routes it to its owner. It never guesses.
         </p>
         <form action="/explore" method="get" className="search-bar" role="search" style={{ marginTop: 18 }}>
           <label htmlFor="q" className="sr-only">Search by function or species</label>

@@ -16,7 +16,7 @@ export default async function CasesPage() {
       <PageHead
         eyebrow="Deal and partnership pipeline"
         title={session.kind === "admin" ? "All cases" : `Cases for ${session.actor.organisation.name}`}
-        lede="A case opens when both organisations signal interest. Each case follows the provider country's own sequence, generated from configuration. Halted means a step depends on an unresolved requirement and has been routed to a named person."
+        lede="A case opens when both organisations signal interest. Each case follows the provider country's own sequence, generated from configuration. Halted means a step depends on an unresolved requirement and has been routed to its owner."
       />
       {cases.length === 0 && <Empty title="No cases yet"><p>Signal interest in a listing and wait for the owner to signal back, or, as a listing owner, signal back on an interested organisation.</p><Link className="btn" href="/explore">Explore opportunities</Link></Empty>}
       <table className="data">
